@@ -1,0 +1,51 @@
+/* Full-viewport layout */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: #1e1e2e;
+  color: #cdd6f4;
+}
+
+/* Compact top bar */
+.app-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+}
+
+.app-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #cdd6f4;
+  font-family: monospace;
+  letter-spacing: 0.5px;
+}
+
+.app-subtitle {
+  font-size: 12px;
+  color: #6c7086;
+  font-family: monospace;
+}
+
+/* Main area: sidebar + canvas */
+.workspace {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Canvas fills remaining space, centres the canvas element */
+.canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1e1e2e;
+  overflow: hidden;
+}
