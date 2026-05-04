@@ -14,4 +14,8 @@ A chronological log of all prompts given to Claude in this project.
 6. **Point K not drawn** — After translator fix, K still not drawn. Root cause: `PGA.Mul` unreliable for sandwich product. Fixed by implementing analytical sandwich product directly in `motorApply` (both translator and rotor cases).
 7. **Rotation from point** — Asked to support `M = exp(A, s)` where A is a PGA point to create a rotation motor. Implemented: extracts (px, py) from point, builds motor `cos(s) + sin(s)*(e12 - py·e01 + px·e02)`. `K = M >>> B` then rotates B around A by angle 2s.
 
+## 2026-05-05
+
+8. **Dualization + general multivectors** — Added `!A` (dual of named object), `!(mv_expr)` (dual of inline literal), and bare multivector expressions like `5e02 - 1e01` or `e1 + e2 + 5e0`. Implemented: `parseMVExpr` tokenizer in `parseExpression.js`, `multivector` and `dual` node types in `nodeTypes.js`, extended `lineBaseAndDir` in `pga.js` to handle grade-1 elements (so duals of points render as lines), and unified the Canvas else-branch to auto-detect point vs line for all node types.
+
 ---

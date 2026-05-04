@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { toEuclidean, lineBaseAndDir } from './pga.js';
+import { toEuclidean, toEuclidean2D, lineBaseAndDir } from './pga.js';
 
 const W = 800, H = 600;
 const INITIAL_VP = { scale: 1, offsetX: W / 2, offsetY: H / 2 };
@@ -372,17 +372,12 @@ export default function Canvas() {
       } else if (node.type === 'vector') {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         drawVector(ctx, val.vx, val.vy, pos.x, pos.y, node.label, color, vp, hovered, pos.linked);
-      } else if (node.type === 'motorApply') {
-        // Result type depends on what was transformed — detect from value
-        const eu = toEuclidean(val);
-        if (eu) {
-          drawPoint(ctx, eu.x, eu.y, node.label, color, vp, hovered);
-        } else if (lineBaseAndDir(val)) {
-          drawLine(ctx, val, node.label, color, vp);
-        }
       } else {
-        const eu = toEuclidean(val);
+        // Auto-detect geometry. For multivector/dual nodes also try grade-2 2D-PGA points.
+        const eu = toEuclidean(val) ??
+          ((node.type === 'multivector' || node.type === 'dual') ? toEuclidean2D(val) : null);
         if (eu) drawPoint(ctx, eu.x, eu.y, node.label, color, vp, hovered);
+        else if (lineBaseAndDir(val)) drawLine(ctx, val, node.label, color, vp);
       }
     }
   });

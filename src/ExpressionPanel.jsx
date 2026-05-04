@@ -1,17 +1,19 @@
 import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { parseExpression } from './graph/parseExpression.js';
-import { toEuclidean, lineBaseAndDir } from './pga.js';
+import { toEuclidean, toEuclidean2D, lineBaseAndDir } from './pga.js';
 import './ExpressionPanel.css';
 
 const TYPE_COLOR = {
-  scalar:     '#a6e3a1',
-  freePoint:  '#89b4fa',
-  vector:     '#f9e2af',
-  motorExp:   '#74c7ec',
-  motorApply: '#94e2d5',
-  joinLine:   '#cba6f7',
-  meetPoint:  '#fab387',
+  scalar:      '#a6e3a1',
+  freePoint:   '#89b4fa',
+  vector:      '#f9e2af',
+  motorExp:    '#74c7ec',
+  motorApply:  '#94e2d5',
+  joinLine:    '#cba6f7',
+  meetPoint:   '#fab387',
+  multivector: '#f38ba8',
+  dual:        '#f38ba8',
 };
 
 function resolveColor(item) {
@@ -28,14 +30,12 @@ function getDisplayValue(text, values) {
   if (node.type === 'joinLine')  return 'Line';
   if (node.type === 'motorExp')  return 'Motor';
   if (node.type === 'vector')    return `(${val.vx.toFixed(1)}, ${val.vy.toFixed(1)})`;
-  if (node.type === 'motorApply') {
-    const eu = toEuclidean(val);
-    if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
-    if (lineBaseAndDir(val)) return 'Line';
-    return '—';
-  }
-  const eu = toEuclidean(val);
-  return eu ? `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})` : 'ideal point';
+  const eu = toEuclidean(val) ??
+    ((node.type === 'multivector' || node.type === 'dual') ? toEuclidean2D(val) : null);
+  if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
+  if (lineBaseAndDir(val)) return 'Line';
+  if (node.type === 'motorApply' || node.type === 'multivector' || node.type === 'dual') return '—';
+  return 'ideal point';
 }
 
 // ── Interval helpers (scalars) ────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { PGA, point2D, idealPoint, makePlane, toEuclidean, lineBaseAndDir } from '../pga.js';
+import { PGA, point2D, idealPoint, makePlane, toEuclidean, lineBaseAndDir, dualOp } from '../pga.js';
 import { evalExpr } from './evalExpr.js';
 
 // Convert a value to a PGA grade-3 element.
@@ -160,5 +160,25 @@ export const NODE_TYPES = {
   pointOnLine: {
     label: 'Point on Line',
     compute: ([L], { t }) => pointOnLine(L, t),
+  },
+
+  // Literal multivector: build a PGA element from a 16-element component array.
+  // params.dual: optionally apply the Poincaré dual after construction.
+  multivector: {
+    label: 'Multivector',
+    compute: (_, { components, dual }) => {
+      const mv = new PGA(16);
+      for (let i = 0; i < 16; i++) mv[i] = components[i] || 0;
+      return dual ? dualOp(mv) : mv;
+    },
+  },
+
+  // 2D PGA dual of a dependent element (!A).
+  dual: {
+    label: 'Dual',
+    compute: ([val]) => {
+      if (!val || !val.length || val.length < 16) return null;
+      return dualOp(val);
+    },
   },
 };
