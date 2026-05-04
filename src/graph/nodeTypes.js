@@ -73,16 +73,34 @@ export const NODE_TYPES = {
       const s = evalExpr(scalarExpr, scalars);
       if (isNaN(s)) return null;
 
-      const L = new PGA(16);
       if ('vx' in geomVal) {
-        // Vector → ideal line (translation direction)
-        L[5] = -geomVal.vx;  // e01
-        L[6] = -geomVal.vy;  // e02
-      } else {
-        // PGA line/bivector — use directly (gives rotor)
-        for (let i = 0; i < 16; i++) L[i] = geomVal[i] || 0;
+        // Vector → translator. exp(L*s) = 1 + L*s exactly (L is nilpotent: L²=0).
+        // PGA.Exp would give NaN here because sin(|L|)/|L| = 0/0 for ideal bivectors.
+        const T = new PGA(16);
+        T[0] = 1;
+        T[5] = -geomVal.vx * s;  // e01
+        T[6] = -geomVal.vy * s;  // e02
+        return T;
       }
 
+      if (Math.abs(geomVal[14]) > 1e-10) {
+        // PGA grade-3 point → rotation around that point.
+        // Generator bivector: B = e12 - py·e01 + px·e02  (unit: B²=-1)
+        // Motor: exp(s·B) = cos(s) + sin(s)·B
+        const w  = geomVal[14];
+        const px = -geomVal[13] / w;   // x = -p[13]/w
+        const py =  geomVal[12] / w;   // y =  p[12]/w
+        const M  = new PGA(16);
+        M[0] =  Math.cos(s);
+        M[5] = -py * Math.sin(s);  // e01
+        M[6] =  px * Math.sin(s);  // e02
+        M[8] =  Math.sin(s);       // e12
+        return M;
+      }
+
+      // PGA line/bivector — rotor/screwmotor via PGA.Exp
+      const L = new PGA(16);
+      for (let i = 0; i < 16; i++) L[i] = geomVal[i] || 0;
       const Ls = new PGA(16);
       for (let i = 0; i < 16; i++) Ls[i] = L[i] * s;
       return PGA.Exp(Ls);
@@ -90,12 +108,44 @@ export const NODE_TYPES = {
   },
 
   // A >>> B: sandwich product T * B * ~T (rigid body transformation)
+  // Supports: translator (from vector), rotor (from point). Operates on grade-3 points.
   motorApply: {
     label: 'Transform',
     compute: ([T, P]) => {
       if (!T || !P) return null;
       const pgaP = (P && 'vx' in P) ? idealPoint(P.vx, P.vy) : P;
-      return PGA.Mul(PGA.Mul(T, pgaP), PGA.Rev(T));
+      const w = pgaP[14];
+      if (Math.abs(w) < 1e-10) return null;  // ideal point not supported
+
+      const sin_s = T[8];  // e12 component — zero for translators, sin(s) for rotors
+
+      if (Math.abs(sin_s) < 1e-10) {
+        // Translator: T = 1 + a·e01 + b·e02
+        // T * P * ~T: result[12] = P[12] - 2·T[6], result[13] = P[13] + 2·T[5]
+        const result = new PGA(16);
+        result[12] = pgaP[12] - 2 * T[6];
+        result[13] = pgaP[13] + 2 * T[5];
+        result[14] = w;
+        return result;
+      }
+
+      // Rotor: M = cos(s) + sin(s)·(e12 - py·e01 + px·e02)
+      // Rotation center: px = M[6]/sin(s), py = -M[5]/sin(s)
+      // Rotation angle: 2s  (with cos(2s) = cos²s - sin²s, sin(2s) = 2·cos·sin)
+      const cos_s  = T[0];
+      const px = T[6] / sin_s;
+      const py = -T[5] / sin_s;
+      const cos_2s = cos_s * cos_s - sin_s * sin_s;
+      const sin_2s = 2 * cos_s * sin_s;
+      const x = -pgaP[13] / w;
+      const y =  pgaP[12] / w;
+      const xp = px + cos_2s * (x - px) + sin_2s * (y - py);
+      const yp = py - sin_2s * (x - px) + cos_2s * (y - py);
+      const result = new PGA(16);
+      result[12] = yp * w;
+      result[13] = -xp * w;
+      result[14] = w;
+      return result;
     },
   },
 
