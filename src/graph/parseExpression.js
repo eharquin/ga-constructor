@@ -200,6 +200,16 @@ export function parseExpression(text) {
   // mv_expr — literal multivector (bare or parenthesised)
   const mvComponents = parseMVExpr(expr);
   if (mvComponents) {
+    // Pure ideal direction (only e01/e02, no e12, no grade-1) → vector
+    const isIdealDir =
+      mvComponents.every((v, i) => i === 4 || i === 5 || Math.abs(v) < 1e-10) &&
+      (Math.abs(mvComponents[4]) > 1e-10 || Math.abs(mvComponents[5]) > 1e-10);
+    if (isIdealDir) {
+      // Ideal direction (vx,vy) ↔ vy·e01 - vx·e02, so vx = -(e02 coeff), vy = e01 coeff
+      const vx = -mvComponents[5];
+      const vy =  mvComponents[4];
+      return { id: label, label, type: 'vector', deps: [], params: { xExpr: String(vx), yExpr: String(vy), deps: [] } };
+    }
     return { id: label, label, type: 'multivector', deps: [], params: { components: mvComponents } };
   }
 
