@@ -12,6 +12,7 @@ const TYPE_COLOR = {
   motorApply: '#94e2d5',
   joinLine:   '#cba6f7',
   meetPoint:  '#fab387',
+  mvExpr:     '#b4befe',
 };
 
 const INITIAL_ITEMS = [

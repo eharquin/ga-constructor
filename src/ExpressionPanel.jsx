@@ -14,6 +14,7 @@ const TYPE_COLOR = {
   meetPoint:   '#fab387',
   multivector: '#f38ba8',
   dual:        '#f38ba8',
+  mvExpr:      '#b4befe',
 };
 
 function resolveColor(item) {
@@ -30,6 +31,13 @@ function getDisplayValue(text, values) {
   if (node.type === 'joinLine')  return 'Line';
   if (node.type === 'motorExp')  return 'Motor';
   if (node.type === 'vector')    return `(${val.vx.toFixed(1)}, ${val.vy.toFixed(1)})`;
+  if (node.type === 'mvExpr') {
+    if (typeof val === 'number') return val.toFixed(3);
+    const eu = toEuclidean(val);
+    if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
+    if (lineBaseAndDir(val)) return 'Line';
+    return '—';
+  }
   const eu = toEuclidean(val);
   if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
   if (lineBaseAndDir(val)) return 'Line';
@@ -144,7 +152,11 @@ export default function ExpressionPanel() {
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = isVector ? (item.drawPos ?? null) : null;
-          const missingDeps = [...new Set((node?.deps ?? []).filter((d) => !nodes[d]))];
+          // Banner only for forms where creating scalars makes sense
+          const wantsSuggest = node?.type === 'freePoint' || node?.type === 'vector' || node?.type === 'multivector';
+          const missingDeps = wantsSuggest
+            ? [...new Set((node.deps ?? []).filter((d) => !nodes[d]))]
+            : [];
 
           return (
             <div key={item.id} className="expr-entry">

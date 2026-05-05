@@ -1,5 +1,6 @@
 import { PGA, point2D, idealPoint, toEuclidean, lineBaseAndDir, dualOp } from '../pga.js';
 import { evalExpr } from './evalExpr.js';
+import { evalMVArith } from './evalMVArith.js';
 
 
 // Convert a value to a PGA grade-3 element.
@@ -177,6 +178,16 @@ export const NODE_TYPES = {
         }
       }
       return dual ? dualOp(mv) : mv;
+    },
+  },
+
+  // General multivector arithmetic expression: A + B, 2*A, A*B, (A+B)/2, etc.
+  mvExpr: {
+    label: 'MV Expression',
+    compute: (depValues, { exprStr, deps: paramDeps }) => {
+      if (!paramDeps) return null;
+      const env = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
+      return evalMVArith(exprStr, env);
     },
   },
 

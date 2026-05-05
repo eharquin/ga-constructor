@@ -52,7 +52,7 @@ export const toEuclidean = (p) => {
 // For a grade-1 line L: direction (ux,uy) and a canonical base point (bx,by).
 // Line: c·e0 + a·e1 + b·e2  →  equation  a·x + b·y + c = 0
 export const lineBaseAndDir = (L) => {
-  if (!L || L.length < 8) return null;
+  if (!L || typeof L !== 'object' || typeof L.length !== 'number' || L.length < 8) return null;
   const a = L[2], b = L[3], c = L[1];   // e1, e2, e0 coefficients
   const len = Math.sqrt(a * a + b * b);
   if (len < 1e-10) return null;

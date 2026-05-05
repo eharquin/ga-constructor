@@ -15,6 +15,7 @@
 // builtins (sin, cos, PI …) — anything accepted by evalExpr.
 
 import { extractVarNames } from './evalExpr.js';
+import { extractMVDeps } from './evalMVArith.js';
 
 // ─── Multivector expression parser ────────────────────────────────────────────
 
@@ -236,6 +237,17 @@ export function parseExpression(text) {
       id: label, label, type: 'multivector',
       deps: mvResult.deps,
       params: { components: mvResult.components, coeffExprs: mvResult.coeffExprs, deps: mvResult.deps },
+    };
+  }
+
+  // General multivector arithmetic expression: A + B, 2*A, A*B, (A+B)/2, etc.
+  // Basis blades (e01, e12, …) are built-in; everything else becomes a dep.
+  const mvDeps = extractMVDeps(expr);
+  if (mvDeps !== null && mvDeps.length > 0) {
+    return {
+      id: label, label, type: 'mvExpr',
+      deps: mvDeps,
+      params: { exprStr: expr, deps: mvDeps },
     };
   }
 
