@@ -16,13 +16,25 @@ const TYPE_COLOR = {
 };
 
 const INITIAL_ITEMS = [
-  { id: 'expr_0', text: 'A = point(-150, 100)', color: null, anim: null, drawPos: null },
-  { id: 'expr_1', text: 'B = point(150, -100)', color: null, anim: null, drawPos: null },
-  { id: 'expr_2', text: 'L1 = A & B',           color: null, anim: null, drawPos: null },
-  { id: 'expr_3', text: 'C = point(-150, -80)', color: null, anim: null, drawPos: null },
-  { id: 'expr_4', text: 'D = point(150, 80)',   color: null, anim: null, drawPos: null },
-  { id: 'expr_5', text: 'L2 = C & D',           color: null, anim: null, drawPos: null },
-  { id: 'expr_6', text: 'M = L1 ^ L2',          color: null, anim: null, drawPos: null },
+  // Free points — drag them around
+  { id: 'expr_0',  text: 'A = point(-180, 80)',   color: null, anim: null, drawPos: null },
+  { id: 'expr_1',  text: 'B = point(160, -100)',  color: null, anim: null, drawPos: null },
+  { id: 'expr_2',  text: 'C = point(-80, -140)',  color: null, anim: null, drawPos: null },
+  { id: 'expr_3',  text: 'D = point(180, 100)',   color: null, anim: null, drawPos: null },
+  // Join (&): line through two points
+  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null },
+  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null },
+  // Meet (^): intersection point of two lines
+  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null },
+  // Multivector arithmetic: midpoint of A and B
+  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null },
+  // Scalar — click ▶ to animate
+  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null },
+  // Motor: rotation around X by angle t
+  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null },
+  // Apply motor: A and B rotated around X
+  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null },
+  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null },
 ];
 
 function reducer(items, action) {
@@ -63,7 +75,7 @@ function reducer(items, action) {
 
 export function useGraph() {
   const [items, dispatch] = useReducer(reducer, INITIAL_ITEMS);
-  const nextId = useRef(INITIAL_ITEMS.length);
+  const nextId = useRef(12);
 
   // Animation state — kept separate from items so value updates don't re-trigger the effect
   const [playingIds, setPlayingIds] = useState(new Set());
