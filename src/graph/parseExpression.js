@@ -1,14 +1,15 @@
 // Pure expression parser. Returns a node definition or null.
 //
 // Supported forms:
-//   NAME = 10                 → scalar (bare number literal)
-//   NAME = point(xExpr, yExpr)→ freePoint
-//   NAME = vector(xExpr, yExpr)→ vector
-//   NAME = A & B              → joinLine  (& = Vee / regressive product)
-//   NAME = A ^ B              → meetPoint (^ = Wedge / outer product)
-//   NAME = !A                 → dual      (Poincaré dual of named object)
-//   NAME = 5e02 - 1e01        → multivector (linear combination of basis blades)
-//   NAME = !(2*e1 + e0)       → multivector with dual applied
+//   NAME = 10                    → scalar (bare number literal)
+//   NAME = point(xExpr, yExpr)   → freePoint
+//   NAME = vector(xExpr, yExpr)  → vector
+//   NAME = A & B                 → joinLine  (& = Vee / regressive product)
+//   NAME = A ^ B                 → meetPoint (^ = Wedge / outer product)
+//   NAME = !A                    → dual      (Poincaré dual of named object)
+//   NAME = 5e02 - 1e01           → multivector (literal basis-blade linear combo)
+//   NAME = x*e01 + y*e02 + w*e12 → multivector with variable coefficients (deps)
+//   NAME = !(2*e1 + e0)          → multivector with dual applied (literal only)
 //
 // Coordinate expressions support +, -, *, /, parens, scalar refs, and math
 // builtins (sin, cos, PI …) — anything accepted by evalExpr.
@@ -26,24 +27,25 @@ const BLADE_INDEX = {
 
 // Longest-first so alternation doesn't short-circuit (e.g. e012 before e01)
 const BLADE_PAT = 'e012|e01|e02|e12|e0|e1|e2';
+const ID_PAT    = '[A-Za-z_][A-Za-z0-9_]*';
 
-// Matches a single signed term:  [+-]? (num * blade | blade | num)
+// Matches a single signed term: num*blade, var*blade (explicit *), standalone blade, or num.
 const TERM_RE = new RegExp(
-  `^([+-]?)\\s*(?:(\\d+(?:\\.\\d+)?)\\s*\\*?\\s*(${BLADE_PAT})|(${BLADE_PAT})|(\\d+(?:\\.\\d+)?))$`
+  `^([+-]?)\\s*(?:(\\d+(?:\\.\\d+)?)\\s*\\*?\\s*(${BLADE_PAT})|(${ID_PAT})\\s*\\*\\s*(${BLADE_PAT})|(${BLADE_PAT})|(\\d+(?:\\.\\d+)?))$`
 );
 
-// Parse a linear combination of basis blade terms into a 16-element array.
-// Handles optional outer parens and both "5e02" and "5*e02" syntax.
-// Returns the component array or null if the string is not a valid MV expression.
+// Parse a linear combination of basis blade terms.
+// Returns { components, deps, coeffExprs } or null.
+//   components:  8-element base array (0 for variable-coefficient blades)
+//   deps:        ordered unique list of referenced variable names
+//   coeffExprs:  { [basisIndex]: exprString }  e.g. { 4: 'x', 5: '-y' }
 function parseMVExpr(str) {
   let s = str.trim();
   if (s.startsWith('(') && s.endsWith(')')) s = s.slice(1, -1).trim();
   if (!s) return null;
 
-  // Prepend '+' so every term starts with an explicit sign
   if (!/^[+-]/.test(s)) s = '+' + s;
 
-  // Split into signed tokens by scanning for + / - separators
   const tokens = [];
   let start = 0;
   for (let i = 1; i < s.length; i++) {
@@ -56,6 +58,9 @@ function parseMVExpr(str) {
 
   if (!tokens.length) return null;
   const components = new Array(8).fill(0);
+  const coeffExprs = {};
+  const depsOrder  = [];
+  const depsSeen   = new Set();
 
   for (const tok of tokens) {
     if (!tok) return null;
@@ -63,18 +68,34 @@ function parseMVExpr(str) {
     if (!m) return null;
 
     const sign = m[1] === '-' ? -1 : 1;
-    let coeff, blade;
-    if      (m[2] !== undefined) { coeff = parseFloat(m[2]); blade = m[3]; }   // num[*]blade
-    else if (m[4] !== undefined) { coeff = 1;                blade = m[4]; }   // blade only
-    else if (m[5] !== undefined) { coeff = parseFloat(m[5]); blade = null; }   // scalar
-    else return null;
 
-    const idx = blade !== null ? BLADE_INDEX[blade] : 0;
-    if (idx === undefined) return null;
-    components[idx] += sign * coeff;
+    if (m[2] !== undefined) {
+      // num[*]blade
+      const idx = BLADE_INDEX[m[3]];
+      if (idx === undefined) return null;
+      components[idx] += sign * parseFloat(m[2]);
+    } else if (m[4] !== undefined) {
+      // var * blade  (explicit *)
+      const varName = m[4];
+      const idx = BLADE_INDEX[m[5]];
+      if (idx === undefined) return null;
+      if (BLADE_INDEX[varName] !== undefined) return null; // blade name used as variable
+      coeffExprs[idx] = sign < 0 ? `-${varName}` : varName;
+      if (!depsSeen.has(varName)) { depsSeen.add(varName); depsOrder.push(varName); }
+    } else if (m[6] !== undefined) {
+      // standalone blade (coeff = 1)
+      const idx = BLADE_INDEX[m[6]];
+      if (idx === undefined) return null;
+      components[idx] += sign;
+    } else if (m[7] !== undefined) {
+      // standalone number → grade-0 scalar
+      components[0] += sign * parseFloat(m[7]);
+    } else {
+      return null;
+    }
   }
 
-  return components;
+  return { components, deps: depsOrder, coeffExprs };
 }
 
 const ID = /[A-Za-z_][A-Za-z0-9_]*/;
@@ -188,29 +209,34 @@ export function parseExpression(text) {
     return { id: label, label, type: 'dual', deps: [dualId[1]], params: {} };
   }
 
-  // !(mv_expr) — dual of an inline multivector literal
+  // !(mv_expr) — dual of an inline literal multivector (variable coefficients not supported here)
   if (expr.startsWith('!(') && expr.endsWith(')')) {
     const inner = expr.slice(2, -1);
-    const components = parseMVExpr(inner);
-    if (components) {
-      return { id: label, label, type: 'multivector', deps: [], params: { components, dual: true } };
+    const mvResult = parseMVExpr(inner);
+    if (mvResult && mvResult.deps.length === 0) {
+      return { id: label, label, type: 'multivector', deps: [], params: { components: mvResult.components, dual: true } };
     }
   }
 
-  // mv_expr — literal multivector (bare or parenthesised)
-  const mvComponents = parseMVExpr(expr);
-  if (mvComponents) {
-    // Pure ideal direction (only e01/e02, no e12, no grade-1) → vector
+  // mv_expr — literal or variable-coefficient multivector (bare or parenthesised)
+  const mvResult = parseMVExpr(expr);
+  if (mvResult) {
+    // Pure literal ideal direction (only e01/e02, no deps, no e12) → vector type
     const isIdealDir =
-      mvComponents.every((v, i) => i === 4 || i === 5 || Math.abs(v) < 1e-10) &&
-      (Math.abs(mvComponents[4]) > 1e-10 || Math.abs(mvComponents[5]) > 1e-10);
+      mvResult.deps.length === 0 &&
+      mvResult.components.every((v, i) => i === 4 || i === 5 || Math.abs(v) < 1e-10) &&
+      (Math.abs(mvResult.components[4]) > 1e-10 || Math.abs(mvResult.components[5]) > 1e-10);
     if (isIdealDir) {
-      // Ideal direction (vx,vy) ↔ vy·e01 - vx·e02, so vx = -(e02 coeff), vy = e01 coeff
-      const vx = -mvComponents[5];
-      const vy =  mvComponents[4];
+      // Ideal direction (vx,vy) ↔ vy·e01 - vx·e02  →  vx = -(e02 coeff), vy = e01 coeff
+      const vx = -mvResult.components[5];
+      const vy =  mvResult.components[4];
       return { id: label, label, type: 'vector', deps: [], params: { xExpr: String(vx), yExpr: String(vy), deps: [] } };
     }
-    return { id: label, label, type: 'multivector', deps: [], params: { components: mvComponents } };
+    return {
+      id: label, label, type: 'multivector',
+      deps: mvResult.deps,
+      params: { components: mvResult.components, coeffExprs: mvResult.coeffExprs, deps: mvResult.deps },
+    };
   }
 
   return null;

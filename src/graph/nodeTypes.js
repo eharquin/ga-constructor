@@ -1,6 +1,7 @@
 import { PGA, point2D, idealPoint, toEuclidean, lineBaseAndDir, dualOp } from '../pga.js';
 import { evalExpr } from './evalExpr.js';
 
+
 // Convert a value to a PGA grade-3 element.
 // Vectors { vx, vy } become ideal points (direction, weight=0).
 function toPGA(val) {
@@ -162,13 +163,19 @@ export const NODE_TYPES = {
     compute: ([L], { t }) => pointOnLine(L, t),
   },
 
-  // Literal multivector: build a PGA element from an 8-element component array.
-  // params.dual: optionally apply the Poincaré dual after construction.
+  // Multivector: build a PGA element from a base component array plus optional variable coefficients.
+  // params.coeffExprs: { [idx]: exprString } — evaluated using deps as scalar environment.
   multivector: {
     label: 'Multivector',
-    compute: (_, { components, dual }) => {
+    compute: (depValues, { components, dual, deps: paramDeps, coeffExprs }) => {
       const mv = new PGA(8);
       for (let i = 0; i < 8; i++) mv[i] = components[i] || 0;
+      if (paramDeps?.length && coeffExprs) {
+        const scalars = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
+        for (const [idx, expr] of Object.entries(coeffExprs)) {
+          mv[+idx] = evalExpr(expr, scalars);
+        }
+      }
       return dual ? dualOp(mv) : mv;
     },
   },

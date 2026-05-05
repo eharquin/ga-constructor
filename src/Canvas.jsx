@@ -38,7 +38,7 @@ function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
 }
 
 // Returns { id, dragType } for the first draggable element under (mx,my), or null.
-// dragType: 'freePoint' | 'vector' (tail) | 'vectorTip'
+// dragType: 'freePoint' | 'vector' (tail) | 'vectorTip' | 'depPoint'
 function hitTest(mx, my, nodes, values, vectorPositions, vp) {
   for (const [id, node] of Object.entries(nodes)) {
     if (node.type === 'freePoint') {
@@ -63,6 +63,16 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp) {
         if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'vectorTip' };
       }
+    }
+    // Parametric grade-2 multivector point (has draggable coefficient scalars)
+    if (node.type === 'multivector') {
+      const { coeffExprs } = node.params ?? {};
+      if (!coeffExprs || (coeffExprs[4] === undefined && coeffExprs[5] === undefined)) continue;
+      const eu = toEuclidean(values[id]);
+      if (!eu) continue;
+      const { cx, cy } = w2c(eu.x, eu.y, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'depPoint' };
     }
   }
   return null;
@@ -259,7 +269,7 @@ function drawVector(ctx, vx, vy, px, py, label, color, vp, hovered, linked) {
 
 export default function Canvas() {
   const canvasRef = useRef(null);
-  const { nodes, values, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector } =
+  const { nodes, values, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint } =
     useGraphContext();
 
   const [vp, setVp]               = useState(INITIAL_VP);
@@ -271,7 +281,7 @@ export default function Canvas() {
   const hovIdRef  = useRef(null);
 
   const snap = useRef(null);
-  snap.current = { nodes, values, vp, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector };
+  snap.current = { nodes, values, vp, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint };
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -316,6 +326,7 @@ export default function Canvas() {
       const { x, y } = c2w(mx, my, vp);
       const { id, dragType } = ptDragRef.current;
       if (dragType === 'freePoint') updateFreePoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'depPoint')  updateDepPoint(id, Math.round(x), Math.round(y));
       if (dragType === 'vector') {
         // Snap to a nearby point; otherwise set a static position
         const snap = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);

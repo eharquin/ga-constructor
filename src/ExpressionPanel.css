@@ -213,6 +213,43 @@
   border-bottom-color: #a6e3a155;
 }
 
+/* ---- Scalar-creation suggestion banner ---- */
+.suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 6px 68px;
+}
+
+.suggest-label {
+  flex: 1;
+  color: #f9e2af;
+  font-family: monospace;
+  font-size: 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggest-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid #f9e2af55;
+  color: #f9e2af;
+  font-family: monospace;
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.suggest-btn:hover {
+  background: #f9e2af20;
+  border-color: #f9e2afaa;
+}
+
 /* Add-expression footer button */
 .expr-add {
   flex-shrink: 0;

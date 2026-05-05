@@ -73,9 +73,9 @@ const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export default function ExpressionPanel() {
   const {
-    items, values, vectorPositions, playingIds,
+    items, nodes, values, vectorPositions, playingIds,
     setItemText, setItemColor, setAnim, setDrawPos, setDrawPosRef, togglePlay,
-    insertItemAfter, deleteItem,
+    insertItemAfter, deleteItem, createScalarsFor,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
@@ -144,6 +144,7 @@ export default function ExpressionPanel() {
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = isVector ? (item.drawPos ?? null) : null;
+          const missingDeps = [...new Set((node?.deps ?? []).filter((d) => !nodes[d]))];
 
           return (
             <div key={item.id} className="expr-entry">
@@ -226,6 +227,20 @@ export default function ExpressionPanel() {
                     tabIndex={-1}
                     spellCheck={false}
                   />
+                </div>
+              )}
+
+              {/* Suggestion banner — shown when expression has undefined variable deps */}
+              {missingDeps.length > 0 && (
+                <div className="suggest-row">
+                  <span className="suggest-label">Create: {missingDeps.join(', ')}</span>
+                  <button
+                    className="suggest-btn"
+                    tabIndex={-1}
+                    onClick={() => createScalarsFor(item.id, missingDeps)}
+                  >
+                    + scalars
+                  </button>
                 </div>
               )}
             </div>

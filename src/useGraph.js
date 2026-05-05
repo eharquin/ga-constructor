@@ -48,6 +48,11 @@ function reducer(items, action) {
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
+    case 'INSERT_MANY_BEFORE': {
+      const idx = items.findIndex((it) => it.id === action.beforeId);
+      if (idx === -1) return [...action.newItems, ...items];
+      return [...items.slice(0, idx), ...action.newItems, ...items.slice(idx)];
+    }
     case 'DELETE':
       return items.filter((it) => it.id !== action.id);
     default:
@@ -159,8 +164,19 @@ export function useGraph() {
     });
   };
 
-  // Move a freePoint node by updating its text. Only literal-number coords are
-  // overwritten; expression coords (e.g. t*2) are preserved as-is.
+  // If expr is a pure identifier that resolves to a scalar item, update that scalar.
+  // Returns true if handled.
+  const tryUpdateScalar = (expr, value) => {
+    const trimmed = expr.trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return false;
+    const si = items.find((it) => parseExpression(it.text)?.id === trimmed);
+    if (!si) return false;
+    dispatch({ type: 'SET_TEXT', id: si.id, text: `${trimmed} = ${Math.round(value)}` });
+    return true;
+  };
+
+  // Move a freePoint node. If coordinate expressions are scalar identifiers,
+  // update those scalars; otherwise overwrite literals in the expression text.
   const updateFreePoint = (nodeId, x, y) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -170,19 +186,82 @@ export function useGraph() {
     const node = parseExpression(item.text);
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
     const { xExpr, yExpr } = node.params;
-    const xPart = isLiteral(xExpr) ? Math.round(x) : xExpr;
-    const yPart = isLiteral(yExpr) ? Math.round(y) : yExpr;
-    dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = point(${xPart}, ${yPart})` });
+    const xHandled = tryUpdateScalar(xExpr, x);
+    const yHandled = tryUpdateScalar(yExpr, y);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(y) : yExpr);
+      dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = point(${xPart}, ${yPart})` });
+    }
   };
 
-  // Update vector components by dragging the tip. Replaces expression with literals.
+  // Update vector components by dragging the tip.
+  // If coordinate expressions are scalar identifiers, update those scalars.
   const updateVector = (nodeId, vx, vy) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
       return n?.id === nodeId && n?.type === 'vector';
     });
     if (!item) return;
-    dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = vector(${vx}, ${vy})` });
+    const node = parseExpression(item.text);
+    const { xExpr, yExpr } = node.params;
+    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
+    const xHandled = tryUpdateScalar(xExpr, vx);
+    const yHandled = tryUpdateScalar(yExpr, vy);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(vx) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(vy) : yExpr);
+      dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = vector(${xPart}, ${yPart})` });
+    }
+  };
+
+  // Drag a parametric grade-2 multivector point: update its e01/e02 coefficient scalars.
+  // coeffExprs[4] (e01) encodes the y-coordinate; coeffExprs[5] (e02) encodes -x.
+  const updateDepPoint = (nodeId, x, y) => {
+    const node = nodes[nodeId];
+    if (!node || node.type !== 'multivector') return;
+    const { coeffExprs } = node.params;
+    if (!coeffExprs) return;
+
+    const w = values[nodeId]?.[6] ?? 1;
+
+    // expr is 'varName' or '-varName'; update the named scalar to targetCoeff.
+    const applyCoeff = (expr, targetCoeff) => {
+      if (!expr) return;
+      const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (!m) return;
+      const scalarVal = m[1] === '-' ? -targetCoeff : targetCoeff;
+      const si = items.find((it) => parseExpression(it.text)?.id === m[2]);
+      if (!si) return;
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${Math.round(scalarVal)}` });
+    };
+
+    if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);   // e01 → y·w
+    if (coeffExprs[5] !== undefined) applyCoeff(coeffExprs[5], -x * w);  // e02 → -x·w
+  };
+
+  // Insert scalar items (name = 0, or name = 1 for the e12 weight) before itemId.
+  const createScalarsFor = (itemId, varNames) => {
+    const item = items.find((it) => it.id === itemId);
+    if (!item) return;
+
+    // Detect which var names are the e12 (weight) coefficient → default 1
+    const node = parseExpression(item.text);
+    const e12Vars = new Set();
+    if (node?.params?.coeffExprs?.[6]) {
+      const m = node.params.coeffExprs[6].match(/^-?([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (m) e12Vars.add(m[1]);
+    }
+
+    const newItems = varNames.map((name) => ({
+      id: `expr_${nextId.current++}`,
+      text: `${name} = ${e12Vars.has(name) ? 1 : 0}`,
+      color: null,
+      anim: null,
+      drawPos: null,
+    }));
+
+    dispatch({ type: 'INSERT_MANY_BEFORE', beforeId: itemId, newItems });
   };
 
   const findVectorItem = (nodeId) =>
@@ -212,9 +291,9 @@ export function useGraph() {
     colorMap,
     vectorPositions,
     playingIds,
-    setItemText:     (id, text)  => dispatch({ type: 'SET_TEXT',  id, text }),
-    setItemColor:    (id, color) => dispatch({ type: 'SET_COLOR', id, color }),
-    setAnim:         (id, anim)  => dispatch({ type: 'SET_ANIM',  id, anim }),
+    setItemText:      (id, text)  => dispatch({ type: 'SET_TEXT',  id, text }),
+    setItemColor:     (id, color) => dispatch({ type: 'SET_COLOR', id, color }),
+    setAnim:          (id, anim)  => dispatch({ type: 'SET_ANIM',  id, anim }),
     setDrawPos,
     setDrawPosRef,
     updateVector,
@@ -222,5 +301,7 @@ export function useGraph() {
     insertItemAfter,
     deleteItem,
     updateFreePoint,
+    updateDepPoint,
+    createScalarsFor,
   };
 }
