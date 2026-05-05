@@ -40,6 +40,27 @@
   overflow: hidden;
 }
 
+/* Panel wrapper — width controlled by JS drag state */
+.panel-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Drag handle between panel and canvas */
+.panel-resize {
+  flex-shrink: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  border-right: 1px solid #313244;
+  transition: border-color 0.15s;
+}
+
+.panel-resize:hover {
+  border-right-color: #585b70;
+}
+
 /* Canvas fills remaining space, centres the canvas element */
 .canvas-area {
   flex: 1;
