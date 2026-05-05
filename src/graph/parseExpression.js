@@ -210,12 +210,16 @@ export function parseExpression(text) {
     return { id: label, label, type: 'dual', deps: [dualId[1]], params: {} };
   }
 
-  // !(mv_expr) — dual of an inline literal multivector (variable coefficients not supported here)
+  // !(mv_expr) — dual of an inline multivector (literal or variable coefficients)
   if (expr.startsWith('!(') && expr.endsWith(')')) {
     const inner = expr.slice(2, -1);
     const mvResult = parseMVExpr(inner);
-    if (mvResult && mvResult.deps.length === 0) {
-      return { id: label, label, type: 'multivector', deps: [], params: { components: mvResult.components, dual: true } };
+    if (mvResult) {
+      return {
+        id: label, label, type: 'multivector',
+        deps: mvResult.deps,
+        params: { components: mvResult.components, coeffExprs: mvResult.coeffExprs, dual: true, deps: mvResult.deps },
+      };
     }
   }
 

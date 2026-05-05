@@ -277,6 +277,29 @@ export function useGraph() {
     dispatch({ type: 'INSERT_MANY_BEFORE', beforeId: itemId, newItems });
   };
 
+  // Rebuild a literal grade-2 multivector expression so the point is at (x, y).
+  // Normalises to w=1: e01 = round(y), e02 = round(-x), e12 = 1.
+  const updateLiteralMVPoint = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'multivector' && !n.params?.dual;
+    });
+    if (!item) return;
+
+    const e01 = Math.round(y);
+    const e02 = Math.round(-x);
+
+    const term = (c, blade) => {
+      if (c === 0) return null;
+      if (c === 1) return blade;
+      if (c === -1) return `-${blade}`;
+      return `${c}*${blade}`;
+    };
+    const parts = [term(e01, 'e01'), term(e02, 'e02'), 'e12'].filter(Boolean);
+    const expr = parts.join(' + ').replace(/ \+ -/g, ' - ');
+    dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
+  };
+
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
@@ -315,6 +338,7 @@ export function useGraph() {
     deleteItem,
     updateFreePoint,
     updateDepPoint,
+    updateLiteralMVPoint,
     createScalarsFor,
   };
 }

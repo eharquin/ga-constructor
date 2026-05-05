@@ -64,15 +64,23 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp) {
           return { id, dragType: 'vectorTip' };
       }
     }
-    // Parametric grade-2 multivector point (has draggable coefficient scalars)
+    // Grade-2 multivector point — parametric (variable coeffs) or literal
     if (node.type === 'multivector') {
-      const { coeffExprs } = node.params ?? {};
-      if (!coeffExprs || (coeffExprs[4] === undefined && coeffExprs[5] === undefined)) continue;
-      const eu = toEuclidean(values[id]);
-      if (!eu) continue;
-      const { cx, cy } = w2c(eu.x, eu.y, vp);
-      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-        return { id, dragType: 'depPoint' };
+      const { coeffExprs, components, dual } = node.params ?? {};
+      const hasVariablePos = coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined;
+      if (hasVariablePos) {
+        const eu = toEuclidean(values[id]);
+        if (!eu) continue;
+        const { cx, cy } = w2c(eu.x, eu.y, vp);
+        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+          return { id, dragType: 'depPoint' };
+      } else if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) {
+        const eu = toEuclidean(values[id]);
+        if (!eu) continue;
+        const { cx, cy } = w2c(eu.x, eu.y, vp);
+        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+          return { id, dragType: 'litMVPoint' };
+      }
     }
   }
   return null;
@@ -269,7 +277,7 @@ function drawVector(ctx, vx, vy, px, py, label, color, vp, hovered, linked) {
 
 export default function Canvas() {
   const canvasRef = useRef(null);
-  const { nodes, values, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint } =
+  const { nodes, values, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint, updateLiteralMVPoint } =
     useGraphContext();
 
   const [vp, setVp]               = useState(INITIAL_VP);
@@ -281,7 +289,7 @@ export default function Canvas() {
   const hovIdRef  = useRef(null);
 
   const snap = useRef(null);
-  snap.current = { nodes, values, vp, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint };
+  snap.current = { nodes, values, vp, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint, updateLiteralMVPoint };
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -325,8 +333,9 @@ export default function Canvas() {
     if (ptDragRef.current) {
       const { x, y } = c2w(mx, my, vp);
       const { id, dragType } = ptDragRef.current;
-      if (dragType === 'freePoint') updateFreePoint(id, Math.round(x), Math.round(y));
-      if (dragType === 'depPoint')  updateDepPoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'freePoint')   updateFreePoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'depPoint')    updateDepPoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'litMVPoint')  snap.current.updateLiteralMVPoint(id, Math.round(x), Math.round(y));
       if (dragType === 'vector') {
         // Snap to a nearby point; otherwise set a static position
         const snap = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);
