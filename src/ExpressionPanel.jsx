@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { parseExpression } from './graph/parseExpression.js';
-import { toEuclidean, toEuclidean2D, lineBaseAndDir } from './pga.js';
+import { toEuclidean, lineBaseAndDir } from './pga.js';
 import './ExpressionPanel.css';
 
 const TYPE_COLOR = {
@@ -30,8 +30,7 @@ function getDisplayValue(text, values) {
   if (node.type === 'joinLine')  return 'Line';
   if (node.type === 'motorExp')  return 'Motor';
   if (node.type === 'vector')    return `(${val.vx.toFixed(1)}, ${val.vy.toFixed(1)})`;
-  const eu = toEuclidean(val) ??
-    ((node.type === 'multivector' || node.type === 'dual') ? toEuclidean2D(val) : null);
+  const eu = toEuclidean(val);
   if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
   if (lineBaseAndDir(val)) return 'Line';
   if (node.type === 'motorApply' || node.type === 'multivector' || node.type === 'dual') return '—';

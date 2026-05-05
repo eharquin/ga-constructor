@@ -9,7 +9,7 @@ export default function App() {
       <div className="app">
         <header className="app-header">
           <span className="app-title">GA Constructor</span>
-          <span className="app-subtitle">PGA(3,0,1)</span>
+          <span className="app-subtitle">PGA(2,0,1)</span>
         </header>
         <div className="workspace">
           <ExpressionPanel />

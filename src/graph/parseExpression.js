@@ -17,15 +17,15 @@ import { extractVarNames } from './evalExpr.js';
 
 // ─── Multivector expression parser ────────────────────────────────────────────
 
-// Blade name → PGA array index (matches ganja.js PGA(3,0,1) basis order)
+// Blade name → PGA array index (matches ganja.js PGA(2,0,1) basis order)
 const BLADE_INDEX = {
-  '1': 0, 'e0': 1, 'e1': 2, 'e2': 3, 'e3': 4,
-  'e01': 5, 'e02': 6, 'e03': 7, 'e12': 8, 'e13': 9, 'e23': 10,
-  'e012': 11, 'e013': 12, 'e023': 13, 'e123': 14, 'e0123': 15,
+  '1': 0, 'e0': 1, 'e1': 2, 'e2': 3,
+  'e01': 4, 'e02': 5, 'e12': 6,
+  'e012': 7,
 };
 
 // Longest-first so alternation doesn't short-circuit (e.g. e012 before e01)
-const BLADE_PAT = 'e0123|e012|e013|e023|e123|e01|e02|e03|e12|e13|e23|e0|e1|e2|e3';
+const BLADE_PAT = 'e012|e01|e02|e12|e0|e1|e2';
 
 // Matches a single signed term:  [+-]? (num * blade | blade | num)
 const TERM_RE = new RegExp(
@@ -55,7 +55,7 @@ function parseMVExpr(str) {
   tokens.push(s.slice(start).trim());
 
   if (!tokens.length) return null;
-  const components = new Array(16).fill(0);
+  const components = new Array(8).fill(0);
 
   for (const tok of tokens) {
     if (!tok) return null;

@@ -5,7 +5,7 @@ Web-based geometric construction tool using Projective Geometric Algebra (PGA).
 ## Tech Stack
 - React + Vite
 - ganja.js for GA computations
-- PGA(3,0,1) algebra (3D projective)
+- PGA(2,0,1) algebra (2D projective)
 
 ## Key Principles
 - Objects are multivectors (points, lines, planes)

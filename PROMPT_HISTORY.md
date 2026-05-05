@@ -17,5 +17,6 @@ A chronological log of all prompts given to Claude in this project.
 ## 2026-05-05
 
 8. **Dualization + general multivectors** — Added `!A` (dual of named object), `!(mv_expr)` (dual of inline literal), and bare multivector expressions like `5e02 - 1e01` or `e1 + e2 + 5e0`. Implemented: `parseMVExpr` tokenizer in `parseExpression.js`, `multivector` and `dual` node types in `nodeTypes.js`, extended `lineBaseAndDir` in `pga.js` to handle grade-1 elements (so duals of points render as lines), and unified the Canvas else-branch to auto-detect point vs line for all node types.
+9. **Switch to PGA 2D** — Migrated from PGA(3,0,1) to PGA(2,0,1). Basis shrinks from 16 to 8 elements. Points are now grade-2 (e01,e02,e12 at indices 4,5,6) instead of grade-3. Lines are grade-1 (e0,e1,e2 at 1,2,3) instead of grade-2. Updated: pga.js (Algebra(2,0,1), all index mappings, simplified lineBaseAndDir to grade-1 only, removed makePlane/toEuclidean2D), nodeTypes.js (PGA(8) arrays, new indices in motorExp/motorApply/meet), parseExpression.js (7-blade index for 2D), Canvas.jsx and ExpressionPanel.jsx (removed toEuclidean2D fallback).
 
 ---
