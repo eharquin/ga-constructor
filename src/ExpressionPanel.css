@@ -144,6 +144,15 @@
   opacity: 0.7;
 }
 
+.expr-mv {
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 10px;
+  color: #585b70;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .expr-error {
   color: #f38ba8;
   font-size: 11px;

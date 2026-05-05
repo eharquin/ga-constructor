@@ -45,6 +45,55 @@ function getDisplayValue(text, values) {
   return 'ideal point';
 }
 
+// ── Multivector label ─────────────────────────────────────────────────────────
+
+const BLADE_NAMES = ['1', 'e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012'];
+
+function fmtCoeff(c) {
+  const r = Math.round(c * 1e4) / 1e4;
+  if (Number.isInteger(r)) return String(r);
+  return r.toPrecision(4).replace(/\.?0+$/, '');
+}
+
+// Format a PGA value as a blade sum: "80e01 + 180e02 + e12", "3e0 - e1", etc.
+// Returns null for scalars (numbers) and null values.
+function formatMV(val) {
+  if (val == null || typeof val === 'number') return null;
+
+  let arr;
+  if ('vx' in val) {
+    // { vx, vy } vector → ideal point representation
+    arr = [0, 0, 0, 0, val.vy, -val.vx, 0, 0];
+  } else if (val.length >= 8) {
+    arr = Array.from(val);
+  } else {
+    return null;
+  }
+
+  const terms = [];
+  for (let i = 0; i < 8; i++) {
+    const c = arr[i] || 0;
+    if (Math.abs(c) < 5e-5) continue;
+    const blade = BLADE_NAMES[i];
+    const neg   = c < 0;
+    const absC  = Math.abs(c);
+    let termStr;
+    if (blade === '1') {
+      termStr = fmtCoeff(absC);
+    } else if (Math.abs(absC - 1) < 1e-10) {
+      termStr = blade;
+    } else {
+      termStr = fmtCoeff(absC) + blade;
+    }
+    terms.push({ neg, termStr });
+  }
+
+  if (!terms.length) return '0';
+  return terms.map(({ neg, termStr }, i) =>
+    (neg ? (i === 0 ? '-' : ' - ') : (i === 0 ? '' : ' + ')) + termStr
+  ).join('');
+}
+
 // ── Interval helpers (scalars) ────────────────────────────────────────────────
 
 const DEFAULT_ANIM = { min: 0, max: 10, step: 1 };
@@ -150,6 +199,7 @@ export default function ExpressionPanel() {
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
+          const mvStr     = node ? formatMV(values[node.id]) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = isVector ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense
@@ -199,6 +249,7 @@ export default function ExpressionPanel() {
                     onKeyDown={(e) => handleKeyDown(e, item, index)}
                   />
                   {displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>}
+                  {mvStr      && <div className="expr-mv">{mvStr}</div>}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
                 </div>
 
