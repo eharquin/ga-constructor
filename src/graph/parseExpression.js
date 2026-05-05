@@ -1,15 +1,20 @@
 // Pure expression parser. Returns a node definition or null.
 //
 // Supported forms:
-//   NAME = 10                    → scalar (bare number literal)
-//   NAME = point(xExpr, yExpr)   → freePoint
-//   NAME = vector(xExpr, yExpr)  → vector
-//   NAME = A & B                 → joinLine  (& = Vee / regressive product)
-//   NAME = A ^ B                 → meetPoint (^ = Wedge / outer product)
-//   NAME = !A                    → dual      (Poincaré dual of named object)
-//   NAME = 5e02 - 1e01           → multivector (literal basis-blade linear combo)
-//   NAME = x*e01 + y*e02 + w*e12 → multivector with variable coefficients (deps)
-//   NAME = !(2*e1 + e0)          → multivector with dual applied (literal only)
+//   NAME = 10                      → scalar (bare number literal)
+//   NAME = point(xExpr, yExpr)     → freePoint
+//   NAME = vector(xExpr, yExpr)    → vector
+//   NAME = G1 & G2                 → joinLine  (& = regressive product)
+//   NAME = G1 ^ G2                 → meetPoint (^ = wedge product)
+//   NAME = !A                      → dual      (Poincaré dual of named object)
+//   NAME = 5e02 - 1e01             → multivector (literal basis-blade linear combo)
+//   NAME = x*e01 + y*e02 + w*e12  → multivector with variable coefficients (deps)
+//   NAME = !(mv_expr)              → multivector with dual applied
+//   NAME = exp(G, s)               → motorExp (motor from G scaled by s)
+//   NAME = M >>> G                 → motorApply (sandwich product, M must be a named ID)
+//
+// G, G1, G2 (geometric args) accept: named ID, point(…), vector(…), or a
+// basis-blade expression (e01, e01+e12, x*e01+e12, …).
 //
 // Coordinate expressions support +, -, *, /, parens, scalar refs, and math
 // builtins (sin, cos, PI …) — anything accepted by evalExpr.
@@ -135,6 +140,55 @@ function parse2DCall(expr, fnName) {
   return coords;
 }
 
+// Split str at the first occurrence of op that is not inside parentheses.
+function splitTopLevelOp(str, op) {
+  let depth = 0;
+  const opLen = op.length;
+  for (let i = 0; i <= str.length - opLen; i++) {
+    if (str[i] === '(') { depth++; continue; }
+    if (str[i] === ')') { depth--; continue; }
+    if (depth === 0 && str.slice(i, i + opLen) === op) {
+      return [str.slice(0, i).trim(), str.slice(i + opLen).trim()];
+    }
+  }
+  return null;
+}
+
+// Parse an inline geometric argument: blade expression, vector(…), point(…), or named ID.
+// Returns { kind, deps, depOffset: 0, … } or null.
+// (depOffset is set to 0 here; caller adjusts before storing in params.)
+function parseInlineGeom(str) {
+  const s = str.trim();
+
+  // Blade expression first (catches e01, e01+e12, x*e01+e12 …).
+  // Must come before the plain-ID check so blade names aren't treated as refs.
+  const mvResult = parseMVExpr(s);
+  if (mvResult) {
+    return { kind: 'mv', components: mvResult.components, coeffExprs: mvResult.coeffExprs, deps: mvResult.deps, depOffset: 0 };
+  }
+
+  // vector(xExpr, yExpr)
+  const vecCoords = parse2DCall(s, 'vector');
+  if (vecCoords) {
+    const [xExpr, yExpr] = vecCoords;
+    return { kind: 'vector', xExpr, yExpr, deps: uniqueDeps(xExpr, yExpr), depOffset: 0 };
+  }
+
+  // point(xExpr, yExpr)
+  const ptCoords = parse2DCall(s, 'point');
+  if (ptCoords) {
+    const [xExpr, yExpr] = ptCoords;
+    return { kind: 'point', xExpr, yExpr, deps: uniqueDeps(xExpr, yExpr), depOffset: 0 };
+  }
+
+  // Plain identifier → named node reference
+  if (new RegExp(`^${ID.source}$`).test(s)) {
+    return { kind: 'ref', id: s, deps: [s], depOffset: 0 };
+  }
+
+  return null;
+}
+
 export function parseExpression(text) {
   if (!text || !text.trim()) return null;
   const t = text.trim();
@@ -168,40 +222,76 @@ export function parseExpression(text) {
     return { id: label, label, type: 'vector', deps, params: { xExpr, yExpr, deps } };
   }
 
-  // exp(G, s) — motor exponential: translator (from vector) or rotor (from line)
+  // exp(G, s) — motor exponential; G can be a named ID, vector(…), point(…), or blade expr
   if (expr.startsWith('exp(') && expr.endsWith(')')) {
     const inner = expr.slice(4, -1).trim();
     const parts = splitTopLevelComma(inner);
     if (parts) {
-      const geomId = parts[0].trim();
+      const geomStr = parts[0].trim();
       const scalarExpr = parts[1].trim();
-      if (new RegExp(`^${ID.source}$`).test(geomId) && scalarExpr) {
-        const scalarDeps = extractVarNames(scalarExpr);
+      if (scalarExpr) {
+        const geom = parseInlineGeom(geomStr);
+        if (geom) {
+          geom.depOffset = 0;
+          const scalarDeps = extractVarNames(scalarExpr);
+          return {
+            id: label, label, type: 'motorExp',
+            deps: [...geom.deps, ...scalarDeps],
+            params: { geom, scalarExpr, scalarDeps },
+          };
+        }
+      }
+    }
+  }
+
+  // M >>> G — sandwich product; M must be a named ID, G can be any inline geom
+  const swParts = splitTopLevelOp(expr, '>>>');
+  if (swParts) {
+    const motorStr = swParts[0];
+    const geomStr  = swParts[1];
+    if (new RegExp(`^${ID.source}$`).test(motorStr)) {
+      const geom = parseInlineGeom(geomStr);
+      if (geom) {
+        geom.depOffset = 1;
         return {
-          id: label, label, type: 'motorExp',
-          deps: [geomId, ...scalarDeps],
-          params: { geomId, scalarExpr, scalarDeps },
+          id: label, label, type: 'motorApply',
+          deps: [motorStr, ...geom.deps],
+          params: { geom },
         };
       }
     }
   }
 
-  // A >>> B — sandwich product (motor application)
-  const sw = expr.match(new RegExp(`^(${ID.source})${WS.source}>>>\\s*(${ID.source})$`));
-  if (sw) {
-    return { id: label, label, type: 'motorApply', deps: [sw[1], sw[2]], params: {} };
+  // G1 & G2 — join (line through two points); both sides can be any inline geom
+  const joinParts = splitTopLevelOp(expr, '&');
+  if (joinParts) {
+    const geom1 = parseInlineGeom(joinParts[0]);
+    const geom2 = parseInlineGeom(joinParts[1]);
+    if (geom1 && geom2) {
+      geom1.depOffset = 0;
+      geom2.depOffset = geom1.deps.length;
+      return {
+        id: label, label, type: 'joinLine',
+        deps: [...geom1.deps, ...geom2.deps],
+        params: { geom1, geom2 },
+      };
+    }
   }
 
-  // A & B — join (line through two points)
-  const join = expr.match(new RegExp(`^(${ID.source})${WS.source}&${WS.source}(${ID.source})$`));
-  if (join) {
-    return { id: label, label, type: 'joinLine', deps: [join[1], join[2]], params: {} };
-  }
-
-  // A ^ B — meet (intersection of two lines → point)
-  const meet = expr.match(new RegExp(`^(${ID.source})${WS.source}\\^${WS.source}(${ID.source})$`));
-  if (meet) {
-    return { id: label, label, type: 'meetPoint', deps: [meet[1], meet[2]], params: {} };
+  // G1 ^ G2 — meet (intersection of two lines → point); both sides can be any inline geom
+  const meetParts = splitTopLevelOp(expr, '^');
+  if (meetParts) {
+    const geom1 = parseInlineGeom(meetParts[0]);
+    const geom2 = parseInlineGeom(meetParts[1]);
+    if (geom1 && geom2) {
+      geom1.depOffset = 0;
+      geom2.depOffset = geom1.deps.length;
+      return {
+        id: label, label, type: 'meetPoint',
+        deps: [...geom1.deps, ...geom2.deps],
+        params: { geom1, geom2 },
+      };
+    }
   }
 
   // !ID — dual of a named object
