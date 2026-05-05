@@ -74,6 +74,13 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp) {
         const { cx, cy } = w2c(eu.x, eu.y, vp);
         if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'depPoint' };
+      } else if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) {
+        // !(…) with variable pre-dual grade-1 coefficients: e2→y, e1→x
+        const eu = toEuclidean(values[id]);
+        if (!eu) continue;
+        const { cx, cy } = w2c(eu.x, eu.y, vp);
+        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+          return { id, dragType: 'dualDepPoint' };
       } else if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) {
         const eu = toEuclidean(values[id]);
         if (!eu) continue;
@@ -277,7 +284,7 @@ function drawVector(ctx, vx, vy, px, py, label, color, vp, hovered, linked) {
 
 export default function Canvas() {
   const canvasRef = useRef(null);
-  const { nodes, values, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint, updateLiteralMVPoint } =
+  const { nodes, values, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint, updateDualDepPoint, updateLiteralMVPoint } =
     useGraphContext();
 
   const [vp, setVp]               = useState(INITIAL_VP);
@@ -289,7 +296,7 @@ export default function Canvas() {
   const hovIdRef  = useRef(null);
 
   const snap = useRef(null);
-  snap.current = { nodes, values, vp, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint, updateLiteralMVPoint };
+  snap.current = { nodes, values, vp, colorMap, vectorPositions, updateFreePoint, setDrawPos, setDrawPosRef, updateVector, updateDepPoint, updateDualDepPoint, updateLiteralMVPoint };
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -333,9 +340,10 @@ export default function Canvas() {
     if (ptDragRef.current) {
       const { x, y } = c2w(mx, my, vp);
       const { id, dragType } = ptDragRef.current;
-      if (dragType === 'freePoint')   updateFreePoint(id, Math.round(x), Math.round(y));
-      if (dragType === 'depPoint')    updateDepPoint(id, Math.round(x), Math.round(y));
-      if (dragType === 'litMVPoint')  snap.current.updateLiteralMVPoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'freePoint')    updateFreePoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'depPoint')     updateDepPoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, Math.round(x), Math.round(y));
+      if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, Math.round(x), Math.round(y));
       if (dragType === 'vector') {
         // Snap to a nearby point; otherwise set a static position
         const snap = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);

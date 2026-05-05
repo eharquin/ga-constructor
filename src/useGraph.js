@@ -277,6 +277,30 @@ export function useGraph() {
     dispatch({ type: 'INSERT_MANY_BEFORE', beforeId: itemId, newItems });
   };
 
+  // Drag a dual multivector point !(…): update the pre-dual scalar coefficients.
+  // Dual index mapping: e2 (idx 3) → e01 → y·w;  e1 (idx 2) → e02 → -x·w
+  const updateDualDepPoint = (nodeId, x, y) => {
+    const node = nodes[nodeId];
+    if (!node || node.type !== 'multivector' || !node.params?.dual) return;
+    const { coeffExprs } = node.params;
+    if (!coeffExprs) return;
+
+    const w = values[nodeId]?.[6] ?? 1;
+
+    const applyCoeff = (expr, targetCoeff) => {
+      if (!expr) return;
+      const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (!m) return;
+      const scalarVal = m[1] === '-' ? -targetCoeff : targetCoeff;
+      const si = items.find((it) => parseExpression(it.text)?.id === m[2]);
+      if (!si) return;
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${Math.round(scalarVal)}` });
+    };
+
+    if (coeffExprs[3] !== undefined) applyCoeff(coeffExprs[3], y * w);   // e2 → e01 → y·w
+    if (coeffExprs[2] !== undefined) applyCoeff(coeffExprs[2], -x * w);  // e1 → e02 → -x·w
+  };
+
   // Rebuild a literal grade-2 multivector expression so the point is at (x, y).
   // Normalises to w=1: e01 = round(y), e02 = round(-x), e12 = 1.
   const updateLiteralMVPoint = (nodeId, x, y) => {
@@ -338,6 +362,7 @@ export function useGraph() {
     deleteItem,
     updateFreePoint,
     updateDepPoint,
+    updateDualDepPoint,
     updateLiteralMVPoint,
     createScalarsFor,
   };
