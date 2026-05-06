@@ -13,6 +13,7 @@ const TYPE_COLOR = {
   joinLine:   '#cba6f7',
   meetPoint:  '#fab387',
   mvExpr:     '#b4befe',
+  triangle:   '#89dceb',
 };
 
 const INITIAL_ITEMS = [

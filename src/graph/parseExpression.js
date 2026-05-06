@@ -193,17 +193,23 @@ export function parseExpression(text) {
   if (!text || !text.trim()) return null;
   const t = text.trim();
 
-  // Require: NAME = <rhs>
+  // Try NAME = <rhs>; if absent, treat the whole text as an anonymous expression.
   const assign = t.match(new RegExp(`^(${ID.source})${WS.source}=${WS.source}(.+)$`));
-  if (!assign) return null;
-
-  const [, label, rhs] = assign;
-  const expr = rhs.trim();
+  let label, expr;
+  if (assign) {
+    label = assign[1];
+    expr  = assign[2].trim();
+  } else {
+    label = null;
+    expr  = t;
+  }
+  // Stable synthetic ID for anonymous nodes (not referenceable as a dep name).
+  const id = label ?? ('_' + expr.replace(/\s+/g, ''));
 
   // scalar: bare number literal
   const scalar = expr.match(new RegExp(`^(${NUM.source})$`));
   if (scalar) {
-    return { id: label, label, type: 'scalar', deps: [], params: { value: +scalar[1] } };
+    return { id, label, type: 'scalar', deps: [], params: { value: +scalar[1] } };
   }
 
   // point(xExpr, yExpr) — free point
@@ -211,7 +217,7 @@ export function parseExpression(text) {
   if (ptCoords) {
     const [xExpr, yExpr] = ptCoords;
     const deps = uniqueDeps(xExpr, yExpr);
-    return { id: label, label, type: 'freePoint', deps, params: { xExpr, yExpr, deps } };
+    return { id, label, type: 'freePoint', deps, params: { xExpr, yExpr, deps } };
   }
 
   // vector(xExpr, yExpr) — free vector
@@ -219,7 +225,7 @@ export function parseExpression(text) {
   if (vecCoords) {
     const [xExpr, yExpr] = vecCoords;
     const deps = uniqueDeps(xExpr, yExpr);
-    return { id: label, label, type: 'vector', deps, params: { xExpr, yExpr, deps } };
+    return { id, label, type: 'vector', deps, params: { xExpr, yExpr, deps } };
   }
 
   // exp(G, s) — motor exponential; G can be a named ID, vector(…), point(…), or blade expr
@@ -235,7 +241,7 @@ export function parseExpression(text) {
           geom.depOffset = 0;
           const scalarDeps = extractVarNames(scalarExpr);
           return {
-            id: label, label, type: 'motorExp',
+            id, label, type: 'motorExp',
             deps: [...geom.deps, ...scalarDeps],
             params: { geom, scalarExpr, scalarDeps },
           };
@@ -254,7 +260,7 @@ export function parseExpression(text) {
       if (geom) {
         geom.depOffset = 1;
         return {
-          id: label, label, type: 'motorApply',
+          id, label, type: 'motorApply',
           deps: [motorStr, ...geom.deps],
           params: { geom },
         };
@@ -275,7 +281,7 @@ export function parseExpression(text) {
         geom2.depOffset = geom1.deps.length;
         geom3.depOffset = geom1.deps.length + geom2.deps.length;
         return {
-          id: label, label, type: 'triangle',
+          id, label, type: 'triangle',
           deps: [...geom1.deps, ...geom2.deps, ...geom3.deps],
           params: { geom1, geom2, geom3 },
         };
@@ -287,7 +293,7 @@ export function parseExpression(text) {
       geom1.depOffset = 0;
       geom2.depOffset = geom1.deps.length;
       return {
-        id: label, label, type: 'joinLine',
+        id, label, type: 'joinLine',
         deps: [...geom1.deps, ...geom2.deps],
         params: { geom1, geom2 },
       };
@@ -303,7 +309,7 @@ export function parseExpression(text) {
       geom1.depOffset = 0;
       geom2.depOffset = geom1.deps.length;
       return {
-        id: label, label, type: 'meetPoint',
+        id, label, type: 'meetPoint',
         deps: [...geom1.deps, ...geom2.deps],
         params: { geom1, geom2 },
       };
@@ -313,7 +319,7 @@ export function parseExpression(text) {
   // !ID — dual of a named object
   const dualId = expr.match(new RegExp(`^!${WS.source}(${ID.source})$`));
   if (dualId) {
-    return { id: label, label, type: 'dual', deps: [dualId[1]], params: {} };
+    return { id, label, type: 'dual', deps: [dualId[1]], params: {} };
   }
 
   // !(mv_expr) — dual of an inline multivector (literal or variable coefficients)
@@ -322,7 +328,7 @@ export function parseExpression(text) {
     const mvResult = parseMVExpr(inner);
     if (mvResult) {
       return {
-        id: label, label, type: 'multivector',
+        id, label, type: 'multivector',
         deps: mvResult.deps,
         params: { components: mvResult.components, coeffExprs: mvResult.coeffExprs, dual: true, deps: mvResult.deps },
       };
@@ -341,10 +347,10 @@ export function parseExpression(text) {
       // Ideal direction (vx,vy) ↔ vy·e01 - vx·e02  →  vx = -(e02 coeff), vy = e01 coeff
       const vx = -mvResult.components[5];
       const vy =  mvResult.components[4];
-      return { id: label, label, type: 'vector', deps: [], params: { xExpr: String(vx), yExpr: String(vy), deps: [] } };
+      return { id, label, type: 'vector', deps: [], params: { xExpr: String(vx), yExpr: String(vy), deps: [] } };
     }
     return {
-      id: label, label, type: 'multivector',
+      id, label, type: 'multivector',
       deps: mvResult.deps,
       params: { components: mvResult.components, coeffExprs: mvResult.coeffExprs, deps: mvResult.deps },
     };
@@ -355,7 +361,7 @@ export function parseExpression(text) {
   const mvDeps = extractMVDeps(expr);
   if (mvDeps !== null && mvDeps.length > 0) {
     return {
-      id: label, label, type: 'mvExpr',
+      id, label, type: 'mvExpr',
       deps: mvDeps,
       params: { exprStr: expr, deps: mvDeps },
     };

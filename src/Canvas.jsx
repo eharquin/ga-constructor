@@ -36,6 +36,7 @@ function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
 
 function hitTest(mx, my, nodes, values, vectorPositions, vp) {
   for (const [id, node] of Object.entries(nodes)) {
+    if (node.label === null) continue; // anonymous nodes are render-only
     if (node.type === 'freePoint') {
       const eu = toEuclidean(values[id]);
       if (!eu) continue;
