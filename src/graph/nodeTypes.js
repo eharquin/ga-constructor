@@ -178,6 +178,24 @@ export const NODE_TYPES = {
     },
   },
 
+  triangle: {
+    label: 'Triangle',
+    compute: (depValues, { geom1, geom2, geom3 }) => {
+      const P1 = resolveInlineGeom(geom1, depValues);
+      const P2 = resolveInlineGeom(geom2, depValues);
+      const P3 = resolveInlineGeom(geom3, depValues);
+      if (!P1 || !P2 || !P3) return null;
+      const eu1 = toEuclidean(toPGA(P1));
+      const eu2 = toEuclidean(toPGA(P2));
+      const eu3 = toEuclidean(toPGA(P3));
+      if (!eu1 || !eu2 || !eu3) return null;
+      const area = 0.5 * Math.abs(
+        (eu2.x - eu1.x) * (eu3.y - eu1.y) - (eu3.x - eu1.x) * (eu2.y - eu1.y)
+      );
+      return { triangle: true, p1: eu1, p2: eu2, p3: eu3, area };
+    },
+  },
+
   joinLine: {
     label: 'Line A ∧ B',
     compute: (depValues, { geom1, geom2 }) => {

@@ -15,6 +15,7 @@ const TYPE_COLOR = {
   multivector: '#f38ba8',
   dual:        '#f38ba8',
   mvExpr:      '#b4befe',
+  triangle:    '#89dceb',
 };
 
 function resolveColor(item) {
@@ -28,6 +29,7 @@ function getDisplayValue(text, values) {
   const val = values[node.id];
   if (val == null) return null;
   if (node.type === 'scalar')    return String(val);
+  if (node.type === 'triangle')  return val?.area != null ? `area: ${val.area.toFixed(2)}` : '—';
   if (node.type === 'joinLine')  return 'Line';
   if (node.type === 'motorExp')  return 'Motor';
   if (node.type === 'vector')    return `(${val.vx.toFixed(1)}, ${val.vy.toFixed(1)})`;

@@ -252,6 +252,26 @@ function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked }) {
   );
 }
 
+function SvgTriangle({ p1, p2, p3, label, color, vp }) {
+  const c1 = w2c(p1.x, p1.y, vp);
+  const c2 = w2c(p2.x, p2.y, vp);
+  const c3 = w2c(p3.x, p3.y, vp);
+  const pts = `${c1.cx},${c1.cy} ${c2.cx},${c2.cy} ${c3.cx},${c3.cy}`;
+  const lx = (c1.cx + c2.cx + c3.cx) / 3;
+  const ly = (c1.cy + c2.cy + c3.cy) / 3;
+  return (
+    <g>
+      <polygon points={pts} fill={color} fillOpacity={0.22} stroke={color} strokeWidth={1.5} strokeDasharray="5 3" />
+      {label && (
+        <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+              fill={color} fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Canvas() {
@@ -402,6 +422,9 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const hovered = id === hoveredId;
 
+    if (node.type === 'triangle') {
+      return <SvgTriangle key={id} p1={val.p1} p2={val.p2} p3={val.p3} label={label} color={color} vp={vp} />;
+    }
     if (node.type === 'joinLine') {
       return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
     }

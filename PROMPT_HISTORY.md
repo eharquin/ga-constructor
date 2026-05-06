@@ -33,5 +33,6 @@ A chronological log of all prompts given to Claude in this project.
 ## 2026-05-06
 
 21. **Double-click to add point** — Double-clicking on empty canvas space creates a new `freePoint` at that position. Auto-names using unused letters (E, F, G, H, …) then falls back to P1, P2, … Clicking on an existing draggable object is ignored. Implemented: `ADD_ITEM` reducer action + `pickPointName` helper + `addFreePoint` in `useGraph.js`; `handleDoubleClick` in `Canvas.jsx`.
+22. **Triangle area from three-point join** — `A = P1 & P2 & P3` now parses as a `triangle` node (3-operand `&` detection in `parseExpression.js`). Computes `{ triangle, p1, p2, p3, area }` from Euclidean positions. Renders as a transparent dashed-border `<polygon>` via new `SvgTriangle` component. Panel shows `area: X.XX`. Color tag: sky blue `#89dceb`.
 
 ---

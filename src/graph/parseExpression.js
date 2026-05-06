@@ -262,9 +262,25 @@ export function parseExpression(text) {
     }
   }
 
-  // G1 & G2 — join (line through two points); both sides can be any inline geom
+  // G1 & G2 [& G3] — join; 2 operands → line, 3 operands → triangle
   const joinParts = splitTopLevelOp(expr, '&');
   if (joinParts) {
+    const join3 = splitTopLevelOp(joinParts[1], '&');
+    if (join3) {
+      const geom1 = parseInlineGeom(joinParts[0]);
+      const geom2 = parseInlineGeom(join3[0]);
+      const geom3 = parseInlineGeom(join3[1]);
+      if (geom1 && geom2 && geom3) {
+        geom1.depOffset = 0;
+        geom2.depOffset = geom1.deps.length;
+        geom3.depOffset = geom1.deps.length + geom2.deps.length;
+        return {
+          id: label, label, type: 'triangle',
+          deps: [...geom1.deps, ...geom2.deps, ...geom3.deps],
+          params: { geom1, geom2, geom3 },
+        };
+      }
+    }
     const geom1 = parseInlineGeom(joinParts[0]);
     const geom2 = parseInlineGeom(joinParts[1]);
     if (geom1 && geom2) {
