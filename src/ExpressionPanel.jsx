@@ -368,9 +368,9 @@ export default function ExpressionPanel() {
                         className={`anim-mode-btn${animMode === modeId ? ' active' : ''}`}
                         onClick={() => setAnimMode(item.id, modeId)}
                         tabIndex={-1}
+                        title={modeLabel}
                       >
                         <span className="anim-mode-icon">{icon}</span>
-                        <span className="anim-mode-text">{modeLabel}</span>
                       </button>
                     ))}
                   </div>
