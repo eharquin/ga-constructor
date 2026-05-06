@@ -8,6 +8,9 @@ import { PGA, idealPoint } from '../pga.js';
 
 const BLADE_NAMES = new Set(['e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012']);
 
+// Names reserved as built-in functions — excluded from dep extraction.
+const BUILTIN_FN_NAMES = new Set(['sqrt']);
+
 const BASIS_ENV = (() => {
   const pairs = [
     ['e0', 1], ['e1', 2], ['e2', 3],
@@ -88,7 +91,18 @@ function validate(tokens) {
       eat();
       return true;
     }
-    if (t.type === 'num' || t.type === 'id') { eat(); return true; }
+    if (t.type === 'num') { eat(); return true; }
+    if (t.type === 'id') {
+      eat();
+      if (BUILTIN_FN_NAMES.has(t.val)) {
+        if (!peek() || peek().type !== 'op' || peek().val !== '(') return false;
+        eat();
+        if (!expr()) return false;
+        if (!peek() || peek().type !== 'op' || peek().val !== ')') return false;
+        eat();
+      }
+      return true;
+    }
     return false;
   }
 
@@ -104,7 +118,7 @@ export function extractMVDeps(str) {
   const seen = new Set();
   const deps = [];
   for (const t of tokens) {
-    if (t.type === 'id' && !BLADE_NAMES.has(t.val) && !seen.has(t.val)) {
+    if (t.type === 'id' && !BLADE_NAMES.has(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
       seen.add(t.val);
       deps.push(t.val);
     }
@@ -227,7 +241,21 @@ export function evalMVArith(str, env) {
       return v;
     }
     if (t.type === 'num') { eat(); return t.val; }
-    if (t.type === 'id')  { eat(); const v = fullEnv[t.val]; return v !== undefined ? v : null; }
+    if (t.type === 'id') {
+      eat();
+      if (BUILTIN_FN_NAMES.has(t.val)) {
+        if (!peek() || peek().val !== '(') return null;
+        eat();
+        const arg = parseExpr();
+        if (!peek() || peek().val !== ')') return null;
+        eat();
+        if (arg === null) return null;
+        if (t.val === 'sqrt') return typeof arg === 'number' ? Math.sqrt(arg) : PGA.Sqrt(toMV(arg));
+        return null;
+      }
+      const v = fullEnv[t.val];
+      return v !== undefined ? v : null;
+    }
     return null;
   }
 
