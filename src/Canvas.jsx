@@ -363,7 +363,8 @@ export default function Canvas() {
     } else if (dragRef.current) {
       const dx = mx - dragRef.current.startMx;
       const dy = my - dragRef.current.startMy;
-      setVp(v => ({ ...v, offsetX: dragRef.current.ox + dx, offsetY: dragRef.current.oy + dy }));
+      const { ox, oy } = dragRef.current;
+      setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
     } else {
       const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp);
