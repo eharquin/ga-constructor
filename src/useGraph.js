@@ -268,12 +268,26 @@ export function useGraph() {
     const node = parseExpression(item.text);
     const { xExpr, yExpr } = node.params;
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
-    const xHandled = tryUpdateScalar(xExpr, vx);
-    const yHandled = tryUpdateScalar(yExpr, vy);
+    const isZeroLit = (s) => isLiteral(s) && +s === 0;
+    // Constrain drag to zero for directions whose expression is a zero literal —
+    // this prevents diagonal drag on e.g. x*e01 from introducing a vx component.
+    const cvx = isZeroLit(xExpr) ? 0 : vx;
+    const cvy = isZeroLit(yExpr) ? 0 : vy;
+    const xHandled = tryUpdateScalar(xExpr, cvx);
+    const yHandled = tryUpdateScalar(yExpr, cvy);
     if (!xHandled || !yHandled) {
-      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(vx) : xExpr);
-      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(vy) : yExpr);
-      dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = vector(${xPart}, ${yPart})` });
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(cvx) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(cvy) : yExpr);
+      // Skip text dispatch when the only unhandled parts are zero literals staying at 0
+      // (preserves original expression format, e.g. x*e01 remains x*e01).
+      const needsText =
+        (!xHandled && !(isZeroLit(xExpr) && Math.round(cvx) === 0)) ||
+        (!yHandled && !(isZeroLit(yExpr) && Math.round(cvy) === 0));
+      if (!needsText) return;
+      const text = node.label !== null
+        ? `${nodeId} = vector(${xPart}, ${yPart})`
+        : `vector(${xPart}, ${yPart})`;
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
     }
   };
 
