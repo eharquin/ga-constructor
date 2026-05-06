@@ -36,7 +36,7 @@ function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
 
 function hitTest(mx, my, nodes, values, vectorPositions, vp) {
   for (const [id, node] of Object.entries(nodes)) {
-    if (node.label === null && node.type !== 'freePoint') continue; // anonymous non-points are render-only
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector') continue;
     if (node.type === 'freePoint') {
       const eu = toEuclidean(values[id]);
       if (!eu) continue;
@@ -50,7 +50,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp) {
       const tail = w2c(pos.x, pos.y, vp);
       if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
-      if (val) {
+      if (val && node.label !== null) {
         const tip = w2c(pos.x + val.vx, pos.y + val.vy, vp);
         if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'vectorTip' };
