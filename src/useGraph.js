@@ -250,7 +250,10 @@ export function useGraph() {
     if (!xHandled || !yHandled) {
       const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(x) : xExpr);
       const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(y) : yExpr);
-      dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = point(${xPart}, ${yPart})` });
+      const text = node.label !== null
+        ? `${nodeId} = point(${xPart}, ${yPart})`
+        : `point(${xPart}, ${yPart})`;
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
     }
   };
 
