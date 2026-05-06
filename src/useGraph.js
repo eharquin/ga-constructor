@@ -227,11 +227,22 @@ export function useGraph() {
   // Returns true if handled.
   const tryUpdateScalar = (expr, value) => {
     const trimmed = expr.trim();
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return false;
-    const si = items.find((it) => parseExpression(it.text)?.id === trimmed);
-    if (!si) return false;
-    dispatch({ type: 'SET_TEXT', id: si.id, text: `${trimmed} = ${Math.round(value)}` });
-    return true;
+    // Plain identifier → update directly
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) {
+      const si = items.find((it) => parseExpression(it.text)?.id === trimmed);
+      if (!si) return false;
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${trimmed} = ${Math.round(value)}` });
+      return true;
+    }
+    // Negated identifier (-varName) → update with negated value
+    const neg = trimmed.match(/^-([A-Za-z_][A-Za-z0-9_]*)$/);
+    if (neg) {
+      const si = items.find((it) => parseExpression(it.text)?.id === neg[1]);
+      if (!si) return false;
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${neg[1]} = ${Math.round(-value)}` });
+      return true;
+    }
+    return false;
   };
 
   // Move a freePoint node. If coordinate expressions are scalar identifiers,
