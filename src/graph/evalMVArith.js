@@ -250,7 +250,17 @@ export function evalMVArith(str, env) {
         if (!peek() || peek().val !== ')') return null;
         eat();
         if (arg === null) return null;
-        if (t.val === 'sqrt') return typeof arg === 'number' ? Math.sqrt(arg) : PGA.Sqrt(toMV(arg));
+        if (t.val === 'sqrt') {
+        if (typeof arg === 'number') return Math.sqrt(arg);
+        const mv = toMV(arg);
+        if (!mv) return null;
+        // PGA.Sqrt uses (1+M)/|1+M|. When scalar(M) < 0 (e.g. P*R where e₁₂²=-1
+        // makes the scalar part -1), 1+M is nilpotent and the norm is 0 → NaN.
+        // In PGA the double cover means M and -M represent the same motion,
+        // so we normalise to a positive scalar before computing the sqrt.
+        const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
+        return PGA.Sqrt(normalised);
+      }
         return null;
       }
       const v = fullEnv[t.val];
