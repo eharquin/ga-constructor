@@ -212,9 +212,12 @@ export function parseExpression(text) {
     return { id, label, type: 'scalar', deps: [], params: { value: +scalar[1] } };
   }
 
-  // point(xExpr, yExpr) — free point
-  const ptCoords = parse2DCall(expr, 'point');
-  if (ptCoords) {
+  // point(xExpr, yExpr)  or  (xExpr, yExpr) — free point
+  const ptCoords = parse2DCall(expr, 'point') ?? (() => {
+    if (!expr.startsWith('(') || !expr.endsWith(')')) return null;
+    return splitTopLevelComma(expr.slice(1, -1).trim());
+  })();
+  if (ptCoords && ptCoords[0] && ptCoords[1]) {
     const [xExpr, yExpr] = ptCoords;
     const deps = uniqueDeps(xExpr, yExpr);
     return { id, label, type: 'freePoint', deps, params: { xExpr, yExpr, deps } };
