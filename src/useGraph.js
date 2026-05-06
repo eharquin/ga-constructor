@@ -169,6 +169,19 @@ export function useGraph() {
   }, [playingIds, animSettings]);
 
   const togglePlay = (id) => {
+    const conf = animSettings[id] ?? {};
+    const mode = conf.mode ?? 'repeat';
+    // 'once' mode: if already at max, reset to min so the next play restarts from the beginning
+    if (mode === 'once') {
+      const item = items.find(it => it.id === id);
+      const node = item && parseExpression(item.text);
+      if (node?.type === 'scalar') {
+        const { min = 0, max = 10 } = item.anim ?? {};
+        if (node.params.value >= max) {
+          dispatch({ type: 'SET_TEXT', id, text: `${node.id} = ${min}` });
+        }
+      }
+    }
     setPlayingIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) { next.delete(id); }
