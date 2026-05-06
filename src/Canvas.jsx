@@ -1,6 +1,7 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { toEuclidean, lineBaseAndDir } from './pga.js';
+import { toEuclidean, lineBaseAndDir, toIdealDirection } from './pga.js';
+import { parseExpression } from './graph/parseExpression.js';
 
 const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
 const HIT_RADIUS  = 12;
@@ -14,6 +15,17 @@ function w2c(x, y, vp) {
 
 function c2w(cx, cy, vp) {
   return { x: (cx - vp.offsetX) / vp.scale, y: -(cy - vp.offsetY) / vp.scale };
+}
+
+function normalizeVec(vx, vy, doNormalize) {
+  if (!doNormalize) return { vx, vy };
+  const len = Math.sqrt(vx * vx + vy * vy);
+  return len < 1e-10 ? { vx: 0, vy: 0 } : { vx: vx / len, vy: vy / len };
+}
+
+function roundToScale(val, scale) {
+  const decimals = Math.max(0, Math.round(Math.log10(scale)));
+  return parseFloat(val.toFixed(decimals));
 }
 
 function svgPt(e, svg) {
@@ -34,9 +46,10 @@ function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
   return null;
 }
 
-function hitTest(mx, my, nodes, values, vectorPositions, vp) {
+function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds) {
   for (const [id, node] of Object.entries(nodes)) {
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector') continue;
+    if (hiddenIds?.has(id)) continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint') continue;
     if (node.type === 'freePoint') {
       const eu = toEuclidean(values[id]);
       if (!eu) continue;
@@ -54,6 +67,15 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp) {
         const tip = w2c(pos.x + val.vx, pos.y + val.vy, vp);
         if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'vectorTip' };
+      }
+    }
+    if (node.type === 'meetPoint') {
+      const val = values[id];
+      if (val && 'vx' in val) {
+        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+        const tail = w2c(pos.x, pos.y, vp);
+        if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+          return { id, dragType: 'vector' };
       }
     }
     if (node.type === 'multivector') {
@@ -110,8 +132,17 @@ function SvgGrid({ vp, W, H }) {
   for (let wy = Math.floor(minY / step) * step; wy <= maxY; wy += step) wys.push(wy);
 
   const { cx: ox, cy: oy } = w2c(0, 0, vp);
-  const ly = Math.min(Math.max(oy + 13, 13), H - 5);
-  const lx = Math.min(Math.max(ox - 5, 5), W - 5);
+
+  // X-axis label row: clamp to visible band, flip to bottom when axis is off-top
+  const ly      = Math.min(Math.max(oy + 13, 13), H - 5);
+  const xAnchor = 'middle';
+
+  // Y-axis label column: when the axis is off-screen, pin to the nearest edge
+  // and flip text-anchor so the label grows inward instead of clipping out.
+  let yLabelX, yAnchor;
+  if (ox <= 0)  { yLabelX = 4;     yAnchor = 'start'; }
+  else if (ox >= W) { yLabelX = W - 4; yAnchor = 'end'; }
+  else          { yLabelX = ox - 5; yAnchor = 'end'; }
 
   return (
     <g>
@@ -128,8 +159,9 @@ function SvgGrid({ vp, W, H }) {
       {wxs.map((wx, i) => {
         if (Math.abs(wx) < step * 0.01) return null;
         const { cx } = w2c(wx, 0, vp);
+        const anchor = cx < 10 ? 'start' : cx > W - 10 ? 'end' : 'middle';
         return (
-          <text key={i} x={cx} y={ly} textAnchor="middle"
+          <text key={i} x={cx} y={ly} textAnchor={anchor}
                 fontSize={10} fontFamily="monospace" fill="#9090b0" pointerEvents="none">
             {fmtGridLabel(wx, step)}
           </text>
@@ -139,7 +171,7 @@ function SvgGrid({ vp, W, H }) {
         if (Math.abs(wy) < step * 0.01) return null;
         const { cy } = w2c(0, wy, vp);
         return (
-          <text key={i} x={lx} y={cy + 4} textAnchor="end"
+          <text key={i} x={yLabelX} y={cy + 4} textAnchor={yAnchor}
                 fontSize={10} fontFamily="monospace" fill="#9090b0" pointerEvents="none">
             {fmtGridLabel(wy, step)}
           </text>
@@ -206,7 +238,7 @@ function SvgLine({ L, label, color, vp, W, H }) {
   );
 }
 
-function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked }) {
+function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDraggable = true }) {
   const tail = w2c(px, py, vp);
   const tip  = w2c(px + vx, py + vy, vp);
   const dx   = tip.cx - tail.cx;
@@ -232,7 +264,7 @@ function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked }) {
       <line x1={tail.cx} y1={tail.cy} x2={tip.cx} y2={tip.cy}
             stroke={color} strokeWidth={hovered ? 2.5 : 2} strokeLinecap="round" />
       {arrowPts && <polygon points={arrowPts} fill={color} />}
-      {hovered && len > 8 && (
+      {hovered && tipDraggable && len > 8 && (
         <circle cx={tip.cx} cy={tip.cy} r={5}
                 fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth={1.5} />
       )}
@@ -285,11 +317,19 @@ export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const {
-    nodes, values, colorMap, labelMap, vectorPositions, orderedNodeIds,
+    nodes, values, colorMap, labelMap, vectorPositions, normalizeMap, orderedNodeIds, items,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   } = useGraphContext();
+
+  const hiddenIds = useMemo(
+    () => new Set(items.filter((it) => it.visible === false).map((it) => {
+      const n = nodes[parseExpression(it.text)?.id];
+      return n?.id ?? null;
+    }).filter(Boolean)),
+    [items, nodes]
+  );
 
   const [vp,        setVp]        = useState(INITIAL_VP);
   const [size,      setSize]      = useState({ w: 800, h: 600 });
@@ -303,7 +343,7 @@ export default function Canvas() {
 
   const snap = useRef(null);
   snap.current = {
-    nodes, values, vp, colorMap, vectorPositions,
+    nodes, values, vp, colorMap, vectorPositions, hiddenIds,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -357,8 +397,8 @@ export default function Canvas() {
     if (e.button !== 0) return;
     svgRef.current.setPointerCapture(e.pointerId);
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp } = snap.current;
-    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp);
+    const { nodes, values, vectorPositions, vp, hiddenIds } = snap.current;
+    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds);
     if (hit) {
       ptDragRef.current = hit;
       setCursor('crosshair');
@@ -375,18 +415,20 @@ export default function Canvas() {
     if (ptDragRef.current) {
       const { x, y } = c2w(mx, my, vp);
       const { id, dragType } = ptDragRef.current;
-      if (dragType === 'freePoint')    updateFreePoint(id, Math.round(x), Math.round(y));
-      if (dragType === 'depPoint')     snap.current.updateDepPoint(id, Math.round(x), Math.round(y));
-      if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, Math.round(x), Math.round(y));
-      if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, Math.round(x), Math.round(y));
+      const rx = roundToScale(x, vp.scale);
+      const ry = roundToScale(y, vp.scale);
+      if (dragType === 'freePoint')    updateFreePoint(id, rx, ry);
+      if (dragType === 'depPoint')     snap.current.updateDepPoint(id, rx, ry);
+      if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
+      if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
         const nearby = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);
         if (nearby) snap.current.setDrawPosRef(id, nearby);
-        else        setDrawPos(id, Math.round(x), Math.round(y));
+        else        setDrawPos(id, rx, ry);
       }
       if (dragType === 'vectorTip') {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
-        snap.current.updateVector(id, Math.round(x - pos.x), Math.round(y - pos.y));
+        snap.current.updateVector(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
 
     } else if (dragRef.current) {
@@ -396,7 +438,7 @@ export default function Canvas() {
       setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
     } else {
-      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp);
+      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds);
       const hitId = hit?.id ?? null;
       const newCursor = hitId ? 'pointer' : 'grab';
       if (newCursor !== cursor) setCursor(newCursor);
@@ -415,16 +457,17 @@ export default function Canvas() {
 
   function handleDoubleClick(e) {
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp, addFreePoint } = snap.current;
-    if (hitTest(mx, my, nodes, values, vectorPositions, vp)) return;
+    const { nodes, values, vectorPositions, vp, hiddenIds, addFreePoint } = snap.current;
+    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds)) return;
     const { x, y } = c2w(mx, my, vp);
-    addFreePoint(x, y);
+    addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
 
   // Build SVG objects in item draw order
   const objects = orderedNodeIds.map(id => {
     const node = nodes[id];
     if (!node || node.type === 'scalar' || node.type === 'motorExp') return null;
+    if (hiddenIds.has(id)) return null;
     const val = values[id];
     if (val == null) return null;
     const color   = colorMap[id] ?? '#4444cc';
@@ -439,10 +482,21 @@ export default function Canvas() {
     }
     if (node.type === 'vector') {
       const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
+      const dir = normalizeVec(val.vx, val.vy, normalizeMap[id]);
       return (
         <SvgVector key={id}
-          vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
+          vx={dir.vx} vy={dir.vy} px={pos.x} py={pos.y}
           label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked}
+        />
+      );
+    }
+    if (val && 'px' in val && 'vx' in val) {
+      const pos = vectorPositions[id] ?? { x: val.px, y: val.py };
+      const dir = normalizeVec(val.vx, val.vy, normalizeMap[id]);
+      return (
+        <SvgVector key={id}
+          vx={dir.vx} vy={dir.vy} px={pos.x} py={pos.y}
+          label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false}
         />
       );
     }
@@ -457,6 +511,15 @@ export default function Canvas() {
     }
     if (lineBaseAndDir(val)) {
       return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
+    }
+    const ideal = toIdealDirection(val);
+    if (ideal) {
+      return (
+        <SvgVector key={id}
+          vx={ideal.vx} vy={ideal.vy} px={0} py={0}
+          label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false}
+        />
+      );
     }
     return null;
   });

@@ -3,39 +3,46 @@ import { parseExpression } from './graph/parseExpression.js';
 import { evaluate } from './graph/evaluate.js';
 import { toEuclidean } from './pga.js';
 
+// Format a number for expression text: strip floating-point noise, preserve useful decimals.
+const fmtNum = (val) => parseFloat(val.toFixed(6));
+
 // Default type colors (mirrors ExpressionPanel TYPE_COLOR)
 const TYPE_COLOR = {
-  scalar:     '#a6e3a1',
-  freePoint:  '#89b4fa',
-  vector:     '#f9e2af',
-  motorExp:   '#74c7ec',
-  motorApply: '#94e2d5',
-  joinLine:   '#cba6f7',
-  meetPoint:  '#fab387',
-  mvExpr:     '#b4befe',
-  triangle:   '#89dceb',
+  scalar:      '#a6e3a1',
+  freePoint:   '#89b4fa',
+  vector:      '#f9e2af',
+  motorExp:    '#74c7ec',
+  motorApply:  '#94e2d5',
+  joinLine:    '#cba6f7',
+  freeLine:    '#cba6f7',
+  meetPoint:   '#fab387',
+  mvExpr:      '#b4befe',
+  triangle:    '#89dceb',
+  multivector: '#f38ba8',
+  dual:        '#f38ba8',
+  reverse:     '#f38ba8',
 };
 
 const INITIAL_ITEMS = [
   // Free points — drag them around
-  { id: 'expr_0',  text: 'A = point(-6, 3)',   color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_1',  text: 'B = point(5, -3)',   color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_2',  text: 'C = point(-3, -5)',  color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_3',  text: 'D = point(6, 3)',    color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_0',  text: 'A = point(-6, 3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_1',  text: 'B = point(5, -3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_2',  text: 'C = point(-3, -5)',  color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_3',  text: 'D = point(6, 3)',    color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
   // Join (&): line through two points
-  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
   // Meet (^): intersection point of two lines
-  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
   // Multivector arithmetic: midpoint of A and B
-  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
   // Scalar — click ▶ to animate
-  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
   // Motor: rotation around X by angle t
-  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
   // Apply motor: A and B rotated around X
-  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
 ];
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
@@ -52,7 +59,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -73,9 +80,17 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, label: action.label } : it
       );
+    case 'SET_VISIBLE':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, visible: action.visible } : it
+      );
+    case 'SET_NORMALIZE':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, normalize: action.normalize } : it
+      );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -224,30 +239,49 @@ export function useGraph() {
     catch { return {}; }
   }, [nodes]);
 
+  const normalizeMap = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      const node = parseExpression(item.text);
+      if (node) map[node.id] = item.normalize ?? false;
+    }
+    return map;
+  }, [items]);
+
   // colorMap: nodeId → resolved color (custom or type default)
   const colorMap = useMemo(() => {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
-      map[node.id] = item.color ?? TYPE_COLOR[node.type] ?? '#ffffff';
+      map[node.id] = item.color ?? TYPE_COLOR[node.type] ?? '#6c7086';
     }
     return map;
   }, [items]);
 
   // vectorPositions: nodeId → { x, y, linked } draw position.
   // drawPos can be { x, y } (static) or { ref: nodeId } (follows a point).
+  // Also covers meetPoint nodes whose current value is an ideal vector { vx, vy, px, py }.
   const vectorPositions = useMemo(() => {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
-      if (node?.type !== 'vector') continue;
-      const dp = item.drawPos;
-      if (dp?.ref) {
-        const eu = toEuclidean(values[dp.ref]);
-        map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true };
-      } else {
-        map[node.id] = { ...(dp ?? { x: 0, y: 0 }), linked: false };
+      if (!node) continue;
+      if (node.type === 'vector') {
+        const dp = item.drawPos;
+        if (dp?.ref) {
+          const eu = toEuclidean(values[dp.ref]);
+          map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true };
+        } else {
+          map[node.id] = { ...(dp ?? { x: 0, y: 0 }), linked: false };
+        }
+      } else if (node.type === 'meetPoint') {
+        const val = values[node.id];
+        if (!val || !('vx' in val)) continue;
+        const dp = item.drawPos;
+        // If user has moved the anchor, use it; otherwise start at the midpoint between the lines.
+        map[node.id] = dp ? { x: dp.x, y: dp.y, linked: false }
+                          : { x: val.px, y: val.py, linked: false };
       }
     }
     return map;
@@ -277,7 +311,7 @@ export function useGraph() {
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) {
       const si = items.find((it) => parseExpression(it.text)?.id === trimmed);
       if (!si) return false;
-      dispatch({ type: 'SET_TEXT', id: si.id, text: `${trimmed} = ${Math.round(value)}` });
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${trimmed} = ${fmtNum(value)}` });
       return true;
     }
     // Negated identifier (-varName) → update with negated value
@@ -285,7 +319,7 @@ export function useGraph() {
     if (neg) {
       const si = items.find((it) => parseExpression(it.text)?.id === neg[1]);
       if (!si) return false;
-      dispatch({ type: 'SET_TEXT', id: si.id, text: `${neg[1]} = ${Math.round(-value)}` });
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${neg[1]} = ${fmtNum(-value)}` });
       return true;
     }
     return false;
@@ -305,8 +339,8 @@ export function useGraph() {
     const xHandled = tryUpdateScalar(xExpr, x);
     const yHandled = tryUpdateScalar(yExpr, y);
     if (!xHandled || !yHandled) {
-      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(x) : xExpr);
-      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(y) : yExpr);
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
       const text = node.label !== null
         ? `${nodeId} = point(${xPart}, ${yPart})`
         : `point(${xPart}, ${yPart})`;
@@ -333,13 +367,13 @@ export function useGraph() {
     const xHandled = tryUpdateScalar(xExpr, cvx);
     const yHandled = tryUpdateScalar(yExpr, cvy);
     if (!xHandled || !yHandled) {
-      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? Math.round(cvx) : xExpr);
-      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? Math.round(cvy) : yExpr);
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(cvx) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(cvy) : yExpr);
       // Skip text dispatch when the only unhandled parts are zero literals staying at 0
       // (preserves original expression format, e.g. x*e01 remains x*e01).
       const needsText =
-        (!xHandled && !(isZeroLit(xExpr) && Math.round(cvx) === 0)) ||
-        (!yHandled && !(isZeroLit(yExpr) && Math.round(cvy) === 0));
+        (!xHandled && !(isZeroLit(xExpr) && Math.abs(cvx) < 1e-9)) ||
+        (!yHandled && !(isZeroLit(yExpr) && Math.abs(cvy) < 1e-9));
       if (!needsText) return;
       const text = node.label !== null
         ? `${nodeId} = vector(${xPart}, ${yPart})`
@@ -366,7 +400,7 @@ export function useGraph() {
       const scalarVal = m[1] === '-' ? -targetCoeff : targetCoeff;
       const si = items.find((it) => parseExpression(it.text)?.id === m[2]);
       if (!si) return;
-      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${Math.round(scalarVal)}` });
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
     };
 
     if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);   // e01 → y·w
@@ -415,7 +449,7 @@ export function useGraph() {
       const scalarVal = m[1] === '-' ? -targetCoeff : targetCoeff;
       const si = items.find((it) => parseExpression(it.text)?.id === m[2]);
       if (!si) return;
-      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${Math.round(scalarVal)}` });
+      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
     };
 
     if (coeffExprs[3] !== undefined) applyCoeff(coeffExprs[3], y * w);   // e2 → e01 → y·w
@@ -431,8 +465,8 @@ export function useGraph() {
     });
     if (!item) return;
 
-    const e01 = Math.round(y);
-    const e02 = Math.round(-x);
+    const e01 = fmtNum(y);
+    const e02 = fmtNum(-x);
 
     const term = (c, blade) => {
       if (c === 0) return null;
@@ -448,7 +482,7 @@ export function useGraph() {
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
-      return n?.id === nodeId && n?.type === 'vector';
+      return n?.id === nodeId && (n?.type === 'vector' || n?.type === 'meetPoint');
     });
 
   // Set static draw position for a vector.
@@ -473,7 +507,7 @@ export function useGraph() {
     const usedIds = new Set(items.map((it) => parseExpression(it.text)?.id).filter(Boolean));
     const name  = pickPointName(usedIds);
     const newId = `expr_${nextId.current++}`;
-    dispatch({ type: 'ADD_ITEM', id: newId, text: `${name} = point(${Math.round(x)}, ${Math.round(y)})` });
+    dispatch({ type: 'ADD_ITEM', id: newId, text: `${name} = point(${fmtNum(x)}, ${fmtNum(y)})` });
   };
 
   return {
@@ -495,7 +529,10 @@ export function useGraph() {
     updateVector,
     togglePlay,
     labelMap,
-    setLabel: (id, label) => dispatch({ type: 'SET_LABEL', id, label }),
+    setLabel:       (id, label)   => dispatch({ type: 'SET_LABEL',   id, label }),
+    setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
+    setItemNormalize:  (id, normalize)  => dispatch({ type: 'SET_NORMALIZE',  id, normalize }),
+    normalizeMap,
     reorderItem,
     insertItemAfter,
     deleteItem,

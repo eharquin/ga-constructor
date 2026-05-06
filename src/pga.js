@@ -15,6 +15,15 @@ export const point2D = (x, y) => {
   return p;
 };
 
+// 2D PGA line: a·e1 + b·e2 + c·e0  →  equation a·x + b·y + c = 0
+export const line2D = (a, b, c) => {
+  const L = new PGA(8);
+  L[1] = c;   // e0
+  L[2] = a;   // e1
+  L[3] = b;   // e2
+  return L;
+};
+
 // Ideal point (point at infinity) — represents a direction (vx, vy). Weight = 0.
 export const idealPoint = (vx, vy) => {
   const p = new PGA(8);
@@ -43,10 +52,37 @@ export const dualOp = (mv) => {
 // Extract Euclidean (x,y) from a grade-2 PGA(2,0,1) point. Returns null for ideal points.
 // Point: y·e01 - x·e02 + w·e12  →  x = -p[5]/p[6],  y = p[4]/p[6]
 export const toEuclidean = (p) => {
-  if (!p) return null;
+  if (!p || typeof p.length !== 'number') return null;
   const w = p[6];   // e12 weight
   if (Math.abs(w) < 1e-10) return null;
   return { x: -p[5] / w, y: p[4] / w };
+};
+
+// Reverse (reversion) of a multivector: grade-k blades get sign (-1)^(k(k-1)/2).
+// In PGA(2,0,1): grade 0,1 → unchanged; grade 2,3 → negated.
+export const reverseOp = (mv) => {
+  const result = new PGA(8);
+  result[0] =  mv[0];   // scalar   (grade 0) +
+  result[1] =  mv[1];   // e0       (grade 1) +
+  result[2] =  mv[2];   // e1       (grade 1) +
+  result[3] =  mv[3];   // e2       (grade 1) +
+  result[4] = -mv[4];   // e01      (grade 2) −
+  result[5] = -mv[5];   // e02      (grade 2) −
+  result[6] = -mv[6];   // e12      (grade 2) −
+  result[7] = -mv[7];   // e012     (grade 3) −
+  return result;
+};
+
+// Extract normalised direction (vx,vy) from a grade-2 ideal point (w≈0).
+// Returns null when the input is a finite point or has zero direction.
+export const toIdealDirection = (p) => {
+  if (!p || typeof p.length !== 'number' || p.length < 8) return null;
+  if (Math.abs(p[6]) > 1e-10) return null;   // finite point — not ideal
+  const vx = -p[5];  // e02 → -vx
+  const vy =  p[4];  // e01 →  vy
+  const len = Math.sqrt(vx * vx + vy * vy);
+  if (len < 1e-10) return null;
+  return { vx: vx / len, vy: vy / len };
 };
 
 // For a grade-1 line L: direction (ux,uy) and a canonical base point (bx,by).

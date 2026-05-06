@@ -11,9 +11,11 @@ const TYPE_COLOR = {
   motorExp:    '#74c7ec',
   motorApply:  '#94e2d5',
   joinLine:    '#cba6f7',
+  freeLine:    '#cba6f7',
   meetPoint:   '#fab387',
   multivector: '#f38ba8',
   dual:        '#f38ba8',
+  reverse:     '#f38ba8',
   mvExpr:      '#b4befe',
   triangle:    '#89dceb',
 };
@@ -60,15 +62,50 @@ function fmtCoeff(c) {
 
 // Format a PGA value as a blade sum: "80e01 + 180e02 + e12", "3e0 - e1", etc.
 // Returns null for scalars (numbers) and null values.
-function formatMV(val) {
+// Compute the PGA norm used for unitization.
+// Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
+// grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
+function pgaNorm(arr) {
+  const g1 = Math.sqrt(arr[2] ** 2 + arr[3] ** 2);
+  if (g1 > 1e-10) return g1;
+  const g2w = Math.abs(arr[6]);
+  if (g2w > 1e-10) return g2w;
+  const g2i = Math.sqrt(arr[4] ** 2 + arr[5] ** 2);
+  if (g2i > 1e-10) return g2i;
+  const s = Math.abs(arr[0]);
+  if (s > 1e-10) return s;
+  return null;
+}
+
+function normalizeArr(arr) {
+  const norm = pgaNorm(arr);
+  if (!norm) return arr;
+  const result = arr.map(c => c / norm);
+  // Canonicalize sign: first non-zero coefficient positive.
+  const leading = result.find(c => Math.abs(c) > 1e-10);
+  return leading < 0 ? result.map(c => -c) : result;
+}
+
+function formatMV(val, normalize = false) {
   if (val == null || typeof val === 'number') return null;
 
   let arr;
   if ('vx' in val) {
-    // { vx, vy } vector → ideal point representation
-    arr = [0, 0, 0, 0, val.vy, -val.vx, 0, 0];
+    // Use raw PGA coefficients when available (e.g. meet of parallel lines preserves magnitude).
+    // Fallback to reconstructing from vx/vy for plain { vx, vy } vectors.
+    let e01 = 'e01' in val ? val.e01 : val.vy;
+    let e02 = 'e02' in val ? val.e02 : -val.vx;
+    if (normalize) {
+      const len = Math.sqrt(e01 * e01 + e02 * e02);
+      if (len > 1e-10) {
+        e01 /= len; e02 /= len;
+        const leading = Math.abs(e01) > 1e-10 ? e01 : e02;
+        if (leading < 0) { e01 = -e01; e02 = -e02; }
+      }
+    }
+    arr = [0, 0, 0, 0, e01, e02, 0, 0];
   } else if (val.length >= 8) {
-    arr = Array.from(val);
+    arr = normalize ? normalizeArr(Array.from(val)) : Array.from(val);
   } else {
     return null;
   }
@@ -125,10 +162,13 @@ function parseInterval(str) {
 
 // ── Draw-position helpers (vectors) ──────────────────────────────────────────
 
-function formatDrawPos(drawPos) {
-  if (!drawPos) return '(0, 0)';
-  if ('ref' in drawPos) return drawPos.ref;
-  return `(${drawPos.x}, ${drawPos.y})`;
+function formatDrawPos(drawPos, fallbackPos) {
+  if (drawPos) {
+    if ('ref' in drawPos) return drawPos.ref;
+    return `(${drawPos.x}, ${drawPos.y})`;
+  }
+  if (fallbackPos) return `(${fallbackPos.x}, ${fallbackPos.y})`;
+  return '(0, 0)';
 }
 
 function parsePos(str) {
@@ -147,7 +187,7 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemNormalize, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
     reorderItem, insertItemAfter, deleteItem, createScalarsFor,
   } = useGraphContext();
 
@@ -161,7 +201,8 @@ export default function ExpressionPanel() {
   const [animTexts,  setAnimTexts]  = useState({});
   const [posTxts,    setPosTxts]    = useState({});
   const [labelTexts, setLabelTexts] = useState({});
-  const [animMenuIds, setAnimMenuIds] = useState(new Set());
+  const [animMenuIds,  setAnimMenuIds]  = useState(new Set());
+  const [helpOpen,     setHelpOpen]     = useState(false);
   const toggleAnimMenu = (id) => setAnimMenuIds(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -220,17 +261,20 @@ export default function ExpressionPanel() {
         {items.map((item, index) => {
           const node      = parseExpression(item.text);
           const isInvalid = item.text.trim() !== '' && !node;
-          const isScalar  = node?.type === 'scalar';
-          const isVector  = node?.type === 'vector';
+          const isScalar     = node?.type === 'scalar';
+          const isVector     = node?.type === 'vector';
+          const isMeetVector = node?.type === 'meetPoint' && values[node?.id] != null && 'vx' in values[node.id];
+          const hasPosition  = isVector || isMeetVector;
+          const canUnitize   = node && node.type !== 'scalar' && node.type !== 'motorExp' && node.type !== 'triangle';
           const isDrawable = node && node.type !== 'scalar' && node.type !== 'motorExp';
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
-          const mvStr     = node ? formatMV(values[node.id]) : null;
+          const mvStr     = node ? formatMV(values[node.id], item.normalize ?? false) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
-          const rawDrawPos = isVector ? (item.drawPos ?? null) : null;
+          const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense
-          const wantsSuggest = node?.type === 'freePoint' || node?.type === 'vector' || node?.type === 'multivector';
+          const wantsSuggest = node?.type === 'freePoint' || node?.type === 'vector' || node?.type === 'multivector' || node?.type === 'freeLine';
           const missingDeps = wantsSuggest
             ? [...new Set((node.deps ?? []).filter((d) => !nodes[d]))]
             : [];
@@ -306,6 +350,16 @@ export default function ExpressionPanel() {
                   <div className="play-btn-gap" />
                 )}
 
+                {/* Visibility toggle */}
+                <input
+                  type="checkbox"
+                  className="visibility-toggle"
+                  checked={item.visible !== false}
+                  onChange={(e) => setItemVisible(item.id, e.target.checked)}
+                  tabIndex={-1}
+                  title="Toggle visibility"
+                />
+
                 {/* Color swatch */}
                 <label className="color-swatch" style={{ background: color }} title="Change color">
                   <input
@@ -317,6 +371,17 @@ export default function ExpressionPanel() {
                 </label>
 
                 <div className="expr-body">
+                  {canUnitize && (
+                    <label className={`norm-toggle${item.normalize ? ' active' : ''}`} title="Normalize vector to unit length">
+                      <input
+                        type="checkbox"
+                        checked={item.normalize ?? false}
+                        onChange={(e) => setItemNormalize(item.id, e.target.checked)}
+                        tabIndex={-1}
+                      />
+                      unit
+                    </label>
+                  )}
                   <input
                     ref={(el) => { if (el) inputRefs.current[item.id] = el; }}
                     type="text"
@@ -394,13 +459,13 @@ export default function ExpressionPanel() {
                 </div>
               )}
 
-              {/* Draw-position sub-row — vector only */}
-              {isVector && node && (
+              {/* Draw-position sub-row — vector and ideal-point meet */}
+              {hasPosition && node && (
                 <div className="sub-row">
                   <span className="sub-label">position</span>
                   <input
                     className={`sub-input${rawDrawPos?.ref ? ' sub-input-active' : ''}`}
-                    value={posTxts[item.id] ?? formatDrawPos(rawDrawPos)}
+                    value={posTxts[item.id] ?? formatDrawPos(rawDrawPos, vectorPositions[node.id])}
                     onChange={(e) => setPosTxts((p) => ({ ...p, [item.id]: e.target.value }))}
                     onBlur={() => commitPosText(item.id, node.id)}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
@@ -473,6 +538,102 @@ export default function ExpressionPanel() {
       >
         + Add expression
       </button>
+
+      <button className="expr-help-btn" onClick={() => setHelpOpen(true)}>
+        ? Expression reference
+      </button>
+
+      {helpOpen && (
+        <div className="help-overlay" onClick={() => setHelpOpen(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-header">
+              <span className="help-title">Expression Reference</span>
+              <button className="help-close" onClick={() => setHelpOpen(false)}>×</button>
+            </div>
+            <div className="help-body">
+
+              <section className="help-section">
+                <h3>Primitives</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>A = point(x, y)</code></td><td>Free draggable point. <code>x</code>, <code>y</code> can be scalar names.</td></tr>
+                    <tr><td><code>V = vector(vx, vy)</code></td><td>Free direction vector (ideal point). Draggable tail &amp; tip.</td></tr>
+                    <tr><td><code>L = line(a, b, c)</code></td><td>Free line: <code>a·e1 + b·e2 + c·e0</code>, equation a·x + b·y + c = 0. <code>a</code>, <code>b</code>, <code>c</code> can be scalar names.</td></tr>
+                    <tr><td><code>t = 0.5</code></td><td>Scalar. Click ▶ to animate over an interval.</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Geometry</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>L = A &amp; B</code></td><td>Line through two points (join / regressive product).</td></tr>
+                    <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triangle from three points. Panel shows area.</td></tr>
+                    <tr><td><code>X = L1 ^ L2</code></td><td>Intersection of two lines (meet / wedge product). Parallel lines yield a direction vector.</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Motors</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>R = exp(A, t)</code></td><td>Motor from a point (rotation around A by 2t) or vector (translation along V by 2t).</td></tr>
+                    <tr><td><code>B = R &gt;&gt;&gt; A</code></td><td>Apply motor R to object A (sandwich product).</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Multivectors</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>P = 5e01 - 3e02 + e12</code></td><td>Raw PGA grade-2 element (point if e12 ≠ 0).</td></tr>
+                    <tr><td><code>L = 2e1 + e0</code></td><td>Raw PGA grade-1 element (line).</td></tr>
+                    <tr><td><code>M = (A + B) / 2</code></td><td>Multivector arithmetic: +, −, *, /. Renders as point or line automatically.</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Unary operations</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>D = !A</code></td><td>Hodge dual (grade swap: points ↔ lines).</td></tr>
+                    <tr><td><code>R = ~A</code></td><td>Reverse (reversion): negates grade-2 and grade-3 blades.</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>PGA 2D basis (8 elements)</h3>
+                <table className="help-table help-table-basis">
+                  <tbody>
+                    <tr><td><code>1</code></td><td>scalar</td><td><code>e01</code></td><td>ideal y-direction (point at ∞)</td></tr>
+                    <tr><td><code>e0</code></td><td>ideal line</td><td><code>e02</code></td><td>ideal x-direction (point at ∞)</td></tr>
+                    <tr><td><code>e1</code></td><td>y-axis line</td><td><code>e12</code></td><td>point weight (origin)</td></tr>
+                    <tr><td><code>e2</code></td><td>x-axis line</td><td><code>e012</code></td><td>pseudoscalar</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Canvas interactions</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td>Drag point</td><td>Move a free point or vector tail/tip.</td></tr>
+                    <tr><td>Scroll / pinch</td><td>Zoom centred on cursor.</td></tr>
+                    <tr><td>Drag background</td><td>Pan the viewport.</td></tr>
+                    <tr><td>Double-click</td><td>Add a new free point at that position.</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

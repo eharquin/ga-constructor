@@ -1,4 +1,4 @@
-import { PGA, point2D, idealPoint, toEuclidean, lineBaseAndDir, dualOp } from '../pga.js';
+import { PGA, point2D, line2D, idealPoint, toEuclidean, lineBaseAndDir, dualOp, reverseOp } from '../pga.js';
 import { evalExpr } from './evalExpr.js';
 import { evalMVArith } from './evalMVArith.js';
 
@@ -41,11 +41,26 @@ function join(A, B) {
 
 // meet: intersection of two 2D lines (grade-1) via Cramer's rule on ax+by+c=0.
 // Coefficients live at: a=L[2] (e1), b=L[3] (e2), c=L[1] (e0).
+// Parallel lines: det≈0 → ideal point (direction vector of the lines).
 function meet(L1, L2) {
   const a1 = L1[2], b1 = L1[3], c1 = L1[1];
   const a2 = L2[2], b2 = L2[3], c2 = L2[1];
   const det = a1 * b2 - a2 * b1;
-  if (Math.abs(det) < 1e-10) return null;
+  if (Math.abs(det) < 1e-10) {
+    // Actual PGA wedge-product e01/e02 coefficients (preserve sign and magnitude).
+    const e01 = c1 * a2 - a1 * c2;
+    const e02 = c1 * b2 - b1 * c2;
+    // vx/vy from PGA ideal-point convention: p[4]=vy=e01, p[5]=-vx=e02 → vx=-e02, vy=e01
+    const vxRaw = -e02, vyRaw = e01;
+    const len = Math.sqrt(vxRaw * vxRaw + vyRaw * vyRaw);
+    if (len < 1e-10) return null;
+    // Anchor at the midpoint between the two parallel lines (average of their base points).
+    const n2 = a1 * a1 + b1 * b1;
+    const px = -(c1 + c2) * a1 / (2 * n2);
+    const py = -(c1 + c2) * b1 / (2 * n2);
+    // vx/vy carry the actual PGA magnitude; e01/e02 duplicated for display formatting.
+    return { vx: vxRaw, vy: vyRaw, px, py, e01, e02 };
+  }
   return point2D(
     (b1 * c2 - b2 * c1) / det,
     (c1 * a2 - c2 * a1) / det
@@ -76,6 +91,17 @@ export const NODE_TYPES = {
       const { vx: cx, vy: cy } = evalCoords(depValues, params);
       if (isNaN(cx) || isNaN(cy)) return null;
       return point2D(cx, cy);
+    },
+  },
+  freeLine: {
+    label: 'Free Line',
+    compute: (depValues, { aExpr, bExpr, cExpr, deps }) => {
+      const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
+      const a = evalExpr(aExpr, scalars);
+      const b = evalExpr(bExpr, scalars);
+      const c = evalExpr(cExpr, scalars);
+      if (isNaN(a) || isNaN(b) || isNaN(c)) return null;
+      return line2D(a, b, c);
     },
   },
   vector: {
@@ -250,6 +276,15 @@ export const NODE_TYPES = {
     compute: ([val]) => {
       if (!val || !val.length || val.length < 8) return null;
       return dualOp(val);
+    },
+  },
+
+  // Reverse of a dependent element (~A).
+  reverse: {
+    label: 'Reverse',
+    compute: ([val]) => {
+      if (!val || !val.length || val.length < 8) return null;
+      return reverseOp(val);
     },
   },
 };

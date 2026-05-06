@@ -140,6 +140,18 @@ function parse2DCall(expr, fnName) {
   return coords;
 }
 
+// Parse NAME = fn(aExpr, bExpr, cExpr) forms. Returns [aExpr, bExpr, cExpr] or null.
+function parse3Call(expr, fnName) {
+  const prefix = fnName + '(';
+  if (!expr.startsWith(prefix) || !expr.endsWith(')')) return null;
+  const inner = expr.slice(prefix.length, -1).trim();
+  const first = splitTopLevelComma(inner);
+  if (!first) return null;
+  const second = splitTopLevelComma(first[1]);
+  if (!second) return null;
+  return [first[0], second[0], second[1]];
+}
+
 // Split str at the first occurrence of op that is not inside parentheses.
 function splitTopLevelOp(str, op) {
   let depth = 0;
@@ -231,6 +243,14 @@ export function parseExpression(text) {
     return { id, label, type: 'vector', deps, params: { xExpr, yExpr, deps } };
   }
 
+  // line(aExpr, bExpr, cExpr) — free line: a·e1 + b·e2 + c·e0
+  const lineCoords = parse3Call(expr, 'line');
+  if (lineCoords) {
+    const [aExpr, bExpr, cExpr] = lineCoords;
+    const deps = uniqueDeps(aExpr, bExpr, cExpr);
+    return { id, label, type: 'freeLine', deps, params: { aExpr, bExpr, cExpr, deps } };
+  }
+
   // exp(G, s) — motor exponential; G can be a named ID, vector(…), point(…), or blade expr
   if (expr.startsWith('exp(') && expr.endsWith(')')) {
     const inner = expr.slice(4, -1).trim();
@@ -317,6 +337,12 @@ export function parseExpression(text) {
         params: { geom1, geom2 },
       };
     }
+  }
+
+  // ~ID — reverse of a named object
+  const revId = expr.match(new RegExp(`^~${WS.source}(${ID.source})$`));
+  if (revId) {
+    return { id, label, type: 'reverse', deps: [revId[1]], params: {} };
   }
 
   // !ID — dual of a named object
