@@ -18,10 +18,10 @@ const TYPE_COLOR = {
 
 const INITIAL_ITEMS = [
   // Free points — drag them around
-  { id: 'expr_0',  text: 'A = point(-180, 80)',   color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_1',  text: 'B = point(160, -100)',  color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_2',  text: 'C = point(-80, -140)',  color: null, anim: null, drawPos: null, label: null },
-  { id: 'expr_3',  text: 'D = point(180, 100)',   color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_0',  text: 'A = point(-6, 3)',   color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_1',  text: 'B = point(5, -3)',   color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_2',  text: 'C = point(-3, -5)',  color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_3',  text: 'D = point(6, 3)',    color: null, anim: null, drawPos: null, label: null },
   // Join (&): line through two points
   { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null },
   { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null },

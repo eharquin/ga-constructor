@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { toEuclidean, lineBaseAndDir } from './pga.js';
 
-const INITIAL_VP  = { scale: 1, offsetX: 400, offsetY: 300 };
+const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
 const HIT_RADIUS  = 12;
 const SNAP_RADIUS = 24;
 
