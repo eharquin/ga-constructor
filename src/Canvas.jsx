@@ -50,7 +50,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp) {
       const tail = w2c(pos.x, pos.y, vp);
       if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
-      if (val && node.label !== null) {
+      if (val) {
         const tip = w2c(pos.x + val.vx, pos.y + val.vy, vp);
         if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'vectorTip' };
