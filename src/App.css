@@ -4,8 +4,8 @@
   flex-direction: column;
   height: 100dvh;
   overflow: hidden;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: #f5f5f7;
+  color: #1c1c2e;
 }
 
 /* Compact top bar */
@@ -15,21 +15,21 @@
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
-  background: #181825;
-  border-bottom: 1px solid #313244;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e2ea;
 }
 
 .app-title {
   font-size: 16px;
   font-weight: 600;
-  color: #cdd6f4;
+  color: #1c1c2e;
   font-family: monospace;
   letter-spacing: 0.5px;
 }
 
 .app-subtitle {
   font-size: 12px;
-  color: #6c7086;
+  color: #7878a0;
   font-family: monospace;
 }
 
@@ -53,20 +53,17 @@
   width: 5px;
   cursor: col-resize;
   background: transparent;
-  border-right: 1px solid #313244;
+  border-right: 1px solid #e2e2ea;
   transition: border-color 0.15s;
 }
 
 .panel-resize:hover {
-  border-right-color: #585b70;
+  border-right-color: #b0b0c8;
 }
 
-/* Canvas fills remaining space, centres the canvas element */
+/* Canvas fills remaining space */
 .canvas-area {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1e1e2e;
   overflow: hidden;
+  display: flex;
 }

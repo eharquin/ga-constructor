@@ -17,24 +17,24 @@ const TYPE_COLOR = {
 
 const INITIAL_ITEMS = [
   // Free points — drag them around
-  { id: 'expr_0',  text: 'A = point(-180, 80)',   color: null, anim: null, drawPos: null },
-  { id: 'expr_1',  text: 'B = point(160, -100)',  color: null, anim: null, drawPos: null },
-  { id: 'expr_2',  text: 'C = point(-80, -140)',  color: null, anim: null, drawPos: null },
-  { id: 'expr_3',  text: 'D = point(180, 100)',   color: null, anim: null, drawPos: null },
+  { id: 'expr_0',  text: 'A = point(-180, 80)',   color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_1',  text: 'B = point(160, -100)',  color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_2',  text: 'C = point(-80, -140)',  color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_3',  text: 'D = point(180, 100)',   color: null, anim: null, drawPos: null, label: null },
   // Join (&): line through two points
-  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null },
-  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null },
+  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null },
   // Meet (^): intersection point of two lines
-  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null },
+  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null, label: null },
   // Multivector arithmetic: midpoint of A and B
-  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null },
+  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null, label: null },
   // Scalar — click ▶ to animate
-  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null },
+  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null, label: null },
   // Motor: rotation around X by angle t
-  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null },
+  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null, label: null },
   // Apply motor: A and B rotated around X
-  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null },
-  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null },
+  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null, label: null },
+  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null },
 ];
 
 function reducer(items, action) {
@@ -55,9 +55,13 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, drawPos: action.drawPos } : it
       );
+    case 'SET_LABEL':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, label: action.label } : it
+      );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -68,6 +72,17 @@ function reducer(items, action) {
     }
     case 'DELETE':
       return items.filter((it) => it.id !== action.id);
+    case 'REORDER': {
+      const from = items.findIndex((it) => it.id === action.dragId);
+      const to   = items.findIndex((it) => it.id === action.targetId);
+      if (from === -1 || to === -1 || from === to) return items;
+      let insertAt = action.position === 'before' ? to : to + 1;
+      if (from < to) insertAt--;
+      const next = [...items];
+      const [moved] = next.splice(from, 1);
+      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, moved);
+      return next;
+    }
     default:
       return items;
   }
@@ -125,6 +140,23 @@ export function useGraph() {
       if (node) result[node.id] = node;
     }
     return result;
+  }, [items]);
+
+  // Ordered list of node IDs matching the item order — drives canvas draw order.
+  const orderedNodeIds = useMemo(() =>
+    items.map((item) => parseExpression(item.text)?.id).filter(Boolean),
+    [items]
+  );
+
+  // labelMap: nodeId → label string (or null when disabled).
+  const labelMap = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      const node = parseExpression(item.text);
+      if (!node) continue;
+      map[node.id] = item.label ?? null;
+    }
+    return map;
   }, [items]);
 
   const values = useMemo(() => {
@@ -272,6 +304,7 @@ export function useGraph() {
       color: null,
       anim: null,
       drawPos: null,
+      label: null,
     }));
 
     dispatch({ type: 'INSERT_MANY_BEFORE', beforeId: itemId, newItems });
@@ -344,9 +377,14 @@ export function useGraph() {
     dispatch({ type: 'SET_DRAW_POS', id: item.id, drawPos: { ref: pointNodeId } });
   };
 
+  const reorderItem = (dragId, targetId, position) => {
+    dispatch({ type: 'REORDER', dragId, targetId, position });
+  };
+
   return {
     items,
     nodes,
+    orderedNodeIds,
     values,
     colorMap,
     vectorPositions,
@@ -358,6 +396,9 @@ export function useGraph() {
     setDrawPosRef,
     updateVector,
     togglePlay,
+    labelMap,
+    setLabel: (id, label) => dispatch({ type: 'SET_LABEL', id, label }),
+    reorderItem,
     insertItemAfter,
     deleteItem,
     updateFreePoint,

@@ -131,16 +131,20 @@ const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
-    setItemText, setItemColor, setAnim, setDrawPos, setDrawPosRef, togglePlay,
-    insertItemAfter, deleteItem, createScalarsFor,
+    setItemText, setItemColor, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
+    reorderItem, insertItemAfter, deleteItem, createScalarsFor,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
   const pendingFocus = useRef(null);
 
+  const [dragId,     setDragId]     = useState(null);
+  const [dropTarget, setDropTarget] = useState(null); // { id, position: 'before'|'after' }
+
   // Local state for in-progress edits (keyed by item id)
-  const [animTexts, setAnimTexts] = useState({});
-  const [posTxts,  setPosTxts]   = useState({});
+  const [animTexts,  setAnimTexts]  = useState({});
+  const [posTxts,    setPosTxts]    = useState({});
+  const [labelTexts, setLabelTexts] = useState({});
 
   useEffect(() => {
     if (pendingFocus.current) {
@@ -196,6 +200,7 @@ export default function ExpressionPanel() {
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar  = node?.type === 'scalar';
           const isVector  = node?.type === 'vector';
+          const isDrawable = node && node.type !== 'scalar' && node.type !== 'motorExp';
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
@@ -208,9 +213,49 @@ export default function ExpressionPanel() {
             ? [...new Set((node.deps ?? []).filter((d) => !nodes[d]))]
             : [];
 
+          const isDragging  = dragId === item.id;
+          const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
+          const isDropAfter  = dropTarget?.id === item.id && dropTarget.position === 'after';
+
           return (
-            <div key={item.id} className="expr-entry">
+            <div
+              key={item.id}
+              className={`expr-entry${isDragging ? ' dragging' : ''}${isDropBefore ? ' drop-before' : ''}${isDropAfter ? ' drop-after' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pos  = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+                setDropTarget((prev) =>
+                  prev?.id === item.id && prev?.position === pos ? prev : { id: item.id, position: pos }
+                );
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragId && dragId !== item.id && dropTarget?.id === item.id) {
+                  reorderItem(dragId, item.id, dropTarget.position);
+                }
+                setDragId(null);
+                setDropTarget(null);
+              }}
+            >
               <div className={`expr-row${isInvalid ? ' expr-invalid' : ''}`}>
+
+                {/* Drag handle */}
+                <div
+                  className="drag-handle"
+                  draggable
+                  onDragStart={(e) => {
+                    setDragId(item.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', item.id);
+                  }}
+                  onDragEnd={() => { setDragId(null); setDropTarget(null); }}
+                  aria-hidden="true"
+                >⠿</div>
 
                 {/* Play button — scalar only */}
                 {isScalar ? (
@@ -304,6 +349,45 @@ export default function ExpressionPanel() {
                   >
                     + scalars
                   </button>
+                </div>
+              )}
+
+              {/* Label toggle + editable text — drawable objects only */}
+              {isDrawable && (
+                <div className="label-row">
+                  <input
+                    type="checkbox"
+                    className="label-checkbox"
+                    checked={item.label != null}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setLabel(item.id, node.id);
+                      } else {
+                        setLabelTexts((p) => { const n = { ...p }; delete n[item.id]; return n; });
+                        setLabel(item.id, null);
+                      }
+                    }}
+                    tabIndex={-1}
+                  />
+                  <span className="label-check-text">label</span>
+                  {item.label != null && (
+                    <input
+                      type="text"
+                      className="label-text-input"
+                      value={labelTexts[item.id] ?? item.label}
+                      onChange={(e) => setLabelTexts((p) => ({ ...p, [item.id]: e.target.value }))}
+                      onBlur={() => {
+                        const str = labelTexts[item.id];
+                        if (str != null) {
+                          setLabel(item.id, str.trim() || node.id);
+                          setLabelTexts((p) => { const n = { ...p }; delete n[item.id]; return n; });
+                        }
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                      tabIndex={-1}
+                      spellCheck={false}
+                    />
+                  )}
                 </div>
               )}
             </div>

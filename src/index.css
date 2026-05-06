@@ -11,8 +11,8 @@ html, body, #root {
 
 body {
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: #f5f5f7;
+  color: #1c1c2e;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

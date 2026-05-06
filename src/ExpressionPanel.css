@@ -1,7 +1,7 @@
 .expr-panel {
   width: 100%;
   flex-shrink: 0;
-  background: #181825;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -15,17 +15,54 @@
 
 /* Entry: wraps one expression row + optional anim sub-row */
 .expr-entry {
-  border-bottom: 1px solid #1e1e2e;
-  background: #181825;
+  border-bottom: 1px solid #eeeef4;
+  background: #ffffff;
   transition: background 0.1s;
 }
 
 .expr-entry:hover {
-  background: #1e1e2e;
+  background: #f5f5fb;
 }
 
 .expr-entry:hover .expr-delete {
   opacity: 1;
+}
+
+/* ---- Drag handle ---- */
+.drag-handle {
+  flex-shrink: 0;
+  width: 16px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c0c0d4;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.1s;
+  user-select: none;
+}
+
+.expr-entry:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Dragging state */
+.expr-entry.dragging {
+  opacity: 0.35;
+}
+
+/* Drop indicators — inset shadow avoids layout shift */
+.expr-entry.drop-before {
+  box-shadow: inset 0 2px 0 0 #6699ff;
+}
+
+.expr-entry.drop-after {
+  box-shadow: inset 0 -2px 0 0 #6699ff;
 }
 
 /* Individual row */
@@ -38,7 +75,7 @@
 }
 
 .expr-row.expr-invalid .expr-input {
-  color: #f38ba8;
+  color: #d44060;
 }
 
 /* ---- Play button (scalar only) ---- */
@@ -48,8 +85,8 @@
   height: 22px;
   border-radius: 50%;
   background: transparent;
-  border: 1.5px solid #45475a;
-  color: #a6e3a1;
+  border: 1.5px solid #c8c8dc;
+  color: #2ca876;
   font-size: 9px;
   line-height: 1;
   cursor: pointer;
@@ -57,25 +94,25 @@
   align-items: center;
   justify-content: center;
   margin-right: 8px;
-  padding: 0 0 0 1px; /* nudge ▶ icon slightly right */
+  padding: 0 0 0 1px;
   transition: background 0.12s, border-color 0.12s;
 }
 
 .play-btn:hover {
-  background: #313244;
-  border-color: #a6e3a1;
+  background: #f0f0f8;
+  border-color: #2ca876;
 }
 
 .play-btn.playing {
-  border-color: #a6e3a1;
-  background: #a6e3a122;
+  border-color: #2ca876;
+  background: #2ca87622;
   padding: 0;
 }
 
 /* Invisible gap so non-scalar rows stay aligned with scalar ones */
 .play-btn-gap {
   flex-shrink: 0;
-  width: 30px; /* 22px btn + 8px margin */
+  width: 30px;
 }
 
 /* ---- Color swatch ---- */
@@ -84,7 +121,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(0, 0, 0, 0.15);
   cursor: pointer;
   position: relative;
   display: block;
@@ -93,7 +130,7 @@
 }
 
 .color-swatch:hover {
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(0, 0, 0, 0.35);
   transform: scale(1.15);
 }
 
@@ -123,7 +160,7 @@
   background: transparent;
   border: none;
   outline: none;
-  color: #cdd6f4;
+  color: #1c1c2e;
   font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
   font-size: 14px;
   width: 100%;
@@ -131,7 +168,7 @@
 }
 
 .expr-input::placeholder {
-  color: #45475a;
+  color: #c0c0d4;
 }
 
 .expr-result {
@@ -146,14 +183,14 @@
 .expr-mv {
   font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
   font-size: 10px;
-  color: #585b70;
+  color: #9090b0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .expr-error {
-  color: #f38ba8;
+  color: #d44060;
   font-size: 11px;
   font-family: monospace;
 }
@@ -165,7 +202,7 @@
   align-self: stretch;
   background: transparent;
   border: none;
-  color: #585b70;
+  color: #b8b8cc;
   cursor: pointer;
   font-size: 18px;
   display: flex;
@@ -177,7 +214,7 @@
 }
 
 .expr-delete:hover {
-  color: #f38ba8;
+  color: #d44060;
 }
 
 /* ---- Anim sub-row (interval input) ---- */
@@ -185,12 +222,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px 6px 68px; /* align with expr-input: 8 + 30(gap) + 18(swatch) + 10(margin) + 2 */
+  padding: 0 8px 6px 68px;
 }
 
 .sub-label {
   flex-shrink: 0;
-  color: #45475a;
+  color: #9090b0;
   font-family: monospace;
   font-size: 10px;
   text-transform: uppercase;
@@ -201,9 +238,9 @@
   flex: 1;
   background: transparent;
   border: none;
-  border-bottom: 1px solid #313244;
+  border-bottom: 1px solid #d0d0e4;
   outline: none;
-  color: #6c7086;
+  color: #8080a0;
   font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
   font-size: 12px;
   padding: 0 0 2px;
@@ -212,13 +249,13 @@
 }
 
 .sub-input:focus {
-  color: #cdd6f4;
-  border-bottom-color: #a6e3a1;
+  color: #1c1c2e;
+  border-bottom-color: #2ca876;
 }
 
 .sub-input.sub-input-active {
-  color: #a6e3a1;
-  border-bottom-color: #a6e3a155;
+  color: #2ca876;
+  border-bottom-color: #2ca87655;
 }
 
 /* ---- Scalar-creation suggestion banner ---- */
@@ -231,7 +268,7 @@
 
 .suggest-label {
   flex: 1;
-  color: #f9e2af;
+  color: #9a6500;
   font-family: monospace;
   font-size: 10px;
   min-width: 0;
@@ -243,8 +280,8 @@
 .suggest-btn {
   flex-shrink: 0;
   background: transparent;
-  border: 1px solid #f9e2af55;
-  color: #f9e2af;
+  border: 1px solid #9a650055;
+  color: #9a6500;
   font-family: monospace;
   font-size: 10px;
   padding: 2px 8px;
@@ -254,8 +291,51 @@
 }
 
 .suggest-btn:hover {
-  background: #f9e2af20;
-  border-color: #f9e2afaa;
+  background: #9a650015;
+  border-color: #9a6500aa;
+}
+
+/* ---- Label toggle row ---- */
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 6px 68px;
+}
+
+.label-checkbox {
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #6699ff;
+  width: 12px;
+  height: 12px;
+}
+
+.label-check-text {
+  flex-shrink: 0;
+  font-family: monospace;
+  font-size: 10px;
+  color: #9090b0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.label-text-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #d0d0e4;
+  outline: none;
+  color: #6699ff;
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 11px;
+  padding: 0 0 1px;
+  min-width: 0;
+  transition: border-color 0.1s;
+}
+
+.label-text-input:focus {
+  border-bottom-color: #6699ff;
 }
 
 /* Add-expression footer button */
@@ -263,8 +343,8 @@
   flex-shrink: 0;
   background: transparent;
   border: none;
-  border-top: 1px solid #313244;
-  color: #585b70;
+  border-top: 1px solid #e2e2ea;
+  color: #9090b0;
   font-family: monospace;
   font-size: 13px;
   padding: 12px 16px;
@@ -275,6 +355,6 @@
 }
 
 .expr-add:hover {
-  color: #cdd6f4;
-  background: #1e1e2e;
+  color: #1c1c2e;
+  background: #f0f0f8;
 }
