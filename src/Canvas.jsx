@@ -335,7 +335,7 @@ export default function Canvas() {
     const { mx, my } = svgPt(e, svgRef.current);
     const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
     setVp(v => {
-      const newScale = Math.min(50, Math.max(0.02, v.scale * f));
+      const newScale = Math.min(50, Math.max(0.001, v.scale * f));
       const ef = newScale / v.scale;
       return {
         scale:   newScale,
