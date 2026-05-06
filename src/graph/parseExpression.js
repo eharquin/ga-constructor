@@ -338,16 +338,31 @@ export function parseExpression(text) {
   // mv_expr — literal or variable-coefficient multivector (bare or parenthesised)
   const mvResult = parseMVExpr(expr);
   if (mvResult) {
-    // Pure literal ideal direction (only e01/e02, no deps, no e12) → vector type
+    // Pure ideal direction (only e01/e02 blades, literal or variable coefficients) → vector type
+    // vx = -(e02 coeff),  vy = e01 coeff  (PGA 2D ideal-point convention)
     const isIdealDir =
-      mvResult.deps.length === 0 &&
       mvResult.components.every((v, i) => i === 4 || i === 5 || Math.abs(v) < 1e-10) &&
-      (Math.abs(mvResult.components[4]) > 1e-10 || Math.abs(mvResult.components[5]) > 1e-10);
+      Object.keys(mvResult.coeffExprs).every(k => +k === 4 || +k === 5);
     if (isIdealDir) {
-      // Ideal direction (vx,vy) ↔ vy·e01 - vx·e02  →  vx = -(e02 coeff), vy = e01 coeff
-      const vx = -mvResult.components[5];
-      const vy =  mvResult.components[4];
-      return { id, label, type: 'vector', deps: [], params: { xExpr: String(vx), yExpr: String(vy), deps: [] } };
+      const e01lit = mvResult.components[4] || 0;
+      const e02lit = mvResult.components[5] || 0;
+      const e01var = mvResult.coeffExprs[4]; // expression string or undefined
+      const e02var = mvResult.coeffExprs[5];
+      if (Math.abs(e01lit) > 1e-10 || Math.abs(e02lit) > 1e-10 || e01var || e02var) {
+        // vy = e01 coeff
+        const yExpr = e01var
+          ? (e01lit !== 0 ? `${e01lit} + ${e01var}` : e01var)
+          : String(e01lit);
+        // vx = -(e02 coeff)
+        let xExpr;
+        if (e02var) {
+          const neg = e02var.startsWith('-') ? e02var.slice(1) : `-${e02var}`;
+          xExpr = e02lit !== 0 ? `${-e02lit} + ${neg}` : neg;
+        } else {
+          xExpr = String(-e02lit);
+        }
+        return { id, label, type: 'vector', deps: mvResult.deps, params: { xExpr, yExpr, deps: mvResult.deps } };
+      }
     }
     return {
       id, label, type: 'multivector',
