@@ -92,6 +92,12 @@ function gridStep(scale) {
   return n < 2 ? mag : n < 5 ? 2 * mag : 5 * mag;
 }
 
+function fmtGridLabel(val, step) {
+  if (step >= 1) return String(Math.round(val));
+  const decimals = Math.max(0, -Math.floor(Math.log10(step)));
+  return val.toFixed(decimals);
+}
+
 function SvgGrid({ vp, W, H }) {
   const step = gridStep(vp.scale);
   const minX = -vp.offsetX / vp.scale;
@@ -125,7 +131,7 @@ function SvgGrid({ vp, W, H }) {
         return (
           <text key={i} x={cx} y={ly} textAnchor="middle"
                 fontSize={10} fontFamily="monospace" fill="#9090b0" pointerEvents="none">
-            {Math.round(wx)}
+            {fmtGridLabel(wx, step)}
           </text>
         );
       })}
@@ -135,7 +141,7 @@ function SvgGrid({ vp, W, H }) {
         return (
           <text key={i} x={lx} y={cy + 4} textAnchor="end"
                 fontSize={10} fontFamily="monospace" fill="#9090b0" pointerEvents="none">
-            {Math.round(wy)}
+            {fmtGridLabel(wy, step)}
           </text>
         );
       })}
