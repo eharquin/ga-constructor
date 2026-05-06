@@ -96,6 +96,18 @@ function formatMV(val) {
   ).join('');
 }
 
+// ── Animation mode / speed constants ─────────────────────────────────────────
+
+const ANIM_MODES = [
+  { id: 'pingpong', icon: '⇄', label: 'Loop F & B'  },
+  { id: 'repeat',   icon: '↻', label: 'Repeat'       },
+  { id: 'once',     icon: '⇥', label: 'Play once'    },
+  { id: 'infinite', icon: '∞', label: 'Forever'      },
+];
+
+const SPEED_LEVELS = [0.25, 0.5, 1, 2, 4, 8];
+const fmtSpeed = (s) => `${s}x`;
+
 // ── Interval helpers (scalars) ────────────────────────────────────────────────
 
 const DEFAULT_ANIM = { min: 0, max: 10, step: 1 };
@@ -133,6 +145,7 @@ const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
+    animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
     reorderItem, insertItemAfter, deleteItem, createScalarsFor,
   } = useGraphContext();
@@ -147,6 +160,12 @@ export default function ExpressionPanel() {
   const [animTexts,  setAnimTexts]  = useState({});
   const [posTxts,    setPosTxts]    = useState({});
   const [labelTexts, setLabelTexts] = useState({});
+  const [animMenuIds, setAnimMenuIds] = useState(new Set());
+  const toggleAnimMenu = (id) => setAnimMenuIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   useEffect(() => {
     if (pendingFocus.current) {
@@ -215,6 +234,11 @@ export default function ExpressionPanel() {
             ? [...new Set((node.deps ?? []).filter((d) => !nodes[d]))]
             : [];
 
+          const animConf  = animSettings[item.id] ?? {};
+          const animMode  = animConf.mode  ?? 'repeat';
+          const animSpeed = animConf.speed ?? 1;
+          const speedIdx  = SPEED_LEVELS.indexOf(animSpeed);
+
           const isDragging  = dragId === item.id;
           const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
           const isDropAfter  = dropTarget?.id === item.id && dropTarget.position === 'after';
@@ -259,16 +283,24 @@ export default function ExpressionPanel() {
                   aria-hidden="true"
                 >⠿</div>
 
-                {/* Play button — scalar only */}
+                {/* Play + settings buttons — scalar only */}
                 {isScalar ? (
-                  <button
-                    className={`play-btn${isPlaying ? ' playing' : ''}`}
-                    tabIndex={-1}
-                    onClick={() => togglePlay(item.id)}
-                    aria-label={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? '⏸' : '▶'}
-                  </button>
+                  <div className="play-area">
+                    <button
+                      className={`play-btn${isPlaying ? ' playing' : ''}`}
+                      tabIndex={-1}
+                      onClick={() => togglePlay(item.id)}
+                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {isPlaying ? '⏸' : '▶'}
+                    </button>
+                    <button
+                      className={`anim-cfg-btn${animMenuIds.has(item.id) ? ' active' : ''}`}
+                      tabIndex={-1}
+                      onClick={() => toggleAnimMenu(item.id)}
+                      title="Animation settings"
+                    >⚙</button>
+                  </div>
                 ) : (
                   <div className="play-btn-gap" />
                 )}
@@ -310,7 +342,7 @@ export default function ExpressionPanel() {
 
               {/* Interval sub-row — scalar only */}
               {isScalar && (
-                <div className="sub-row">
+                <div className={`sub-row${animMode === 'infinite' ? ' sub-row-dim' : ''}`}>
                   <span className="sub-label">interval</span>
                   <input
                     className={`sub-input${isPlaying ? ' sub-input-active' : ''}`}
@@ -320,7 +352,44 @@ export default function ExpressionPanel() {
                     onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                     tabIndex={-1}
                     spellCheck={false}
+                    disabled={animMode === 'infinite'}
                   />
+                </div>
+              )}
+
+              {/* Animation mode + speed menu */}
+              {isScalar && animMenuIds.has(item.id) && (
+                <div className="anim-menu">
+                  <div className="anim-menu-section-label">Animation Mode</div>
+                  <div className="anim-mode-grid">
+                    {ANIM_MODES.map(({ id: modeId, icon, label: modeLabel }) => (
+                      <button
+                        key={modeId}
+                        className={`anim-mode-btn${animMode === modeId ? ' active' : ''}`}
+                        onClick={() => setAnimMode(item.id, modeId)}
+                        tabIndex={-1}
+                      >
+                        <span className="anim-mode-icon">{icon}</span>
+                        <span className="anim-mode-text">{modeLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="anim-menu-section-label">Speed</div>
+                  <div className="anim-speed-row">
+                    <button
+                      className="anim-speed-btn"
+                      tabIndex={-1}
+                      disabled={speedIdx <= 0}
+                      onClick={() => speedIdx > 0 && setAnimSpeed(item.id, SPEED_LEVELS[speedIdx - 1])}
+                    >«</button>
+                    <span className="anim-speed-val">{fmtSpeed(animSpeed)}</span>
+                    <button
+                      className="anim-speed-btn"
+                      tabIndex={-1}
+                      disabled={speedIdx >= SPEED_LEVELS.length - 1}
+                      onClick={() => speedIdx < SPEED_LEVELS.length - 1 && setAnimSpeed(item.id, SPEED_LEVELS[speedIdx + 1])}
+                    >»</button>
+                  </div>
                 </div>
               )}
 

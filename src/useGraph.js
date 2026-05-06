@@ -107,16 +107,27 @@ export function useGraph() {
   const nextId = useRef(12);
 
   // Animation state — kept separate from items so value updates don't re-trigger the effect
-  const [playingIds, setPlayingIds] = useState(new Set());
+  const [playingIds,   setPlayingIds]   = useState(new Set());
+  // animSettings: { [itemId]: { mode, speed } } — also separate to allow mode/speed changes
+  // to restart intervals without looping on every scalar tick.
+  const [animSettings, setAnimSettings] = useState({});
   const latestItemsRef = useRef(items);
   latestItemsRef.current = items;
   const intervalsRef = useRef({});
+  const pingDirRef   = useRef({}); // per-item direction for pingpong mode: +1 | -1
 
   useEffect(() => {
     for (const iid of Object.values(intervalsRef.current)) clearInterval(iid);
     intervalsRef.current = {};
 
     for (const itemId of playingIds) {
+      const conf  = animSettings[itemId] ?? {};
+      const mode  = conf.mode  ?? 'repeat';
+      const speed = conf.speed ?? 1;
+      const ms    = mode === 'infinite' ? 16 : Math.max(16, Math.round(50 / speed));
+
+      if (pingDirRef.current[itemId] == null) pingDirRef.current[itemId] = 1;
+
       intervalsRef.current[itemId] = setInterval(() => {
         const item = latestItemsRef.current.find((it) => it.id === itemId);
         if (!item) return;
@@ -124,28 +135,50 @@ export function useGraph() {
         if (!node || node.type !== 'scalar') return;
 
         const { min = 0, max = 10, step = 1 } = item.anim ?? {};
-        let val = Math.round((node.params.value + step) * 1e10) / 1e10;
-        if (step > 0 && val > max) val = min;
-        if (step < 0 && val < min) val = max;
+        const absStep = Math.abs(step);
+        let val = Math.round(node.params.value * 1e10) / 1e10;
+
+        if (mode === 'pingpong') {
+          const dir = pingDirRef.current[itemId];
+          val = Math.round((val + dir * absStep) * 1e10) / 1e10;
+          if (dir > 0 && val >= max) { val = max; pingDirRef.current[itemId] = -1; }
+          else if (dir < 0 && val <= min) { val = min; pingDirRef.current[itemId] = 1; }
+        } else if (mode === 'once') {
+          val = Math.round((val + absStep) * 1e10) / 1e10;
+          if (val >= max) {
+            val = max;
+            dispatch({ type: 'SET_TEXT', id: itemId, text: `${node.id} = ${val}` });
+            setPlayingIds(prev => { const n = new Set(prev); n.delete(itemId); return n; });
+            return;
+          }
+        } else {
+          // 'repeat' or 'infinite'
+          val = Math.round((val + absStep) * 1e10) / 1e10;
+          if (step > 0 && val > max) val = min;
+          if (step < 0 && val < min) val = max;
+        }
 
         dispatch({ type: 'SET_TEXT', id: itemId, text: `${node.id} = ${val}` });
-      }, 50);
+      }, ms);
     }
 
     return () => {
       for (const iid of Object.values(intervalsRef.current)) clearInterval(iid);
       intervalsRef.current = {};
     };
-  }, [playingIds]);
+  }, [playingIds, animSettings]);
 
   const togglePlay = (id) => {
     setPlayingIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) { next.delete(id); }
+      else { pingDirRef.current[id] = 1; next.add(id); }
       return next;
     });
   };
+
+  const setAnimMode  = (id, mode)  => setAnimSettings(p => ({ ...p, [id]: { ...(p[id] ?? {}), mode  } }));
+  const setAnimSpeed = (id, speed) => setAnimSettings(p => ({ ...p, [id]: { ...(p[id] ?? {}), speed } }));
 
   const nodes = useMemo(() => {
     const result = {};
@@ -438,6 +471,9 @@ export function useGraph() {
     colorMap,
     vectorPositions,
     playingIds,
+    animSettings,
+    setAnimMode,
+    setAnimSpeed,
     setItemText:      (id, text)  => dispatch({ type: 'SET_TEXT',  id, text }),
     setItemColor:     (id, color) => dispatch({ type: 'SET_COLOR', id, color }),
     setAnim:          (id, anim)  => dispatch({ type: 'SET_ANIM',  id, anim }),
