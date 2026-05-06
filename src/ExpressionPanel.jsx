@@ -38,6 +38,7 @@ function getDisplayValue(text, values) {
     const eu = toEuclidean(val);
     if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
     if (lineBaseAndDir(val)) return 'Line';
+    if (val?.length >= 8 && Math.abs(val[0] ?? 0) > 1e-10) return 'Motor';
     return '—';
   }
   const eu = toEuclidean(val);
