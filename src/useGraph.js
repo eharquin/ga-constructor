@@ -37,8 +37,21 @@ const INITIAL_ITEMS = [
   { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null },
 ];
 
+const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
+
+function pickPointName(usedIds) {
+  for (const n of AUTO_POINT_NAMES) {
+    if (!usedIds.has(n)) return n;
+  }
+  let i = 1;
+  while (usedIds.has(`P${i}`)) i++;
+  return `P${i}`;
+}
+
 function reducer(items, action) {
   switch (action.type) {
+    case 'ADD_ITEM':
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -381,6 +394,13 @@ export function useGraph() {
     dispatch({ type: 'REORDER', dragId, targetId, position });
   };
 
+  const addFreePoint = (x, y) => {
+    const usedIds = new Set(items.map((it) => parseExpression(it.text)?.id).filter(Boolean));
+    const name  = pickPointName(usedIds);
+    const newId = `expr_${nextId.current++}`;
+    dispatch({ type: 'ADD_ITEM', id: newId, text: `${name} = point(${Math.round(x)}, ${Math.round(y)})` });
+  };
+
   return {
     items,
     nodes,
@@ -406,5 +426,6 @@ export function useGraph() {
     updateDualDepPoint,
     updateLiteralMVPoint,
     createScalarsFor,
+    addFreePoint,
   };
 }

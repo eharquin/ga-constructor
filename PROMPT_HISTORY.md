@@ -30,4 +30,8 @@ A chronological log of all prompts given to Claude in this project.
 20. **SVG rendering migration** — Replaced Canvas 2D (`canvas.getContext('2d')`) with native SVG rendering. `Canvas.jsx` rewritten: imperative draw loop removed, replaced with declarative `SvgGrid`, `SvgPoint`, `SvgLine`, `SvgVector` React components. All coordinate math, hit-testing, and drag logic unchanged. Lines now clipped by SVG `overflow="hidden"`. Text crisp at any zoom/DPI. Created `docs/recap_2026-05-05-svg.md`, updated `CLAUDE.md`.
 19. **Session recap + CLAUDE.md update** — Asked to check CLAUDE.md, update the Current Focus section, and create a new recap file in /docs. Created `docs/recap_2026-05-05.md` summarising architecture, node types, drag system, and all changes since 2026-05-04.
 
+## 2026-05-06
+
+21. **Double-click to add point** — Double-clicking on empty canvas space creates a new `freePoint` at that position. Auto-names using unused letters (E, F, G, H, …) then falls back to P1, P2, … Clicking on an existing draggable object is ignored. Implemented: `ADD_ITEM` reducer action + `pickPointName` helper + `addFreePoint` in `useGraph.js`; `handleDoubleClick` in `Canvas.jsx`.
+
 ---

@@ -261,6 +261,7 @@ export default function Canvas() {
     nodes, values, colorMap, labelMap, vectorPositions, orderedNodeIds,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
+    addFreePoint,
   } = useGraphContext();
 
   const [vp,        setVp]        = useState(INITIAL_VP);
@@ -278,6 +279,7 @@ export default function Canvas() {
     nodes, values, vp, colorMap, vectorPositions,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
+    addFreePoint,
   };
 
   // Block browser zoom on the SVG
@@ -377,6 +379,14 @@ export default function Canvas() {
     setCursor('grab');
   }
 
+  function handleDoubleClick(e) {
+    const { mx, my } = svgPt(e, svgRef.current);
+    const { nodes, values, vectorPositions, vp, addFreePoint } = snap.current;
+    if (hitTest(mx, my, nodes, values, vectorPositions, vp)) return;
+    const { x, y } = c2w(mx, my, vp);
+    addFreePoint(x, y);
+  }
+
   // Build SVG objects in item draw order
   const objects = orderedNodeIds.map(id => {
     const node = nodes[id];
@@ -427,6 +437,7 @@ export default function Canvas() {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
         onDragStart={(e) => e.preventDefault()}
       >
         <rect width={size.w} height={size.h} fill="#fafafa" />
