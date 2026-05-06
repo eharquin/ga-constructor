@@ -261,7 +261,7 @@ function SvgTriangle({ p1, p2, p3, label, color, vp }) {
   const ly = (c1.cy + c2.cy + c3.cy) / 3;
   return (
     <g>
-      <polygon points={pts} fill={color} fillOpacity={0.22} stroke={color} strokeWidth={1.5} strokeDasharray="5 3" />
+      <polygon points={pts} fill={color} fillOpacity={0.25} stroke={color} strokeWidth={1.5} />
       {label && (
         <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
               fill={color} fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
