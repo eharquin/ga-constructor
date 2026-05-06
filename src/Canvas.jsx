@@ -303,12 +303,29 @@ export default function Canvas() {
     addFreePoint,
   };
 
-  // Block browser zoom on the SVG
+  // Handle zoom via a native non-passive listener so preventDefault always works.
+  // React's synthetic onWheel can be passive in some environments, causing
+  // getBoundingClientRect to return a shifted rect (due to page scroll) and
+  // breaking the zoom-centre calculation.
   useEffect(() => {
     const el = svgRef.current;
-    const block = (e) => { if (e.ctrlKey || e.metaKey) e.preventDefault(); };
-    el.addEventListener('wheel', block, { passive: false });
-    return () => el.removeEventListener('wheel', block);
+    const onWheel = (e) => {
+      e.preventDefault();
+      if (e.deltaY === 0) return;
+      const { mx, my } = svgPt(e, el);
+      const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setVp(v => {
+        const newScale = Math.min(50, Math.max(0.001, v.scale * f));
+        const ef = newScale / v.scale;
+        return {
+          scale:   newScale,
+          offsetX: mx - (mx - v.offsetX) * ef,
+          offsetY: my - (my - v.offsetY) * ef,
+        };
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
   // Resize observer — keep size in sync with the container
@@ -329,21 +346,6 @@ export default function Canvas() {
     ro.observe(wrapper);
     return () => ro.disconnect();
   }, []);
-
-  function handleWheel(e) {
-    e.preventDefault();
-    const { mx, my } = svgPt(e, svgRef.current);
-    const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    setVp(v => {
-      const newScale = Math.min(50, Math.max(0.001, v.scale * f));
-      const ef = newScale / v.scale;
-      return {
-        scale:   newScale,
-        offsetX: mx - (mx - v.offsetX) * ef,
-        offsetY: my - (my - v.offsetY) * ef,
-      };
-    });
-  }
 
   function handlePointerDown(e) {
     if (e.button !== 0) return;
@@ -461,7 +463,6 @@ export default function Canvas() {
         height={size.h}
         overflow="hidden"
         style={{ display: 'block', cursor }}
-        onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
