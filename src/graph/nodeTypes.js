@@ -67,6 +67,10 @@ function meet(L1, L2) {
   );
 }
 
+// function meet(A, B) {
+//   return PGA.meet(toPGA(A), toPGA(B));
+// }
+
 function pointOnLine(L, t) {
   const bd = lineBaseAndDir(L);
   if (!bd) return null;
