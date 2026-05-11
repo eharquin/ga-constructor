@@ -1,26 +1,34 @@
 import { useReducer, useMemo, useRef, useState, useEffect } from 'react';
 import { parseExpression } from './graph/parseExpression.js';
 import { evaluate } from './graph/evaluate.js';
-import { toEuclidean } from './pga.js';
+import { toEuclidean, classifyMV } from './pga.js';
 
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
 
-// Default type colors (mirrors ExpressionPanel TYPE_COLOR)
-const TYPE_COLOR = {
+// Colors keyed by geometric kind (matches ExpressionPanel KIND_COLOR)
+const KIND_COLOR = {
   scalar:      '#a6e3a1',
-  freePoint:   '#89b4fa',
-  vector:      '#f9e2af',
-  motorExp:    '#74c7ec',
-  motorApply:  '#94e2d5',
-  joinLine:    '#cba6f7',
-  freeLine:    '#cba6f7',
-  meetPoint:   '#fab387',
-  mvExpr:      '#b4befe',
+  finitePoint: '#89b4fa',
+  idealPoint:  '#f9e2af',
+  line:        '#cba6f7',
+  idealLine:   '#cba6f7',
+  pseudoscalar:'#f38ba8',
+  rotor:       '#74c7ec',
+  translator:  '#74c7ec',
+  motor:       '#94e2d5',
+  reflector:   '#fab387',
   triangle:    '#89dceb',
-  multivector: '#f38ba8',
-  dual:        '#f38ba8',
-  reverse:     '#f38ba8',
+  mixed:       '#b4befe',
+};
+
+// Fallback when value is not yet computed — keyed by parser node type
+const TYPE_COLOR_FALLBACK = {
+  scalar:    '#a6e3a1',
+  freePoint: '#89b4fa',
+  vector:    '#f9e2af',
+  motorExp:  '#74c7ec',
+  triangle:  '#89dceb',
 };
 
 const ITEM = (id, text, extra = {}) => ({
@@ -133,6 +141,8 @@ function reducer(items, action) {
     }
     case 'DELETE':
       return items.filter((it) => it.id !== action.id);
+    case 'CLEAR_ALL':
+      return [];
     case 'REORDER': {
       const from = items.findIndex((it) => it.id === action.dragId);
       const to   = items.findIndex((it) => it.id === action.targetId);
@@ -280,16 +290,21 @@ export function useGraph() {
     catch { return {}; }
   }, [nodes, normalizeMap]);
 
-  // colorMap: nodeId → resolved color (custom or kind default)
+  // colorMap: nodeId → resolved color based on computed geometric kind
   const colorMap = useMemo(() => {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
-      map[node.id] = item.color ?? TYPE_COLOR[node.type] ?? '#6c7086';
+      if (item.color) { map[node.id] = item.color; continue; }
+      const val = values[node.id];
+      if (val?.triangle) { map[node.id] = KIND_COLOR.triangle; continue; }
+      if (val && typeof val === 'object' && 'vx' in val) { map[node.id] = KIND_COLOR.idealPoint; continue; }
+      const cls = classifyMV(val);
+      map[node.id] = cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');
     }
     return map;
-  }, [items]);
+  }, [items, values]);
 
   // vectorPositions: nodeId → { x, y, linked } draw position for vector nodes.
   // drawPos can be { x, y } (static) or { ref: nodeId } (follows a point).
@@ -323,6 +338,11 @@ export function useGraph() {
       next.delete(id);
       return next;
     });
+  };
+
+  const clearAll = () => {
+    dispatch({ type: 'CLEAR_ALL' });
+    setPlayingIds(new Set());
   };
 
   // If expr is a pure identifier that resolves to a scalar item, update that scalar.
@@ -558,6 +578,7 @@ export function useGraph() {
     reorderItem,
     insertItemAfter,
     deleteItem,
+    clearAll,
     updateFreePoint,
     updateDepPoint,
     updateDualDepPoint,

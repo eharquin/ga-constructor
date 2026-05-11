@@ -548,6 +548,25 @@
 }
 
 /* ---- Help button ---- */
+.expr-clear-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #e2e2ea;
+  color: #c0909090;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 9px 16px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: color 0.1s, background 0.1s;
+}
+.expr-clear-btn:hover {
+  color: #c03030;
+  background: #fff0f0;
+}
+
 .expr-help-btn {
   flex-shrink: 0;
   background: transparent;

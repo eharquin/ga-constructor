@@ -211,7 +211,7 @@ export default function ExpressionPanel() {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
-    reorderItem, insertItemAfter, deleteItem, createScalarsFor,
+    reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
@@ -572,6 +572,10 @@ export default function ExpressionPanel() {
         onClick={() => { focus(insertItemAfter(items[items.length - 1]?.id)); }}
       >
         + Add expression
+      </button>
+
+      <button className="expr-clear-btn" onClick={() => { if (window.confirm('Clear all expressions?')) clearAll(); }}>
+        ✕ Clear all
       </button>
 
       <button className="expr-help-btn" onClick={() => setHelpOpen(true)}>
