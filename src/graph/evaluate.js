@@ -1,5 +1,5 @@
 import { NODE_TYPES } from './nodeTypes.js';
-import { normalizeMV } from '../pga.js';
+import { normalizeMVFinit, normalizeMVIdeal } from '../pga.js';
 
 // DFS topological sort. Throws on cycles.
 function topoSort(nodes) {
@@ -38,13 +38,18 @@ export function evaluate(nodes, normalizeMap = {}) {
     if (depValues.some((v) => v == null)) continue; // broken dependency
     try {
       let val = fn(depValues, node.params ?? {});
-      if (normalizeMap[id] && val != null) {
-        if (val && 'vx' in val && typeof val.length === 'undefined') {
-          // {vx, vy} ideal vector — normalize inline
-          const len = Math.sqrt(val.vx ** 2 + val.vy ** 2);
-          if (len > 1e-10) val = { vx: val.vx / len, vy: val.vy / len };
-        } else {
-          val = normalizeMV(val) ?? val;
+      const mode = normalizeMap[id]; // null | 'norm' | 'inorm'
+      if (mode && val != null) {
+        if (val && typeof val === 'object' && 'vx' in val && typeof val.length === 'undefined') {
+          // {vx, vy} ideal vector — only ideal norm applies
+          if (mode === 'inorm') {
+            const len = Math.sqrt(val.vx ** 2 + val.vy ** 2);
+            if (len > 1e-10) val = { vx: val.vx / len, vy: val.vy / len };
+          }
+        } else if (mode === 'norm') {
+          val = normalizeMVFinit(val) ?? val;
+        } else if (mode === 'inorm') {
+          val = normalizeMVIdeal(val) ?? val;
         }
       }
       values[id] = val;

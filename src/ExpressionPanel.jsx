@@ -210,7 +210,7 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setItemVisible, setItemNormalize, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
     reorderItem, insertItemAfter, deleteItem, createScalarsFor,
   } = useGraphContext();
 
@@ -294,7 +294,7 @@ export default function ExpressionPanel() {
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item, values);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
-          const mvStr     = node ? formatMV(values[node.id], item.normalize ?? false) : null;
+          const mvStr     = node ? formatMV(values[node.id], false) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense
@@ -396,15 +396,20 @@ export default function ExpressionPanel() {
 
                 <div className="expr-body">
                   {canUnitize && (
-                    <label className={`norm-toggle${item.normalize ? ' active' : ''}`} title="Normalize vector to unit length">
-                      <input
-                        type="checkbox"
-                        checked={item.normalize ?? false}
-                        onChange={(e) => setItemNormalize(item.id, e.target.checked)}
+                    <span className="norm-buttons">
+                      <button
+                        className={`norm-btn${item.normalizeMode === 'norm' ? ' active' : ''}`}
+                        title="Normalize by finite norm ‖A‖"
+                        onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'norm' ? null : 'norm')}
                         tabIndex={-1}
-                      />
-                      unit
-                    </label>
+                      >norm</button>
+                      <button
+                        className={`norm-btn${item.normalizeMode === 'inorm' ? ' active' : ''}`}
+                        title="Normalize by ideal norm ‖A‖∞"
+                        onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'inorm' ? null : 'inorm')}
+                        tabIndex={-1}
+                      >inorm</button>
+                    </span>
                   )}
                   <input
                     ref={(el) => { if (el) inputRefs.current[item.id] = el; }}

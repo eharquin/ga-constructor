@@ -137,19 +137,37 @@ export const classifyMV = (val) => {
   return { kind: 'mixed' };
 };
 
-// Normalize a raw 8-element PGA multivector using the general PGA norm:
-//   finite objects (A·e0 ≠ 0) → ||A||  = sqrt(scalar_part(A · Ã))
-//   ideal  objects (A·e0 = 0) → ||A||∞ = ||dual(A)||  (dual's finite norm)
-// Returns a normalized PGA element, or val unchanged when norm ≈ 0 or input is invalid.
+// Normalize by the finite norm: ||A|| = sqrt(scalar_part(A · Ã)).
+// Works for finite objects (lines, finite points, motors…).
+// Returns val unchanged when the finite norm is zero (ideal objects).
+export const normalizeMVFinit = (val) => {
+  if (!val || typeof val.length !== 'number' || val.length < 8) return val;
+  const norm = Math.sqrt(finitNormSq(val));
+  if (norm < 1e-10) return val;
+  const result = new PGA(8);
+  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  return result;
+};
+
+// Normalize by the ideal norm: ||A||∞ = ||dual(A)||.
+// Works for ideal objects (ideal points, ideal lines, pseudoscalar…).
+// Returns val unchanged when the ideal norm is zero (finite objects that have no ideal part).
+export const normalizeMVIdeal = (val) => {
+  if (!val || typeof val.length !== 'number' || val.length < 8) return val;
+  const norm = Math.sqrt(finitNormSq(dualOp(val)));
+  if (norm < 1e-10) return val;
+  const result = new PGA(8);
+  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  return result;
+};
+
+// General norm: finite norm when non-zero, ideal norm otherwise.
 export const normalizeMV = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-
   let normSq = finitNormSq(val);
-  if (normSq < 1e-20) normSq = finitNormSq(dualOp(val)); // ideal: dual's finite norm
-
+  if (normSq < 1e-20) normSq = finitNormSq(dualOp(val));
   const norm = Math.sqrt(normSq);
   if (norm < 1e-10) return val;
-
   const result = new PGA(8);
   for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
   return result;

@@ -25,24 +25,24 @@ const TYPE_COLOR = {
 
 const INITIAL_ITEMS = [
   // Free points — drag them around
-  { id: 'expr_0',  text: 'A = point(-6, 3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
-  { id: 'expr_1',  text: 'B = point(5, -3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
-  { id: 'expr_2',  text: 'C = point(-3, -5)',  color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
-  { id: 'expr_3',  text: 'D = point(6, 3)',    color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_0',  text: 'A = point(-6, 3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
+  { id: 'expr_1',  text: 'B = point(5, -3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
+  { id: 'expr_2',  text: 'C = point(-3, -5)',  color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
+  { id: 'expr_3',  text: 'D = point(6, 3)',    color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
   // Join (&): line through two points
-  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
-  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
+  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
   // Meet (^): intersection point of two lines
-  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
   // Multivector arithmetic: midpoint of A and B
-  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
   // Scalar — click ▶ to animate
-  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
   // Motor: rotation around X by angle t
-  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
   // Apply motor: A and B rotated around X
-  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
-  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false },
+  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
+  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
 ];
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
@@ -59,7 +59,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null}];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -84,13 +84,13 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, visible: action.visible } : it
       );
-    case 'SET_NORMALIZE':
+    case 'SET_NORMALIZE_MODE':
       return items.map((it) =>
-        it.id === action.id ? { ...it, normalize: action.normalize } : it
+        it.id === action.id ? { ...it, normalizeMode: action.mode } : it
       );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalize: false };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null};
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -238,7 +238,7 @@ export function useGraph() {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
-      if (node) map[node.id] = item.normalize ?? false;
+      if (node) map[node.id] = item.normalizeMode ?? null;
     }
     return map;
   }, [items]);
@@ -521,7 +521,7 @@ export function useGraph() {
     labelMap,
     setLabel:       (id, label)   => dispatch({ type: 'SET_LABEL',   id, label }),
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
-    setItemNormalize:  (id, normalize)  => dispatch({ type: 'SET_NORMALIZE',  id, normalize }),
+    setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,
     reorderItem,
     insertItemAfter,
