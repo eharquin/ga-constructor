@@ -191,9 +191,8 @@ export const NODE_TYPES = {
       const eu2 = toEuclidean(toPGA(P2));
       const eu3 = toEuclidean(toPGA(P3));
       if (!eu1 || !eu2 || !eu3) return null;
-      // 2× signed area (positive = CCW) — the raw PGA scalar value
-      const value = (eu2.x - eu1.x) * (eu3.y - eu1.y) - (eu3.x - eu1.x) * (eu2.y - eu1.y);
-      return { triangle: true, value, p1: eu1, p2: eu2, p3: eu3 };
+      // 2× signed area (positive = CCW) — propagated as a plain scalar
+      return (eu2.x - eu1.x) * (eu3.y - eu1.y) - (eu3.x - eu1.x) * (eu2.y - eu1.y);
     },
   },
 

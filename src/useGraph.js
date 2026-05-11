@@ -28,7 +28,8 @@ const TYPE_COLOR_FALLBACK = {
   freePoint: '#89b4fa',
   vector:    '#f9e2af',
   motorExp:  '#74c7ec',
-  triangle:  '#89dceb',
+  triangle:  '#89dceb',  // triangle always uses this; its value is a plain number
+  meetChain: '#89dceb',
 };
 
 const ITEM = (id, text, extra = {}) => ({
@@ -311,7 +312,6 @@ export function useGraph() {
       if (!node) continue;
       if (item.color) { map[node.id] = item.color; continue; }
       const val = values[node.id];
-      if (val?.triangle) { map[node.id] = KIND_COLOR.triangle; continue; }
       if (val && typeof val === 'object' && 'vx' in val) { map[node.id] = KIND_COLOR.idealPoint; continue; }
       const cls = classifyMV(val);
       map[node.id] = cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');

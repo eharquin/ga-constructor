@@ -32,9 +32,8 @@ function resolveColor(item, values) {
   if (item.color) return item.color;
   const node = parseExpression(item.text);
   if (!node) return '#6c7086';
+  if (node.type === 'triangle' || node.type === 'meetChain') return KIND_COLOR.triangle;
   const val = values?.[node.id];
-  // Special objects not handled by classifyMV
-  if (val?.triangle) return KIND_COLOR.triangle;
   if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.idealPoint;
   const cls = classifyMV(val);
   return cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');
@@ -46,11 +45,8 @@ function getDisplayValue(text, values) {
   const val = values[node.id];
   if (val == null) return null;
 
-  // Scalar number
+  // Scalar number (includes triangle result which is 2× signed area)
   if (typeof val === 'number') return val.toFixed ? val.toFixed(4).replace(/\.?0+$/, '') : String(val);
-
-  // Triangle special object — handled inline with showArea context, fallback here
-  if (val.triangle) return val.value != null ? val.value.toFixed(3) : '—';
 
   // {vx, vy} ideal vector
   if ('vx' in val) return `(${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
@@ -287,24 +283,22 @@ export default function ExpressionPanel() {
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar   = node?.type === 'scalar';
           const hasPosition = node?.type === 'vector';
-          const val_       = node ? values[node.id] : null;
-          const cls_       = classifyMV(val_);
-          const isDrawable = !!val_?.triangle || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
-                             cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
-          const isTriangle = !!val_?.triangle;
-          const canUnitize = node && node.type !== 'scalar' && !isTriangle;
+          const isTriangle  = node?.type === 'triangle';
+          const val_        = node ? values[node.id] : null;
+          const cls_        = classifyMV(val_);
+          const showingArea = isTriangle && (showAreaMap[node?.id] ?? false);
+          const isDrawable  = (isTriangle && showingArea) || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
+                              cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
+          const canUnitize  = node && node.type !== 'scalar' && !isTriangle;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
-          const isPlaying = isScalar && playingIds.has(item.id);
-          const color     = resolveColor(item, values);
-          const showingArea = isTriangle && (showAreaMap[node?.id] ?? false);
+          const isPlaying  = isScalar && playingIds.has(item.id);
+          const color      = resolveColor(item, values);
           const displayVal = item.text.trim()
-            ? (isTriangle && val_
-                ? (showingArea
-                    ? `area: ${(val_.value / 2).toFixed(2)}`
-                    : `${val_.value.toFixed(3)}`)
+            ? (isTriangle && typeof val_ === 'number'
+                ? (showingArea ? `area: ${(val_ / 2).toFixed(2)}` : `${val_.toFixed(3)}`)
                 : getDisplayValue(item.text, values))
             : null;
           const mvStr     = node ? formatMV(values[node.id], false) : null;
