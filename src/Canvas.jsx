@@ -278,16 +278,14 @@ function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDragg
   );
 }
 
-function SvgTriangle({ p1, p2, p3, label, color, vp }) {
-  const c1 = w2c(p1.x, p1.y, vp);
-  const c2 = w2c(p2.x, p2.y, vp);
-  const c3 = w2c(p3.x, p3.y, vp);
-  const pts = `${c1.cx},${c1.cy} ${c2.cx},${c2.cy} ${c3.cx},${c3.cy}`;
-  const lx = (c1.cx + c2.cx + c3.cx) / 3;
-  const ly = (c1.cy + c2.cy + c3.cy) / 3;
+function SvgPolygon({ points, label, color, vp }) {
+  const pts = points.map(p => { const { cx, cy } = w2c(p.x, p.y, vp); return `${cx},${cy}`; }).join(' ');
+  const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+  const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+  const { cx: lx, cy: ly } = w2c(cx, cy, vp);
   return (
     <g>
-      <polygon points={pts} fill={color} fillOpacity={0.25} stroke={color} strokeWidth={1.5} />
+      <polygon points={pts} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
       {label && (
         <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
               fill={color} fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
@@ -304,7 +302,7 @@ export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const {
-    nodes, values, colorMap, labelMap, vectorPositions, showAreaMap, orderedNodeIds, items,
+    nodes, values, colorMap, labelMap, vectorPositions, orderedNodeIds, items,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -465,28 +463,13 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const hovered = id === hoveredId;
 
-    // Triangle node: value is a plain scalar; polygon from dep geoms when showArea is on
-    if (node.type === 'triangle' || node.type === 'meetChain') {
-      if (showAreaMap[id] && node.type === 'triangle') {
-        const depVals = node.deps.map(d => values[d]);
-        const eu = [node.params?.geom1, node.params?.geom2, node.params?.geom3].map(g =>
-          g ? toEuclidean(depVals[g.depOffset]) : null
-        );
-        if (eu[0] && eu[1] && eu[2]) {
-          backLayer.push(<SvgTriangle key={id} p1={eu[0]} p2={eu[1]} p3={eu[2]} label={label} color={color} vp={vp} />);
-        }
-      }
+    // Scalar-valued nodes (triangle, meetChain): no canvas render
+    if (node.type === 'triangle' || node.type === 'meetChain') continue;
+
+    // list node: polygon drawn from the pre-computed point list
+    if (val?.list) {
+      backLayer.push(<SvgPolygon key={id} points={val.points} label={label} color={color} vp={vp} />);
       continue;
-    }
-    // mvExpr with triple join (e.g. 0.5*(A & B & C)): try to draw polygon from deps
-    // val may be a plain number (triangle node) or a PGA scalar array (mvExpr)
-    const isScalarVal = typeof val === 'number' || classifyMV(val)?.kind === 'scalar';
-    if (showAreaMap[id] && isScalarVal && node.deps.length >= 3) {
-      const eu = node.deps.slice(0, 3).map(d => toEuclidean(values[d]));
-      if (eu[0] && eu[1] && eu[2]) {
-        backLayer.push(<SvgTriangle key={id} p1={eu[0]} p2={eu[1]} p3={eu[2]} label={label} color={color} vp={vp} />);
-        continue;
-      }
     }
 
     // {vx, vy} ideal vector → back layer

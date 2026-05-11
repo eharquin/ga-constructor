@@ -28,12 +28,13 @@ const TYPE_COLOR_FALLBACK = {
   freePoint: '#89b4fa',
   vector:    '#f9e2af',
   motorExp:  '#74c7ec',
-  triangle:  '#89dceb',  // triangle always uses this; its value is a plain number
+  triangle:  '#89dceb',
   meetChain: '#89dceb',
+  list:      '#89dceb',
 };
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, showArea: false, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, ...extra,
 });
 
 const INITIAL_ITEMS = [
@@ -46,7 +47,8 @@ const INITIAL_ITEMS = [
   ITEM('expr_3',  't = 0', { anim: { min: 0, max: 6.28, step: 0.05 } }),
 
   // ── Triangle + sides via join ─────────────────────────────────────────────────
-  ITEM('expr_4',  'T = A & B & C'),          // triangle — shows area
+  ITEM('expr_4',  'T = A & B & C'),          // 2× signed area scalar
+  ITEM('expr_4b', 'Tri = [A, B, C]'),        // polygon drawn from points
   ITEM('expr_5',  'L1 = A & B'),             // side AB
   ITEM('expr_6',  'L2 = B & C'),             // side BC
   ITEM('expr_7',  'L3 = C & A'),             // side CA
@@ -65,7 +67,7 @@ const INITIAL_ITEMS = [
   ITEM('expr_14', 'A2 = R >>> A'),
   ITEM('expr_15', 'B2 = R >>> B'),
   ITEM('expr_16', 'C2 = R >>> C'),
-  ITEM('expr_17', 'T2 = A2 & B2 & C2'),      // rotated triangle
+  ITEM('expr_17', 'T2 = [A2, B2, C2]'),      // rotated polygon
 
   // ── Ideal direction + translator ─────────────────────────────────────────────
   ITEM('expr_18', 'V = vector(1, 0.5)'),      // ideal point / direction
@@ -100,7 +102,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, showArea: false }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -129,13 +131,9 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, normalizeMode: action.mode } : it
       );
-    case 'SET_SHOW_AREA':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, showArea: action.showArea } : it
-      );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, showArea: false };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -166,7 +164,7 @@ function reducer(items, action) {
 
 export function useGraph() {
   const [items, dispatch] = useReducer(reducer, INITIAL_ITEMS);
-  const nextId = useRef(26);
+  const nextId = useRef(27);
 
   // Animation state — kept separate from items so value updates don't re-trigger the effect
   const [playingIds,   setPlayingIds]   = useState(new Set());
@@ -286,15 +284,6 @@ export function useGraph() {
     for (const item of items) {
       const node = parseExpression(item.text);
       if (node) map[node.id] = item.normalizeMode ?? null;
-    }
-    return map;
-  }, [items]);
-
-  const showAreaMap = useMemo(() => {
-    const map = {};
-    for (const item of items) {
-      const node = parseExpression(item.text);
-      if (node) map[node.id] = item.showArea ?? false;
     }
     return map;
   }, [items]);
@@ -587,8 +576,6 @@ export function useGraph() {
     setLabel:       (id, label)   => dispatch({ type: 'SET_LABEL',   id, label }),
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
-    setShowArea: (id, showArea) => dispatch({ type: 'SET_SHOW_AREA', id, showArea }),
-    showAreaMap,
     normalizeMap,
     reorderItem,
     insertItemAfter,

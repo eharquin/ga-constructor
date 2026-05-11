@@ -108,6 +108,23 @@ const ID = /[A-Za-z_][A-Za-z0-9_]*/;
 const NUM = /-?\d+(?:\.\d+)?/;
 const WS = /\s*/;
 
+// Split a string on ALL top-level commas (ignores commas inside parens/brackets).
+function splitAllTopLevelCommas(str) {
+  const parts = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < str.length; i++) {
+    if ('(['.includes(str[i])) depth++;
+    else if (')]'.includes(str[i])) depth--;
+    else if (str[i] === ',' && depth === 0) {
+      parts.push(str.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  const last = str.slice(start).trim();
+  if (last) parts.push(last);
+  return parts;
+}
+
 // Split "xExpr, yExpr" on the first top-level comma (ignores commas inside parens).
 function splitTopLevelComma(str) {
   let depth = 0;
@@ -408,6 +425,26 @@ export function parseExpression(text) {
       deps: mvResult.deps,
       params: { components: mvResult.components, coeffExprs: mvResult.coeffExprs, deps: mvResult.deps },
     };
+  }
+
+  // [P1, P2, P3, ...] — polygon from a list of points (non-MV special type)
+  if (expr.startsWith('[') && expr.endsWith(']')) {
+    const inner = expr.slice(1, -1).trim();
+    if (inner) {
+      const parts = splitAllTopLevelCommas(inner);
+      if (parts.length >= 2) {
+        const geoms = parts.map(s => parseInlineGeom(s));
+        if (geoms.every(Boolean)) {
+          let offset = 0;
+          for (const g of geoms) { g.depOffset = offset; offset += g.deps.length; }
+          return {
+            id, label, type: 'list',
+            deps: geoms.flatMap(g => g.deps),
+            params: { geoms },
+          };
+        }
+      }
+    }
   }
 
   // General multivector arithmetic expression: A + B, 2*A, A*B, (A+B)/2, etc.

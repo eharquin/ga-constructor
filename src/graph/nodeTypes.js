@@ -196,6 +196,18 @@ export const NODE_TYPES = {
     },
   },
 
+  list: {
+    label: 'Polygon',
+    compute: (depValues, { geoms }) => {
+      const points = geoms.map(g => {
+        const val = resolveInlineGeom(g, depValues);
+        return val ? toEuclidean(toPGA(val)) : null;
+      });
+      if (points.some(p => !p)) return null;
+      return { list: true, points };
+    },
+  },
+
   joinLine: {
     label: 'Line A ∧ B',
     compute: (depValues, { geom1, geom2 }) => {

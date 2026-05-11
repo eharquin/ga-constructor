@@ -28,28 +28,12 @@ const TYPE_COLOR_FALLBACK = {
   triangle:  '#89dceb',
 };
 
-// Returns true when the expression text contains at least 2 & operators anywhere
-// (catches both top-level A & B & C and nested 0.5*(A & B & C)).
-function containsTripleJoin(text) {
-  if (!text) return false;
-  const m = text.match(/=\s*(.+)$/s);
-  const expr = m ? m[1] : text;
-  return (expr.match(/&/g) || []).length >= 2;
-}
-
-// Check if the expression already contains a 0.5 factor before the triple join.
-function alreadyHalfed(text) {
-  const m = text.match(/=\s*(.+)$/s);
-  const expr = (m ? m[1] : text).trim();
-  return /^0\.5\s*[\*(]/.test(expr);
-}
-
 function resolveColor(item, values) {
   if (item.color) return item.color;
   const node = parseExpression(item.text);
   if (!node) return '#6c7086';
-  if (node.type === 'triangle' || node.type === 'meetChain' || containsTripleJoin(item.text)) return KIND_COLOR.triangle;
   const val = values?.[node.id];
+  if (val?.list) return KIND_COLOR.triangle;
   if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.idealPoint;
   const cls = classifyMV(val);
   return cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');
@@ -63,6 +47,9 @@ function getDisplayValue(text, values) {
 
   // Scalar number (includes triangle result which is 2× signed area)
   if (typeof val === 'number') return val.toFixed ? val.toFixed(4).replace(/\.?0+$/, '') : String(val);
+
+  // list: polygon special object
+  if (val.list) return `Polygon (${val.points.length} pts)`;
 
   // {vx, vy} ideal vector
   if ('vx' in val) return `(${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
@@ -222,9 +209,8 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setShowArea, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
-    showAreaMap,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
@@ -299,27 +285,19 @@ export default function ExpressionPanel() {
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar    = node?.type === 'scalar';
           const hasPosition = node?.type === 'vector';
-          const isTriangle  = node?.type === 'triangle';
-          const isAreaNode  = isTriangle || containsTripleJoin(item.text);
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
-          const showingArea = isAreaNode && (showAreaMap[node?.id] ?? false);
-          const isDrawable  = (isTriangle && showingArea) || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
+          const isList      = !!val_?.list;
+          const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
                               cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
-          const canUnitize  = node && node.type !== 'scalar' && !isAreaNode;
+          const canUnitize  = node && node.type !== 'scalar' && !isList;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values);
-          // Extract scalar value: plain number (triangle) or PGA scalar array (mvExpr)
-          const scalarNum = typeof val_ === 'number' ? val_ : (classifyMV(val_)?.kind === 'scalar' ? val_[0] : null);
-          const displayVal = item.text.trim()
-            ? (isAreaNode && scalarNum !== null
-                ? (showingArea ? `area: ${scalarNum.toFixed(2)}` : scalarNum.toFixed(3))
-                : getDisplayValue(item.text, values))
-            : null;
+          const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
           const mvStr     = node ? formatMV(values[node.id], false) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
@@ -421,24 +399,6 @@ export default function ExpressionPanel() {
                 </label>
 
                 <div className="expr-body">
-                  {isAreaNode && (
-                    <span className="norm-buttons">
-                      <button
-                        className={`norm-btn${showingArea ? ' active' : ''}`}
-                        title="Show as area and draw triangle polygon"
-                        onClick={() => {
-                          const next = !showingArea;
-                          // For bare triple join (triangle node): prepend 0.5* if not already there
-                          if (next && isTriangle && !alreadyHalfed(item.text)) {
-                            const m = item.text.match(/^((?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?)(.+)$/s);
-                            if (m) setItemText(item.id, `${m[1]}0.5*(${m[2].trim()})`);
-                          }
-                          setShowArea(item.id, next);
-                        }}
-                        tabIndex={-1}
-                      >area</button>
-                    </span>
-                  )}
                   {canUnitize && (
                     <span className="norm-buttons">
                       {!isIdealObj && (
@@ -648,9 +608,9 @@ export default function ExpressionPanel() {
                 <table className="help-table">
                   <tbody>
                     <tr><td><code>L = A &amp; B</code></td><td>Join (regressive ∨): line through two points.</td></tr>
-                    <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triple join → 2 × signed area scalar. Press <b>area</b> to show ÷2 and draw the polygon.</td></tr>
+                    <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triple join → 2 × signed area as a plain scalar.</td></tr>
                     <tr><td><code>X = L1 ^ L2</code></td><td>Meet (wedge ∧): intersection of two lines. Works for n-ary chains: <code>L1 ^ L2 ^ L3</code>.</td></tr>
-                    <tr><td><code>T = 0.5*(A &amp; B &amp; C)</code></td><td>Area directly — <b>area</b> button appears without modifying the expression.</td></tr>
+                    <tr><td><code>Poly = [A, B, C, D]</code></td><td>Polygon drawn through a list of points. Any number of named points.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -693,7 +653,7 @@ export default function ExpressionPanel() {
                   <tbody>
                     <tr><td><b>norm</b> button</td><td>Divide by finite norm ‖A‖ = √(scalar_part(AÃ)). For finite objects.</td></tr>
                     <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
-                    <tr><td><b>area</b> button</td><td>On triple-join expressions: show ÷2 area and draw the polygon.</td></tr>
+                    <tr><td><b>area</b> button</td><td>Removed — use <code>[A, B, C]</code> list syntax to draw polygons.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -723,7 +683,7 @@ export default function ExpressionPanel() {
                     <tr><td><b style={{color:'#fab387'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
                     <tr><td><b style={{color:'#f38ba8'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
                     <tr><td><b style={{color:'#a6e3a1'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#89dceb'}}>●</b> Triangle</td><td>Triple join result. Press <b>area</b> to draw.</td></tr>
+                    <tr><td><b style={{color:'#89dceb'}}>●</b> Polygon / list</td><td><code>[P1, P2, …]</code> — drawn as a dashed filled polygon.</td></tr>
                   </tbody>
                 </table>
               </section>
