@@ -8,6 +8,7 @@ import { PGA, idealPoint, dualOp, reverseOp } from '../pga.js';
 // ─── Built-in basis blade environment ────────────────────────────────────────
 
 const BLADE_NAMES = new Set(['e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012']);
+const BLADE_INDEX = { e0: 1, e1: 2, e2: 3, e01: 4, e02: 5, e12: 6, e012: 7 };
 
 // Names reserved as built-in functions — excluded from dep extraction.
 const BUILTIN_FN_NAMES = new Set(['sqrt', 'abs']);
@@ -47,7 +48,7 @@ function tokenize(str) {
       continue;
     }
     if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
-    if ('+-*/()!~^&|'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+    if ('+-*/()!~^&|.'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
     return null; // unrecognized character
   }
 
@@ -127,6 +128,11 @@ function validate(tokens) {
         if (!expr()) return false;
         if (!peek() || peek().type !== 'op' || peek().val !== ')') return false;
         eat();
+      } else if (peek()?.type === 'op' && peek()?.val === '.') {
+        eat(); // consume '.'
+        const blade = peek();
+        if (!blade || blade.type !== 'id' || BLADE_INDEX[blade.val] === undefined) return false;
+        eat(); // consume blade name
       }
       return true;
     }
@@ -332,6 +338,15 @@ export function evalMVArith(str, env) {
           return PGA.Sqrt(normalised);
         }
         return null;
+      }
+      // id.blade — extract a single coefficient as a plain number
+      if (peek()?.type === 'op' && peek()?.val === '.') {
+        eat(); // consume '.'
+        const blade = peek();
+        if (!blade || blade.type !== 'id' || BLADE_INDEX[blade.val] === undefined) return null;
+        eat(); // consume blade name
+        const mv = toMV(fullEnv[t.val]);
+        return mv ? (mv[BLADE_INDEX[blade.val]] ?? 0) : null;
       }
       const v = fullEnv[t.val];
       return v !== undefined ? v : null;
