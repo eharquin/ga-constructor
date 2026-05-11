@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { toEuclidean, lineBaseAndDir, toIdealDirection } from './pga.js';
+import { toEuclidean, lineBaseAndDir, toIdealVector } from './pga.js';
 import { parseExpression } from './graph/parseExpression.js';
 
 const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
@@ -512,7 +512,7 @@ export default function Canvas() {
     if (lineBaseAndDir(val)) {
       return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
     }
-    const ideal = toIdealDirection(val);
+    const ideal = toIdealVector(val);
     if (ideal) {
       return (
         <SvgVector key={id}

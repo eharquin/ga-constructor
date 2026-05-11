@@ -73,16 +73,15 @@ export const reverseOp = (mv) => {
   return result;
 };
 
-// Extract normalised direction (vx,vy) from a grade-2 ideal point (w≈0).
-// Returns null when the input is a finite point or has zero direction.
-export const toIdealDirection = (p) => {
+// Extract raw (unnormalised) vector (vx,vy) from a grade-2 ideal point (w≈0).
+// Returns null when the input is a finite point or has zero magnitude.
+export const toIdealVector = (p) => {
   if (!p || typeof p.length !== 'number' || p.length < 8) return null;
   if (Math.abs(p[6]) > 1e-10) return null;   // finite point — not ideal
   const vx = -p[5];  // e02 → -vx
   const vy =  p[4];  // e01 →  vy
-  const len = Math.sqrt(vx * vx + vy * vy);
-  if (len < 1e-10) return null;
-  return { vx: vx / len, vy: vy / len };
+  if (Math.sqrt(vx * vx + vy * vy) < 1e-10) return null;
+  return { vx, vy };
 };
 
 // For a grade-1 line L: direction (ux,uy) and a canonical base point (bx,by).

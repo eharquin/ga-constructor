@@ -40,7 +40,7 @@ function join(A, B) {
 }
 
 function meet(A, B) {
-  return PGA.meet(toPGA(A), toPGA(B));
+  return PGA.Wedge(toPGA(A), toPGA(B));
 }
 
 function pointOnLine(L, t) {
