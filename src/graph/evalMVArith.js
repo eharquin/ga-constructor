@@ -67,7 +67,7 @@ function tokenize(str) {
       continue;
     }
     if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
-    if ('+-*/()!~^&|.'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+    if ('+-*/()!~^&|.§'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
     return null; // unrecognized character
   }
 
@@ -107,7 +107,7 @@ function validate(tokens) {
     return true;
   }
 
-  const BINARY_OPS = new Set(['*', '/', '^', '&', '|', '>>>']);
+  const BINARY_OPS = new Set(['*', '/', '^', '&', '|', '§', '>>>']);
 
   function term() {
     if (!factor()) return false;
@@ -246,6 +246,14 @@ function applyOp(left, op, right) {
   if (op === '^') return PGA.Wedge(toMV(left), toMV(right));
   if (op === '&') return PGA.Vee(toMV(left), toMV(right));
   if (op === '|') return PGA.LDot(toMV(left), toMV(right));
+  if (op === '§') {
+    const a = toMV(left), b = toMV(right);
+    if (!a || !b) return null;
+    const ab = PGA.Mul(a, b), ba = PGA.Mul(b, a);
+    const r = new PGA(8);
+    for (let i = 0; i < 8; i++) r[i] = ((ab[i] || 0) - (ba[i] || 0)) / 2;
+    return r;
+  }
   if (op === '>>>') {
     const M = toMV(left), A = toMV(right);
     if (!M || !A) return null;
@@ -282,7 +290,7 @@ export function evalMVArith(str, env) {
     return left;
   }
 
-  const EVAL_BINARY_OPS = new Set(['*', '/', '^', '&', '|', '>>>']);
+  const EVAL_BINARY_OPS = new Set(['*', '/', '^', '&', '|', '§', '>>>']);
 
   function parseTerm() {
     let left = parseFactor();
