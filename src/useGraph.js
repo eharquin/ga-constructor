@@ -268,17 +268,6 @@ export function useGraph() {
     [items]
   );
 
-  // labelMap: nodeId → label string (or null when disabled).
-  const labelMap = useMemo(() => {
-    const map = {};
-    for (const item of items) {
-      const node = parseExpression(item.text);
-      if (!node) continue;
-      map[node.id] = item.label ?? null;
-    }
-    return map;
-  }, [items]);
-
   const normalizeMap = useMemo(() => {
     const map = {};
     for (const item of items) {
@@ -292,6 +281,29 @@ export function useGraph() {
     try { return evaluate(nodes, normalizeMap); }
     catch { return {}; }
   }, [nodes, normalizeMap]);
+
+  // labelMap: nodeId → resolved label string (or null when disabled).
+  // {varname} in the label text is substituted with the current scalar value of varname.
+  const labelMap = useMemo(() => {
+    const fmtVal = (val) => {
+      if (val == null) return '?';
+      if (typeof val === 'number') return parseFloat(val.toFixed(4)).toString();
+      const cls = classifyMV(val);
+      if (cls?.kind === 'scalar') return parseFloat((val[0] || 0).toFixed(4)).toString();
+      return '?';
+    };
+    const map = {};
+    for (const item of items) {
+      const node = parseExpression(item.text);
+      if (!node) continue;
+      const raw = item.label ?? null;
+      if (!raw) { map[node.id] = null; continue; }
+      map[node.id] = raw.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) =>
+        name in values ? fmtVal(values[name]) : `{${name}}`
+      );
+    }
+    return map;
+  }, [items, values]);
 
   // colorMap: nodeId → resolved color based on computed geometric kind
   const colorMap = useMemo(() => {
