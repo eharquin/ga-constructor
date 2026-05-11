@@ -107,7 +107,7 @@ function validate(tokens) {
     return true;
   }
 
-  const BINARY_OPS = new Set(['*', '/', '^', '&', '>>>']);
+  const BINARY_OPS = new Set(['*', '/', '^', '&', '|', '>>>']);
 
   function term() {
     if (!factor()) return false;
@@ -245,6 +245,7 @@ function applyOp(left, op, right) {
   }
   if (op === '^') return PGA.Wedge(toMV(left), toMV(right));
   if (op === '&') return PGA.Vee(toMV(left), toMV(right));
+  if (op === '|') return PGA.LDot(toMV(left), toMV(right));
   if (op === '>>>') {
     const M = toMV(left), A = toMV(right);
     if (!M || !A) return null;
@@ -281,7 +282,7 @@ export function evalMVArith(str, env) {
     return left;
   }
 
-  const EVAL_BINARY_OPS = new Set(['*', '/', '^', '&', '>>>']);
+  const EVAL_BINARY_OPS = new Set(['*', '/', '^', '&', '|', '>>>']);
 
   function parseTerm() {
     let left = parseFactor();

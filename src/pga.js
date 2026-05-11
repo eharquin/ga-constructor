@@ -113,6 +113,7 @@ export const classifyMV = (val) => {
   const g3 = Math.abs(val[7]) > eps;
 
   if (g0 && !g1 && !g2 && !g3) return { kind: 'scalar' };
+  if (!g0 && !g1 && !g2 && !g3) return { kind: 'scalar' }; // zero multivector → zero scalar
 
   if (!g0 && g1 && !g2 && !g3)
     return { kind: (Math.abs(val[2]) < eps && Math.abs(val[3]) < eps) ? 'idealLine' : 'line' };
