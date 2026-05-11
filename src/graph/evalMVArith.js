@@ -1,8 +1,9 @@
 // General multivector arithmetic expression evaluator.
-// Supports: +, -, *, /, unary -, parentheses, named nodes, and built-in basis blades.
+// Supports: +, -, *, /, ^(wedge), &(Vee), unary -(neg), !(dual), ~(reverse),
+//           parentheses, named nodes, and built-in basis blades.
 // Basis blades (e0, e1, e2, e01, e02, e12, e012) are always available without being deps.
 
-import { PGA, idealPoint } from '../pga.js';
+import { PGA, idealPoint, dualOp, reverseOp } from '../pga.js';
 
 // ─── Built-in basis blade environment ────────────────────────────────────────
 
@@ -45,7 +46,8 @@ function tokenize(str) {
       raw.push({ type: 'id', val: id });
       continue;
     }
-    if ('+-*/()'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+    if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
+    if ('+-*/()!~^&'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
     return null; // unrecognized character
   }
 
@@ -84,11 +86,13 @@ function validate(tokens) {
     return true;
   }
 
+  const BINARY_OPS = new Set(['*', '/', '^', '&', '>>>']);
+
   function term() {
     if (!factor()) return false;
     while (pos < tokens.length) {
       const t = peek();
-      if (t?.type !== 'op' || (t.val !== '*' && t.val !== '/')) break;
+      if (t?.type !== 'op' || !BINARY_OPS.has(t.val)) break;
       eat();
       if (!factor()) return false;
     }
@@ -98,7 +102,7 @@ function validate(tokens) {
   function factor() {
     const t = peek();
     if (!t) return false;
-    if (t.type === 'op' && (t.val === '-' || t.val === '+')) { eat(); return factor(); }
+    if (t.type === 'op' && (t.val === '-' || t.val === '+' || t.val === '!' || t.val === '~')) { eat(); return factor(); }
     if (t.type === 'op' && t.val === '(') {
       eat();
       if (!expr()) return false;
@@ -194,6 +198,13 @@ function applyOp(left, op, right) {
     if (rNum && right !== 0) return scaleMV(toMV(left), 1 / right);
     return null;
   }
+  if (op === '^') return PGA.Wedge(toMV(left), toMV(right));
+  if (op === '&') return PGA.Vee(toMV(left), toMV(right));
+  if (op === '>>>') {
+    const M = toMV(left), A = toMV(right);
+    if (!M || !A) return null;
+    return PGA.Mul(PGA.Mul(M, A), reverseOp(M));
+  }
   return null;
 }
 
@@ -225,12 +236,14 @@ export function evalMVArith(str, env) {
     return left;
   }
 
+  const EVAL_BINARY_OPS = new Set(['*', '/', '^', '&', '>>>']);
+
   function parseTerm() {
     let left = parseFactor();
     if (left === null) return null;
     while (pos < tokens.length) {
       const t = peek();
-      if (t?.type !== 'op' || (t.val !== '*' && t.val !== '/')) break;
+      if (t?.type !== 'op' || !EVAL_BINARY_OPS.has(t.val)) break;
       const op = eat().val;
       const right = parseFactor();
       if (right === null) return null;
@@ -247,6 +260,18 @@ export function evalMVArith(str, env) {
       const op = eat().val;
       const v = parseFactor();
       return v === null ? null : (op === '-' ? negateVal(v) : v);
+    }
+    if (t.type === 'op' && t.val === '!') {
+      eat();
+      const v = parseFactor();
+      if (v === null) return null;
+      const mv = toMV(v); return mv ? dualOp(mv) : null;
+    }
+    if (t.type === 'op' && t.val === '~') {
+      eat();
+      const v = parseFactor();
+      if (v === null) return null;
+      const mv = toMV(v); return mv ? reverseOp(mv) : null;
     }
     if (t.type === 'op' && t.val === '(') {
       eat();
