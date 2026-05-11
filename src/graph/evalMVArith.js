@@ -10,7 +10,7 @@ import { PGA, idealPoint, dualOp, reverseOp } from '../pga.js';
 const BLADE_NAMES = new Set(['e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012']);
 
 // Names reserved as built-in functions — excluded from dep extraction.
-const BUILTIN_FN_NAMES = new Set(['sqrt']);
+const BUILTIN_FN_NAMES = new Set(['sqrt', 'abs']);
 
 const BASIS_ENV = (() => {
   const pairs = [
@@ -47,7 +47,7 @@ function tokenize(str) {
       continue;
     }
     if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
-    if ('+-*/()!~^&'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+    if ('+-*/()!~^&|'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
     return null; // unrecognized character
   }
 
@@ -63,7 +63,8 @@ function tokenize(str) {
     const rightOpen = next.type === 'op' && next.val === '(';
     const rightId   = next.type === 'id';
     const rightNum  = next.type === 'num';
-    if ((leftNum || leftClose) && (rightOpen || rightId || rightNum)) tokens.push(MUL);
+    const rightBar  = next.type === 'op' && next.val === '|';
+    if ((leftNum || leftClose) && (rightOpen || rightId || rightNum || rightBar)) tokens.push(MUL);
   }
   return tokens;
 }
@@ -107,6 +108,13 @@ function validate(tokens) {
       eat();
       if (!expr()) return false;
       if (!peek() || peek().type !== 'op' || peek().val !== ')') return false;
+      eat();
+      return true;
+    }
+    if (t.type === 'op' && t.val === '|') {
+      eat();
+      if (!expr()) return false;
+      if (!peek() || peek().type !== 'op' || peek().val !== '|') return false;
       eat();
       return true;
     }
@@ -167,6 +175,18 @@ function scaleMV(mv, s) {
   const r = new PGA(8);
   for (let i = 0; i < 8; i++) r[i] = (mv[i] || 0) * s;
   return r;
+}
+
+// Absolute value: plain number → Math.abs; grade-0 PGA scalar → Math.abs(val[0]).
+function applyAbs(val) {
+  if (val === null) return null;
+  if (typeof val === 'number') return Math.abs(val);
+  const mv = toMV(val);
+  if (!mv) return null;
+  if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
+    const r = new PGA(8); r[0] = Math.abs(mv[0]); return r;
+  }
+  return null; // not a scalar — abs not defined
 }
 
 function applyOp(left, op, right) {
@@ -280,6 +300,13 @@ export function evalMVArith(str, env) {
       eat();
       return v;
     }
+    if (t.type === 'op' && t.val === '|') {
+      eat();
+      const v = parseExpr();
+      if (!peek() || peek().val !== '|') return null;
+      eat();
+      return applyAbs(v);
+    }
     if (t.type === 'num') { eat(); return t.val; }
     if (t.type === 'id') {
       eat();
@@ -290,6 +317,7 @@ export function evalMVArith(str, env) {
         if (!peek() || peek().val !== ')') return null;
         eat();
         if (arg === null) return null;
+        if (t.val === 'abs') return applyAbs(arg);
         if (t.val === 'sqrt') {
           if (typeof arg === 'number') return Math.sqrt(arg);
           const mv = toMV(arg);
