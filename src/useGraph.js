@@ -34,7 +34,7 @@ const TYPE_COLOR_FALLBACK = {
 };
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, normalizeMode: null, ...extra,
 });
 
 const INITIAL_ITEMS = [
@@ -102,7 +102,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, normalizeMode: null }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -123,6 +123,10 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, label: action.label } : it
       );
+    case 'SET_LABEL_OPTS':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, labelOpts: action.opts } : it
+      );
     case 'SET_VISIBLE':
       return items.map((it) =>
         it.id === action.id ? { ...it, visible: action.visible } : it
@@ -133,7 +137,7 @@ function reducer(items, action) {
       );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, normalizeMode: null };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -304,6 +308,16 @@ export function useGraph() {
     }
     return map;
   }, [items, values]);
+
+  // labelOptsMap: nodeId → {fontSize, orientation, anchor} (null = defaults)
+  const labelOptsMap = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      const node = parseExpression(item.text);
+      if (node) map[node.id] = item.labelOpts ?? null;
+    }
+    return map;
+  }, [items]);
 
   // colorMap: nodeId → resolved color based on computed geometric kind
   const colorMap = useMemo(() => {
@@ -586,6 +600,8 @@ export function useGraph() {
     togglePlay,
     labelMap,
     setLabel:       (id, label)   => dispatch({ type: 'SET_LABEL',   id, label }),
+    setLabelOpts:   (id, opts)    => dispatch({ type: 'SET_LABEL_OPTS', id, opts }),
+    labelOptsMap,
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,

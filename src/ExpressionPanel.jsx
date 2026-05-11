@@ -209,8 +209,9 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
+    labelOptsMap,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
@@ -524,44 +525,77 @@ export default function ExpressionPanel() {
                 </div>
               )}
 
-              {/* Label toggle + editable text — drawable objects only */}
-              {isDrawable && (
-                <div className="label-row">
-                  <input
-                    type="checkbox"
-                    className="label-checkbox"
-                    checked={item.label != null}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setLabel(item.id, node.id);
-                      } else {
-                        setLabelTexts((p) => { const n = { ...p }; delete n[item.id]; return n; });
-                        setLabel(item.id, null);
-                      }
-                    }}
-                    tabIndex={-1}
-                  />
-                  <span className="label-check-text">label</span>
-                  {item.label != null && (
-                    <input
-                      type="text"
-                      className="label-text-input"
-                      value={labelTexts[item.id] ?? item.label}
-                      onChange={(e) => setLabelTexts((p) => ({ ...p, [item.id]: e.target.value }))}
-                      onBlur={() => {
-                        const str = labelTexts[item.id];
-                        if (str != null) {
-                          setLabel(item.id, str.trim() || node.id);
-                          setLabelTexts((p) => { const n = { ...p }; delete n[item.id]; return n; });
-                        }
-                      }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
-                      tabIndex={-1}
-                      spellCheck={false}
-                    />
-                  )}
-                </div>
-              )}
+              {/* Label toggle + editable text + extended opts */}
+              {isDrawable && (() => {
+                const lo = labelOptsMap[node?.id] ?? {};
+                const fontSize    = lo.fontSize    ?? 13;
+                const orientation = lo.orientation ?? 0;
+                const anchor      = lo.anchor      ?? 'top-right';
+                const updOpts = (patch) => setLabelOpts(item.id, { fontSize, orientation, anchor, ...lo, ...patch });
+                const ANCHORS = [
+                  'top-left','top','top-right',
+                  'left', null, 'right',
+                  'bottom-left','bottom','bottom-right',
+                ];
+                return (
+                  <div className="label-section">
+                    <div className="label-row">
+                      <input type="checkbox" className="label-checkbox"
+                        checked={item.label != null}
+                        onChange={(e) => {
+                          if (e.target.checked) { setLabel(item.id, node.id); }
+                          else {
+                            setLabelTexts((p) => { const n = { ...p }; delete n[item.id]; return n; });
+                            setLabel(item.id, null);
+                          }
+                        }}
+                        tabIndex={-1}
+                      />
+                      <span className="label-check-text">label</span>
+                      {item.label != null && (
+                        <input type="text" className="label-text-input"
+                          value={labelTexts[item.id] ?? item.label}
+                          onChange={(e) => setLabelTexts((p) => ({ ...p, [item.id]: e.target.value }))}
+                          onBlur={() => {
+                            const str = labelTexts[item.id];
+                            if (str != null) {
+                              setLabel(item.id, str.trim() || node.id);
+                              setLabelTexts((p) => { const n = { ...p }; delete n[item.id]; return n; });
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                          tabIndex={-1} spellCheck={false}
+                        />
+                      )}
+                    </div>
+                    {item.label != null && (
+                      <div className="label-opts">
+                        <label className="label-opt-field">
+                          <span>size</span>
+                          <input type="number" min={6} max={36} step={1} value={fontSize}
+                            onChange={(e) => updOpts({ fontSize: Math.max(6, Math.min(36, +e.target.value || 13)) })}
+                            tabIndex={-1} />
+                        </label>
+                        <label className="label-opt-field">
+                          <span>°</span>
+                          <input type="number" min={-180} max={180} step={5} value={orientation}
+                            onChange={(e) => updOpts({ orientation: +e.target.value || 0 })}
+                            tabIndex={-1} />
+                        </label>
+                        <div className="anchor-grid">
+                          {ANCHORS.map((pos, i) => pos
+                            ? <button key={pos}
+                                className={`anchor-btn${anchor === pos ? ' active' : ''}`}
+                                onClick={() => updOpts({ anchor: pos })}
+                                tabIndex={-1} title={pos} />
+                            : <div key={i} className="anchor-center" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

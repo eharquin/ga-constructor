@@ -170,7 +170,7 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
   const r = hovered ? 8 : 6;
@@ -183,17 +183,12 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered }) {
         stroke={hovered ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)'}
         strokeWidth={hovered ? 2 : 1.5}
       />
-      {label && (
-        <text x={cx + r + 4} y={cy - 8}
-              fill="#1c1c2e" fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
-          {label}
-        </text>
-      )}
+      {renderLabel(label, cx, cy, opts)}
     </g>
   );
 }
 
-function SvgLine({ L, label, color, vp, W, H }) {
+function SvgLine({ L, label, color, vp, W, H, opts }) {
   const bd = lineBaseAndDir(L);
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
@@ -215,17 +210,12 @@ function SvgLine({ L, label, color, vp, W, H }) {
     <g>
       <line x1={p1.cx} y1={p1.cy} x2={p2.cx} y2={p2.cy}
             stroke={color} strokeWidth={2.5} strokeLinecap="round" />
-      {label && (
-        <text x={lx + 8} y={ly - 8}
-              fill={color} fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
-          {label}
-        </text>
-      )}
+      {renderLabel(label, lx, ly, opts)}
     </g>
   );
 }
 
-function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDraggable = true }) {
+function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDraggable = true, opts }) {
   const tail = w2c(px, py, vp);
   const tip  = w2c(px + vx, py + vy, vp);
   const dx   = tip.cx - tail.cx;
@@ -268,17 +258,49 @@ function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDragg
                 fill="none" stroke={color + 'bb'}
                 strokeWidth={1.5} strokeDasharray="3 3" />
       )}
-      {label && len > 4 && (
-        <text x={(tail.cx + tip.cx) / 2 + 6} y={(tail.cy + tip.cy) / 2 - 6}
-              fill="#1c1c2e" fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
-          {label}
-        </text>
-      )}
+      {len > 4 && renderLabel(label, (tail.cx + tip.cx) / 2, (tail.cy + tip.cy) / 2, opts)}
     </g>
   );
 }
 
-function SvgPolygon({ points, label, color, vp }) {
+// ─── Label rendering ──────────────────────────────────────────────────────────
+
+const ANCHOR_CFG = {
+  'top-left':     { dx: -1, dy: -1, anchor: 'end',    baseline: 'auto'    },
+  'top':          { dx:  0, dy: -1, anchor: 'middle',  baseline: 'auto'    },
+  'top-right':    { dx:  1, dy: -1, anchor: 'start',   baseline: 'auto'    },
+  'left':         { dx: -1, dy:  0, anchor: 'end',     baseline: 'middle'  },
+  'right':        { dx:  1, dy:  0, anchor: 'start',   baseline: 'middle'  },
+  'bottom-left':  { dx: -1, dy:  1, anchor: 'end',     baseline: 'hanging' },
+  'bottom':       { dx:  0, dy:  1, anchor: 'middle',  baseline: 'hanging' },
+  'bottom-right': { dx:  1, dy:  1, anchor: 'start',   baseline: 'hanging' },
+};
+
+function renderLabel(label, cx, cy, opts) {
+  if (!label) return null;
+  const fontSize    = opts?.fontSize    ?? 13;
+  const orientation = opts?.orientation ?? 0;
+  const anchorKey   = opts?.anchor      ?? 'top-right';
+  const cfg = ANCHOR_CFG[anchorKey] ?? ANCHOR_CFG['top-right'];
+  const off = fontSize * 0.65 + 4;
+  const tx  = cx + cfg.dx * off;
+  const ty  = cy + cfg.dy * off;
+  return (
+    <text
+      x={tx} y={ty}
+      textAnchor={cfg.anchor}
+      dominantBaseline={cfg.baseline}
+      fill="#1c1c2e"
+      fontFamily="monospace"
+      fontSize={fontSize}
+      fontWeight="bold"
+      pointerEvents="none"
+      transform={orientation !== 0 ? `rotate(${orientation},${tx},${ty})` : undefined}
+    >{label}</text>
+  );
+}
+
+function SvgPolygon({ points, label, color, vp, opts }) {
   const pts = points.map(p => { const { cx, cy } = w2c(p.x, p.y, vp); return `${cx},${cy}`; }).join(' ');
   const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
   const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
@@ -286,12 +308,7 @@ function SvgPolygon({ points, label, color, vp }) {
   return (
     <g>
       <polygon points={pts} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
-      {label && (
-        <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
-              fill={color} fontFamily="monospace" fontSize={13} fontWeight="bold" pointerEvents="none">
-          {label}
-        </text>
-      )}
+      {renderLabel(label, lx, ly, opts)}
     </g>
   );
 }
@@ -302,7 +319,7 @@ export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const {
-    nodes, values, colorMap, labelMap, vectorPositions, orderedNodeIds, items,
+    nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -461,6 +478,7 @@ export default function Canvas() {
     if (val == null) continue;
     const color   = colorMap[id] ?? '#4444cc';
     const label   = labelMap[id] ?? null;
+    const opts    = labelOptsMap[id] ?? null;
     const hovered = id === hoveredId;
 
     // Scalar-valued nodes (triangle, meetChain): no canvas render
@@ -468,7 +486,7 @@ export default function Canvas() {
 
     // list node: polygon drawn from the pre-computed point list
     if (val?.list) {
-      backLayer.push(<SvgPolygon key={id} points={val.points} label={label} color={color} vp={vp} />);
+      backLayer.push(<SvgPolygon key={id} points={val.points} label={label} color={color} vp={vp} opts={opts} />);
       continue;
     }
 
@@ -477,7 +495,7 @@ export default function Canvas() {
       const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
       backLayer.push(
         <SvgVector key={id} vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
-          label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} />
+          label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} opts={opts} />
       );
       continue;
     }
@@ -489,20 +507,20 @@ export default function Canvas() {
       case 'finitePoint': {
         const eu = toEuclidean(val);
         if (!eu) break;
-        frontLayer.push(<SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} />);
+        frontLayer.push(<SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} />);
         break;
       }
       case 'idealPoint': {
         const iv = toIdealVector(val);
         if (!iv) break;
-        backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={0} py={0} label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false} />);
+        backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={0} py={0} label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false} opts={opts} />);
         break;
       }
       case 'line':
-        backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />);
+        backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} />);
         break;
       default:
-        break; // scalar, pseudoscalar, motor, rotor, translator, reflector, idealLine, mixed
+        break;
     }
   }
 
