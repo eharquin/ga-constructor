@@ -465,7 +465,7 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const hovered = id === hoveredId;
 
-    // Triangle: value is a plain scalar; polygon drawn from dep values when showArea is on
+    // Triangle node: value is a plain scalar; polygon from dep geoms when showArea is on
     if (node.type === 'triangle' || node.type === 'meetChain') {
       if (showAreaMap[id] && node.type === 'triangle') {
         const depVals = node.deps.map(d => values[d]);
@@ -477,6 +477,14 @@ export default function Canvas() {
         }
       }
       continue;
+    }
+    // mvExpr with triple join (e.g. 0.5*(A & B & C)): try to draw polygon from deps
+    if (showAreaMap[id] && typeof val === 'number' && node.deps.length >= 3) {
+      const eu = node.deps.slice(0, 3).map(d => toEuclidean(values[d]));
+      if (eu[0] && eu[1] && eu[2]) {
+        backLayer.push(<SvgTriangle key={id} p1={eu[0]} p2={eu[1]} p3={eu[2]} label={label} color={color} vp={vp} />);
+        continue;
+      }
     }
 
     // {vx, vy} ideal vector → back layer

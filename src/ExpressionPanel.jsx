@@ -28,11 +28,33 @@ const TYPE_COLOR_FALLBACK = {
   triangle:  '#89dceb',
 };
 
+// Returns true when the expression text contains at least 2 top-level & operators
+// (i.e. a triple join like A & B & C, possibly wrapped in arithmetic like 0.5*(A & B & C)).
+function containsTripleJoin(text) {
+  if (!text) return false;
+  const m = text.match(/=\s*(.+)$/s);
+  const expr = m ? m[1] : text;
+  let depth = 0, count = 0;
+  for (const c of expr) {
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === '&' && depth === 0) { if (++count >= 2) return true; }
+  }
+  return false;
+}
+
+// Check if the expression already contains a 0.5 factor before the triple join.
+function alreadyHalfed(text) {
+  const m = text.match(/=\s*(.+)$/s);
+  const expr = (m ? m[1] : text).trim();
+  return /^0\.5\s*[\*(]/.test(expr);
+}
+
 function resolveColor(item, values) {
   if (item.color) return item.color;
   const node = parseExpression(item.text);
   if (!node) return '#6c7086';
-  if (node.type === 'triangle' || node.type === 'meetChain') return KIND_COLOR.triangle;
+  if (node.type === 'triangle' || node.type === 'meetChain' || containsTripleJoin(item.text)) return KIND_COLOR.triangle;
   const val = values?.[node.id];
   if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.idealPoint;
   const cls = classifyMV(val);
@@ -281,15 +303,16 @@ export default function ExpressionPanel() {
         {items.map((item, index) => {
           const node      = parseExpression(item.text);
           const isInvalid = item.text.trim() !== '' && !node;
-          const isScalar   = node?.type === 'scalar';
+          const isScalar    = node?.type === 'scalar';
           const hasPosition = node?.type === 'vector';
           const isTriangle  = node?.type === 'triangle';
+          const isAreaNode  = isTriangle || containsTripleJoin(item.text);
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
-          const showingArea = isTriangle && (showAreaMap[node?.id] ?? false);
+          const showingArea = isAreaNode && (showAreaMap[node?.id] ?? false);
           const isDrawable  = (isTriangle && showingArea) || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
                               cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
-          const canUnitize  = node && node.type !== 'scalar' && !isTriangle;
+          const canUnitize  = node && node.type !== 'scalar' && !isAreaNode;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
@@ -297,8 +320,8 @@ export default function ExpressionPanel() {
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values);
           const displayVal = item.text.trim()
-            ? (isTriangle && typeof val_ === 'number'
-                ? (showingArea ? `area: ${(val_ / 2).toFixed(2)}` : `${val_.toFixed(3)}`)
+            ? (isAreaNode && typeof val_ === 'number'
+                ? (showingArea ? `area: ${val_.toFixed(2)}` : val_.toFixed(3))
                 : getDisplayValue(item.text, values))
             : null;
           const mvStr     = node ? formatMV(values[node.id], false) : null;
@@ -402,12 +425,20 @@ export default function ExpressionPanel() {
                 </label>
 
                 <div className="expr-body">
-                  {isTriangle && (
+                  {isAreaNode && (
                     <span className="norm-buttons">
                       <button
                         className={`norm-btn${showingArea ? ' active' : ''}`}
-                        title="Show as area (÷2) and draw the triangle polygon"
-                        onClick={() => setShowArea(item.id, !showingArea)}
+                        title="Show as area and draw triangle polygon"
+                        onClick={() => {
+                          const next = !showingArea;
+                          // For bare triple join (triangle node): prepend 0.5* if not already there
+                          if (next && isTriangle && !alreadyHalfed(item.text)) {
+                            const m = item.text.match(/^((?:[A-Za-z_][A-Za-z0-9_]*\s*=\s*)?)(.+)$/s);
+                            if (m) setItemText(item.id, `${m[1]}0.5*(${m[2].trim()})`);
+                          }
+                          setShowArea(item.id, next);
+                        }}
                         tabIndex={-1}
                       >area</button>
                     </span>
