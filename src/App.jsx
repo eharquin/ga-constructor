@@ -8,7 +8,7 @@ const MIN_PANEL = 220;
 const MAX_PANEL = 700;
 
 const ALGEBRAS = [
-  { id: 'pga201', label: 'PGA(2,0,1)' },
+  { id: 'pga201', label: 'PGA 2D' },
   { id: 'cga410', label: 'CGA(4,1,0)' },
 ];
 
