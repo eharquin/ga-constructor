@@ -8,7 +8,26 @@ import { PGA, idealPoint, dualOp, reverseOp } from '../pga.js';
 // ─── Built-in basis blade environment ────────────────────────────────────────
 
 const BLADE_NAMES = new Set(['e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012']);
+// Canonical blade → PGA array index
 const BLADE_INDEX = { e0: 1, e1: 2, e2: 3, e01: 4, e02: 5, e12: 6, e012: 7 };
+
+// Parse any permutation of PGA(2,0,1) basis indices.
+// Returns { index, sign } where sign = ±1 (parity of the permutation),
+// or null for invalid / unrecognised names.
+// Examples: e12→{6,+1}, e21→{6,-1}, e102→{7,-1}, e120→{7,+1}
+function parseBladeName(name) {
+  if (!name || !name.startsWith('e')) return null;
+  const digits = name.slice(1).split('').map(Number);
+  if (digits.some(d => isNaN(d) || d < 0 || d > 2)) return null;
+  if (new Set(digits).size !== digits.length) return null; // repeated index
+  let inv = 0;
+  for (let i = 0; i < digits.length; i++)
+    for (let j = i + 1; j < digits.length; j++)
+      if (digits[i] > digits[j]) inv++;
+  const canonical = 'e' + [...digits].sort((a, b) => a - b).join('');
+  const index = BLADE_INDEX[canonical];
+  return index !== undefined ? { index, sign: inv % 2 === 0 ? 1 : -1 } : null;
+}
 
 // Names reserved as built-in functions — excluded from dep extraction.
 const BUILTIN_FN_NAMES = new Set(['sqrt', 'abs']);
@@ -131,7 +150,7 @@ function validate(tokens) {
       } else if (peek()?.type === 'op' && peek()?.val === '.') {
         eat(); // consume '.'
         const blade = peek();
-        if (!blade || blade.type !== 'id' || BLADE_INDEX[blade.val] === undefined) return false;
+        if (!blade || blade.type !== 'id' || !parseBladeName(blade.val)) return false;
         eat(); // consume blade name
       }
       return true;
@@ -151,7 +170,7 @@ export function extractMVDeps(str) {
   const seen = new Set();
   const deps = [];
   for (const t of tokens) {
-    if (t.type === 'id' && !BLADE_NAMES.has(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
+    if (t.type === 'id' && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
       seen.add(t.val);
       deps.push(t.val);
     }
@@ -339,17 +358,23 @@ export function evalMVArith(str, env) {
         }
         return null;
       }
-      // id.blade — extract a single coefficient as a plain number
+      // id.blade — extract a single coefficient as a plain number (supports permuted blades)
       if (peek()?.type === 'op' && peek()?.val === '.') {
         eat(); // consume '.'
         const blade = peek();
-        if (!blade || blade.type !== 'id' || BLADE_INDEX[blade.val] === undefined) return null;
+        if (!blade || blade.type !== 'id') return null;
+        const b = parseBladeName(blade.val);
+        if (!b) return null;
         eat(); // consume blade name
         const mv = toMV(fullEnv[t.val]);
-        return mv ? (mv[BLADE_INDEX[blade.val]] ?? 0) : null;
+        return mv ? b.sign * (mv[b.index] ?? 0) : null;
       }
       const v = fullEnv[t.val];
-      return v !== undefined ? v : null;
+      if (v !== undefined) return v;
+      // Reversed blade as standalone value (e.g. e21 = -e12)
+      const b = parseBladeName(t.val);
+      if (b) { const mv = new PGA(8); mv[b.index] = b.sign; return mv; }
+      return null;
     }
     return null;
   }
