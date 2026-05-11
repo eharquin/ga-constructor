@@ -637,8 +637,8 @@ export default function ExpressionPanel() {
                   <tbody>
                     <tr><td><code>A = point(x, y)</code></td><td>Free draggable point. <code>x</code>, <code>y</code> can be scalar names.</td></tr>
                     <tr><td><code>V = vector(vx, vy)</code></td><td>Free direction vector (ideal point). Draggable tail &amp; tip.</td></tr>
-                    <tr><td><code>L = line(a, b, c)</code></td><td>Free line: <code>a·e1 + b·e2 + c·e0</code>, equation a·x + b·y + c = 0. <code>a</code>, <code>b</code>, <code>c</code> can be scalar names.</td></tr>
-                    <tr><td><code>t = 0.5</code></td><td>Scalar. Click ▶ to animate over an interval.</td></tr>
+                    <tr><td><code>L = line(a, b, c)</code></td><td>Free line <code>a·x + b·y + c = 0</code>. Arguments can be scalar names.</td></tr>
+                    <tr><td><code>t = 0.5</code></td><td>Scalar. Click ▶ to animate. Supports blade literals: <code>t = 2e12</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -647,9 +647,10 @@ export default function ExpressionPanel() {
                 <h3>Geometry</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>L = A &amp; B</code></td><td>Line through two points (join / regressive product).</td></tr>
-                    <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triangle from three points. Panel shows area.</td></tr>
-                    <tr><td><code>X = L1 ^ L2</code></td><td>Intersection of two lines (meet / wedge product). Parallel lines yield a direction vector.</td></tr>
+                    <tr><td><code>L = A &amp; B</code></td><td>Join (regressive ∨): line through two points.</td></tr>
+                    <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triple join → 2 × signed area scalar. Press <b>area</b> to show ÷2 and draw the polygon.</td></tr>
+                    <tr><td><code>X = L1 ^ L2</code></td><td>Meet (wedge ∧): intersection of two lines. Works for n-ary chains: <code>L1 ^ L2 ^ L3</code>.</td></tr>
+                    <tr><td><code>T = 0.5*(A &amp; B &amp; C)</code></td><td>Area directly — <b>area</b> button appears without modifying the expression.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -658,41 +659,71 @@ export default function ExpressionPanel() {
                 <h3>Motors</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>R = exp(A, t)</code></td><td>Motor from a point (rotation around A by 2t) or vector (translation along V by 2t).</td></tr>
-                    <tr><td><code>B = R &gt;&gt;&gt; A</code></td><td>Apply motor R to object A (sandwich product).</td></tr>
+                    <tr><td><code>R = exp(A, t)</code></td><td>Rotor: rotation around point A by angle 2t.</td></tr>
+                    <tr><td><code>T = exp(V, t)</code></td><td>Translator: translation along vector V by 2t.</td></tr>
+                    <tr><td><code>B = R &gt;&gt;&gt; A</code></td><td>Sandwich product: apply motor R to object A.</td></tr>
                   </tbody>
                 </table>
               </section>
 
               <section className="help-section">
-                <h3>Multivectors</h3>
+                <h3>MV arithmetic operators</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>P = 5e01 - 3e02 + e12</code></td><td>Raw PGA grade-2 element (point if e12 ≠ 0).</td></tr>
-                    <tr><td><code>L = 2e1 + e0</code></td><td>Raw PGA grade-1 element (line).</td></tr>
-                    <tr><td><code>M = (A + B) / 2</code></td><td>Multivector arithmetic: +, −, *, /. Renders as point or line automatically.</td></tr>
+                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Multivector addition / subtraction.</td></tr>
+                    <tr><td><code>s * A</code>, <code>A / s</code></td><td>Scalar multiplication / division.</td></tr>
+                    <tr><td><code>A * B</code></td><td>Geometric product.</td></tr>
+                    <tr><td><code>A ^ B</code></td><td>Wedge / outer product (meet for lines).</td></tr>
+                    <tr><td><code>A &amp; B</code></td><td>Vee / regressive product (join for points).</td></tr>
+                    <tr><td><code>A | B</code></td><td>Left contraction (inner product). <code>L1 | L2</code> = cos θ for unit lines.</td></tr>
+                    <tr><td><code>A § B</code></td><td>Commutator product <code>(AB − BA) / 2</code>.</td></tr>
+                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich product <code>A · B · Ã</code>.</td></tr>
+                    <tr><td><code>!A</code></td><td>Hodge dual (points ↔ lines).</td></tr>
+                    <tr><td><code>~A</code></td><td>Reverse / reversion.</td></tr>
+                    <tr><td><code>sqrt(A)</code></td><td>Square root. Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
+                    <tr><td><code>abs(A)</code> or <code>|A|</code></td><td>Absolute value of a scalar.</td></tr>
+                    <tr><td><code>A.e12</code></td><td>Extract blade coefficient as scalar. Supports permuted names: <code>A.e21 = −A.e12</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
 
               <section className="help-section">
-                <h3>Unary operations</h3>
+                <h3>Normalization</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>D = !A</code></td><td>Hodge dual (grade swap: points ↔ lines).</td></tr>
-                    <tr><td><code>R = ~A</code></td><td>Reverse (reversion): negates grade-2 and grade-3 blades.</td></tr>
+                    <tr><td><b>norm</b> button</td><td>Divide by finite norm ‖A‖ = √(scalar_part(AÃ)). For finite objects.</td></tr>
+                    <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
+                    <tr><td><b>area</b> button</td><td>On triple-join expressions: show ÷2 area and draw the polygon.</td></tr>
                   </tbody>
                 </table>
               </section>
 
               <section className="help-section">
-                <h3>PGA 2D basis (8 elements)</h3>
+                <h3>PGA(2,0,1) basis — 8 blades</h3>
                 <table className="help-table help-table-basis">
                   <tbody>
-                    <tr><td><code>1</code></td><td>scalar</td><td><code>e01</code></td><td>ideal y-direction (point at ∞)</td></tr>
-                    <tr><td><code>e0</code></td><td>ideal line</td><td><code>e02</code></td><td>ideal x-direction (point at ∞)</td></tr>
-                    <tr><td><code>e1</code></td><td>y-axis line</td><td><code>e12</code></td><td>point weight (origin)</td></tr>
-                    <tr><td><code>e2</code></td><td>x-axis line</td><td><code>e012</code></td><td>pseudoscalar</td></tr>
+                    <tr><td><code>1</code></td><td>scalar (grade 0)</td><td><code>e01</code></td><td>ideal y-dir (grade 2)</td></tr>
+                    <tr><td><code>e0</code></td><td>ideal line (grade 1)</td><td><code>e02</code></td><td>ideal x-dir (grade 2)</td></tr>
+                    <tr><td><code>e1</code></td><td>y-axis line (grade 1)</td><td><code>e12</code></td><td>point weight / origin (grade 2)</td></tr>
+                    <tr><td><code>e2</code></td><td>x-axis line (grade 1)</td><td><code>e012</code></td><td>pseudoscalar (grade 3)</td></tr>
+                  </tbody>
+                </table>
+                <p className="help-note">Permuted blade names are supported: <code>e21 = −e12</code>, <code>e10 = −e01</code>, <code>e120 = e012</code>, etc.</p>
+              </section>
+
+              <section className="help-section">
+                <h3>Object types</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><b style={{color:'#89b4fa'}}>●</b> Finite point</td><td>Grade-2 with e12 ≠ 0. Drawn as a dot.</td></tr>
+                    <tr><td><b style={{color:'#f9e2af'}}>●</b> Ideal point</td><td>Grade-2 with e12 = 0. Drawn as a vector from origin.</td></tr>
+                    <tr><td><b style={{color:'#cba6f7'}}>●</b> Line / Reflector</td><td>Grade-1. Drawn as an infinite line.</td></tr>
+                    <tr><td><b style={{color:'#74c7ec'}}>●</b> Rotor / Translator</td><td>Even-grade motor. Not drawn on canvas.</td></tr>
+                    <tr><td><b style={{color:'#94e2d5'}}>●</b> Motor</td><td>General even-grade element. Not drawn.</td></tr>
+                    <tr><td><b style={{color:'#fab387'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
+                    <tr><td><b style={{color:'#f38ba8'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
+                    <tr><td><b style={{color:'#a6e3a1'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
+                    <tr><td><b style={{color:'#89dceb'}}>●</b> Triangle</td><td>Triple join result. Press <b>area</b> to draw.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -701,10 +732,11 @@ export default function ExpressionPanel() {
                 <h3>Canvas interactions</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td>Drag point</td><td>Move a free point or vector tail/tip.</td></tr>
+                    <tr><td>Drag point</td><td>Move a free point or vector tail / tip.</td></tr>
                     <tr><td>Scroll / pinch</td><td>Zoom centred on cursor.</td></tr>
                     <tr><td>Drag background</td><td>Pan the viewport.</td></tr>
                     <tr><td>Double-click</td><td>Add a new free point at that position.</td></tr>
+                    <tr><td>Drag panel edge</td><td>Resize the expression panel.</td></tr>
                   </tbody>
                 </table>
               </section>
