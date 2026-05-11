@@ -30,7 +30,11 @@ function parseBladeName(name) {
 }
 
 // Names reserved as built-in functions — excluded from dep extraction.
-const BUILTIN_FN_NAMES = new Set(['sqrt', 'abs']);
+const BUILTIN_FN_NAMES = new Set([
+  'sqrt', 'abs',
+  'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
+  'asin', 'acos', 'atan', 'acsc', 'asec', 'acot',
+]);
 
 const BASIS_ENV = (() => {
   const pairs = [
@@ -214,6 +218,34 @@ function applyAbs(val) {
   return null; // not a scalar — abs not defined
 }
 
+// Apply a scalar Math function to a plain number or a grade-0 PGA element.
+function applyScalarFn(fn, val) {
+  if (val === null) return null;
+  if (typeof val === 'number') return fn(val);
+  const mv = toMV(val);
+  if (!mv) return null;
+  if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
+    const r = new PGA(8); r[0] = fn(mv[0]); return r;
+  }
+  return null; // non-scalar MV — not defined
+}
+
+// Trigonometric dispatch table (all functions operate on radians).
+const TRIG_FNS = {
+  sin:  Math.sin,
+  cos:  Math.cos,
+  tan:  Math.tan,
+  csc:  (x) => 1 / Math.sin(x),
+  sec:  (x) => 1 / Math.cos(x),
+  cot:  (x) => Math.cos(x) / Math.sin(x),
+  asin: Math.asin,
+  acos: Math.acos,
+  atan: Math.atan,
+  acsc: (x) => Math.asin(1 / x),
+  asec: (x) => Math.acos(1 / x),
+  acot: (x) => Math.PI / 2 - Math.atan(x), // stable at x=0
+};
+
 function applyOp(left, op, right) {
   if (left === null || right === null) return null;
   const lNum = typeof left  === 'number';
@@ -352,6 +384,7 @@ export function evalMVArith(str, env) {
         eat();
         if (arg === null) return null;
         if (t.val === 'abs') return applyAbs(arg);
+        if (TRIG_FNS[t.val]) return applyScalarFn(TRIG_FNS[t.val], arg);
         if (t.val === 'sqrt') {
           if (typeof arg === 'number') return Math.sqrt(arg);
           const mv = toMV(arg);
