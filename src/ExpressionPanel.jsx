@@ -28,19 +28,13 @@ const TYPE_COLOR_FALLBACK = {
   triangle:  '#89dceb',
 };
 
-// Returns true when the expression text contains at least 2 top-level & operators
-// (i.e. a triple join like A & B & C, possibly wrapped in arithmetic like 0.5*(A & B & C)).
+// Returns true when the expression text contains at least 2 & operators anywhere
+// (catches both top-level A & B & C and nested 0.5*(A & B & C)).
 function containsTripleJoin(text) {
   if (!text) return false;
   const m = text.match(/=\s*(.+)$/s);
   const expr = m ? m[1] : text;
-  let depth = 0, count = 0;
-  for (const c of expr) {
-    if (c === '(') depth++;
-    else if (c === ')') depth--;
-    else if (c === '&' && depth === 0) { if (++count >= 2) return true; }
-  }
-  return false;
+  return (expr.match(/&/g) || []).length >= 2;
 }
 
 // Check if the expression already contains a 0.5 factor before the triple join.
