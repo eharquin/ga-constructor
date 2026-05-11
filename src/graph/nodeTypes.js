@@ -214,6 +214,18 @@ export const NODE_TYPES = {
       return meet(L1, L2);
     },
   },
+  meetChain: {
+    label: 'Meet L₁ ∧ … ∧ Lₙ',
+    compute: (depValues, { geoms }) => {
+      let result = toPGA(resolveInlineGeom(geoms[0], depValues));
+      for (let i = 1; i < geoms.length; i++) {
+        const next = resolveInlineGeom(geoms[i], depValues);
+        if (!next) return null;
+        result = PGA.Wedge(result, toPGA(next));
+      }
+      return result;
+    },
+  },
   pointOnLine: {
     label: 'Point on Line',
     compute: ([L], { t }) => pointOnLine(L, t),

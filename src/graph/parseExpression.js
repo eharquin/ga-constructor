@@ -323,19 +323,29 @@ export function parseExpression(text) {
     }
   }
 
-  // G1 ^ G2 — meet (intersection of two lines → point); both sides can be any inline geom
+  // G1 ^ G2 [^ G3 …] — meet (wedge product chain); n ≥ 2 operands
   const meetParts = splitTopLevelOp(expr, '^');
   if (meetParts) {
-    const geom1 = parseInlineGeom(meetParts[0]);
-    const geom2 = parseInlineGeom(meetParts[1]);
-    if (geom1 && geom2) {
-      geom1.depOffset = 0;
-      geom2.depOffset = geom1.deps.length;
-      return {
-        id, label, type: 'meetPoint',
-        deps: [...geom1.deps, ...geom2.deps],
-        params: { geom1, geom2 },
-      };
+    // Collect all operands by repeatedly splitting the right-hand side
+    const operandStrs = [meetParts[0]];
+    let rest = meetParts[1];
+    let next;
+    while ((next = splitTopLevelOp(rest, '^'))) {
+      operandStrs.push(next[0]);
+      rest = next[1];
+    }
+    operandStrs.push(rest);
+
+    const geoms = operandStrs.map(s => parseInlineGeom(s));
+    if (geoms.every(Boolean)) {
+      let offset = 0;
+      for (const g of geoms) { g.depOffset = offset; offset += g.deps.length; }
+      const deps = geoms.flatMap(g => g.deps);
+
+      if (geoms.length === 2) {
+        return { id, label, type: 'meetPoint', deps, params: { geom1: geoms[0], geom2: geoms[1] } };
+      }
+      return { id, label, type: 'meetChain', deps, params: { geoms } };
     }
   }
 

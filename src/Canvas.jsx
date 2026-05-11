@@ -450,54 +450,60 @@ export default function Canvas() {
     addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
 
-  // Build SVG objects in item draw order
-  const objects = orderedNodeIds.map(id => {
+  // Build SVG objects split into two layers: back (lines/triangles) then front (points).
+  // This ensures points are always rendered on top of lines regardless of expression order.
+  const backLayer = [];
+  const frontLayer = [];
+
+  for (const id of orderedNodeIds) {
     const node = nodes[id];
-    if (!node) return null;
-    if (hiddenIds.has(id)) return null;
+    if (!node) continue;
+    if (hiddenIds.has(id)) continue;
     const val = values[id];
-    if (val == null) return null;
+    if (val == null) continue;
     const color   = colorMap[id] ?? '#4444cc';
     const label   = labelMap[id] ?? null;
     const hovered = id === hoveredId;
 
-    // Triangle: special object with p1/p2/p3 polygon data
+    // Triangle → back layer
     if (val.triangle) {
-      return <SvgTriangle key={id} p1={val.p1} p2={val.p2} p3={val.p3} label={label} color={color} vp={vp} />;
+      backLayer.push(<SvgTriangle key={id} p1={val.p1} p2={val.p2} p3={val.p3} label={label} color={color} vp={vp} />);
+      continue;
     }
 
-    // {vx, vy} ideal vector from vector node — configurable anchor via vectorPositions
+    // {vx, vy} ideal vector → back layer
     if (typeof val === 'object' && 'vx' in val) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
-      return (
-        <SvgVector key={id}
-          vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
-          label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked}
-        />
+      backLayer.push(
+        <SvgVector key={id} vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
+          label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} />
       );
+      continue;
     }
 
-    // PGA array: classify and render by kind
     const cls = classifyMV(val);
-    if (!cls) return null;
+    if (!cls) continue;
 
     switch (cls.kind) {
       case 'finitePoint': {
         const eu = toEuclidean(val);
-        if (!eu) return null;
-        return <SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} />;
+        if (!eu) break;
+        frontLayer.push(<SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} />);
+        break;
       }
       case 'idealPoint': {
         const iv = toIdealVector(val);
-        if (!iv) return null;
-        return <SvgVector key={id} vx={iv.vx} vy={iv.vy} px={0} py={0} label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false} />;
+        if (!iv) break;
+        backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={0} py={0} label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false} />);
+        break;
       }
       case 'line':
-        return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
+        backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />);
+        break;
       default:
-        return null; // scalar, pseudoscalar, motor, rotor, translator, reflector, idealLine, mixed — no canvas render
+        break; // scalar, pseudoscalar, motor, rotor, translator, reflector, idealLine, mixed
     }
-  });
+  }
 
   return (
     <div ref={wrapperRef} style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden', userSelect: 'none' }}>
@@ -516,7 +522,8 @@ export default function Canvas() {
       >
         <rect width={size.w} height={size.h} fill="#fafafa" />
         <SvgGrid vp={vp} W={size.w} H={size.h} />
-        {objects}
+        {backLayer}
+        {frontLayer}
       </svg>
     </div>
   );
