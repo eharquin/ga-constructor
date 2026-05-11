@@ -28,7 +28,7 @@ const BASIS_ENV = (() => {
 // ─── Tokenizer ────────────────────────────────────────────────────────────────
 
 function tokenize(str) {
-  const tokens = [];
+  const raw = [];
   let i = 0;
   while (i < str.length) {
     const c = str[i];
@@ -36,17 +36,32 @@ function tokenize(str) {
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(str[i + 1] ?? ''))) {
       let num = '';
       while (i < str.length && /[0-9.]/.test(str[i])) num += str[i++];
-      tokens.push({ type: 'num', val: parseFloat(num) });
+      raw.push({ type: 'num', val: parseFloat(num) });
       continue;
     }
     if (/[A-Za-z_]/.test(c)) {
       let id = '';
       while (i < str.length && /[A-Za-z0-9_]/.test(str[i])) id += str[i++];
-      tokens.push({ type: 'id', val: id });
+      raw.push({ type: 'id', val: id });
       continue;
     }
-    if ('+-*/()'.includes(c)) { tokens.push({ type: 'op', val: c }); i++; continue; }
+    if ('+-*/()'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
     return null; // unrecognized character
+  }
+
+  // Insert implicit * for juxtaposition: 5(...), 5e1, )(, )id
+  const MUL = { type: 'op', val: '*' };
+  const tokens = [];
+  for (let j = 0; j < raw.length; j++) {
+    tokens.push(raw[j]);
+    const curr = raw[j], next = raw[j + 1];
+    if (!next) continue;
+    const leftNum  = curr.type === 'num';
+    const leftClose = curr.type === 'op' && curr.val === ')';
+    const rightOpen = next.type === 'op' && next.val === '(';
+    const rightId   = next.type === 'id';
+    const rightNum  = next.type === 'num';
+    if ((leftNum || leftClose) && (rightOpen || rightId || rightNum)) tokens.push(MUL);
   }
   return tokens;
 }
