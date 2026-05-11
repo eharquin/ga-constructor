@@ -38,4 +38,18 @@ A chronological log of all prompts given to Claude in this project.
 25. **Parallel lines meet as vector** — `A ^ B` on parallel lines now returns `{ vx, vy, px, py }` (positioned vector) instead of null. `meet()` in `nodeTypes.js`: when det≈0, computes direction (-b/len, a/len) and anchor at the midpoint between the two lines (average of their base points). `toEuclidean` in `pga.js` guarded with `typeof p.length !== 'number'` to reject plain objects. Canvas detects `'px' in val && 'vx' in val` and renders as `SvgVector`. `toIdealDirection` kept as fallback for other ideal-point PGA arrays.
 24. **Zoom-adaptive drag precision** — Dragging objects no longer snaps to integer world coordinates. Added `roundToScale(val, scale)` in `Canvas.jsx` (decimal places = round(log10(scale)), so ~1–3px precision at any zoom). Added `fmtNum(val)` in `useGraph.js` (parseFloat toFixed(6) to strip float noise). All `Math.round()` calls in drag paths replaced in both files.
 
+## 2026-05-11
+
+26. **meet via PGA.Wedge + ideal vector from origin** — Replaced manual Cramer's rule meet with `PGA.Wedge`. Ideal-point results rendered as vectors from world origin with raw PGA magnitude (`toIdealVector`, unnormalised).
+27. **Value-based type classification + general PGA normalization** — Added `classifyMV()` and `normalizeMVFinit()`/`normalizeMVIdeal()`/`normalizeMV()` to `pga.js`. Panel colors and canvas rendering now driven by geometric kind (not parser type). `norm`/`inorm` toggle buttons replace unit checkbox; normalization propagates to dependents via `evaluate(nodes, normalizeMap)`.
+28. **Blade-only mvExpr + implicit multiplication** — Expressions with only literal numbers and basis blades (no variable deps) now parse as `mvExpr`. Implicit `*` inserted between number and `(...)`, so `5(e1+e2+e0)` works.
+29. **New showcase** — 26-item triangle centroid construction demonstrating all features: draggable points, animated scalar, join/meet, medians, centroid, rotor, translator, dual, blade expression.
+30. **Clear all button + color mismatch fix** — Added "Clear all" button with confirmation. `colorMap` in `useGraph.js` now uses `classifyMV(val).kind → KIND_COLOR`, matching panel vignettes exactly.
+31. **n-ary meet chain + z-ordered rendering** — `L1 ^ L2 ^ L3` parses as `meetChain` node folding `PGA.Wedge`. Canvas rendering split into `backLayer` (lines/polygons) and `frontLayer` (points) for guaranteed z-order.
+32. **Full operator set in evalMVArith** — Added `!` (dual), `~` (reverse), `^` (wedge), `&` (Vee), `>>>` (sandwich), `|` (inner product via `PGA.LDot`), `§` (commutator `(AB−BA)/2`), `abs()`/`|a|` (absolute value), `.blade` coefficient extraction with permuted blade support (`A.e21 = −A.e12`). `sqrt` of PGA scalar uses `Math.sqrt(val[0])`.
+33. **Triangle = plain scalar + list notation** — `A & B & C` now returns `2×signedArea` as a plain JS number usable in any expression. New `[P1, P2, P3, …]` syntax creates a `list` node (non-MV) rendered as a dashed `SvgPolygon`.
+34. **Label templates** — `{varname}` in label text is substituted with the current scalar value of that variable at render time. `labelMap` moved after `values` and resolves templates live.
+35. **Expression Reference updated** — Help modal covers all operators, object types with color legend, blade extraction, list notation, normalization buttons.
+36. **Session recap + doc update** — Created `docs/recap_2026-05-11.md`, updated `CLAUDE.md`.
+
 ---
