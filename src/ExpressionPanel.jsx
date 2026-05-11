@@ -291,6 +291,10 @@ export default function ExpressionPanel() {
           const isDrawable = !!val_?.triangle || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
                              cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
           const canUnitize = node && node.type !== 'scalar';
+          const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
+          const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
+          // Auto-clear norm mode if the object became ideal
+          if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, null);
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item, values);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
@@ -397,12 +401,14 @@ export default function ExpressionPanel() {
                 <div className="expr-body">
                   {canUnitize && (
                     <span className="norm-buttons">
-                      <button
-                        className={`norm-btn${item.normalizeMode === 'norm' ? ' active' : ''}`}
-                        title="Normalize by finite norm ‖A‖"
-                        onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'norm' ? null : 'norm')}
-                        tabIndex={-1}
-                      >norm</button>
+                      {!isIdealObj && (
+                        <button
+                          className={`norm-btn${item.normalizeMode === 'norm' ? ' active' : ''}`}
+                          title="Normalize by finite norm ‖A‖"
+                          onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'norm' ? null : 'norm')}
+                          tabIndex={-1}
+                        >norm</button>
+                      )}
                       <button
                         className={`norm-btn${item.normalizeMode === 'inorm' ? ' active' : ''}`}
                         title="Normalize by ideal norm ‖A‖∞"
