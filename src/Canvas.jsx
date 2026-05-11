@@ -304,7 +304,7 @@ export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const {
-    nodes, values, colorMap, labelMap, vectorPositions, orderedNodeIds, items,
+    nodes, values, colorMap, labelMap, vectorPositions, showAreaMap, orderedNodeIds, items,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -465,9 +465,11 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const hovered = id === hoveredId;
 
-    // Triangle → back layer
+    // Triangle → polygon only when "area" mode is on
     if (val.triangle) {
-      backLayer.push(<SvgTriangle key={id} p1={val.p1} p2={val.p2} p3={val.p3} label={label} color={color} vp={vp} />);
+      if (showAreaMap[id]) {
+        backLayer.push(<SvgTriangle key={id} p1={val.p1} p2={val.p2} p3={val.p3} label={label} color={color} vp={vp} />);
+      }
       continue;
     }
 

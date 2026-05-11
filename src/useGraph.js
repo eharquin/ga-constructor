@@ -32,7 +32,7 @@ const TYPE_COLOR_FALLBACK = {
 };
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, showArea: false, ...extra,
 });
 
 const INITIAL_ITEMS = [
@@ -99,7 +99,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null}];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, showArea: false }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -128,9 +128,13 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, normalizeMode: action.mode } : it
       );
+    case 'SET_SHOW_AREA':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, showArea: action.showArea } : it
+      );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null};
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, showArea: false };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -281,6 +285,15 @@ export function useGraph() {
     for (const item of items) {
       const node = parseExpression(item.text);
       if (node) map[node.id] = item.normalizeMode ?? null;
+    }
+    return map;
+  }, [items]);
+
+  const showAreaMap = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      const node = parseExpression(item.text);
+      if (node) map[node.id] = item.showArea ?? false;
     }
     return map;
   }, [items]);
@@ -574,6 +587,8 @@ export function useGraph() {
     setLabel:       (id, label)   => dispatch({ type: 'SET_LABEL',   id, label }),
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
+    setShowArea: (id, showArea) => dispatch({ type: 'SET_SHOW_AREA', id, showArea }),
+    showAreaMap,
     normalizeMap,
     reorderItem,
     insertItemAfter,

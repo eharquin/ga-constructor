@@ -49,8 +49,8 @@ function getDisplayValue(text, values) {
   // Scalar number
   if (typeof val === 'number') return val.toFixed ? val.toFixed(4).replace(/\.?0+$/, '') : String(val);
 
-  // Triangle special object
-  if (val.triangle) return val.area != null ? `area: ${val.area.toFixed(2)}` : '—';
+  // Triangle special object — handled inline with showArea context, fallback here
+  if (val.triangle) return val.value != null ? val.value.toFixed(3) : '—';
 
   // {vx, vy} ideal vector
   if ('vx' in val) return `(${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
@@ -210,8 +210,9 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setShowArea, setAnim, setDrawPos, setDrawPosRef, setLabel, togglePlay,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
+    showAreaMap,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
@@ -290,14 +291,22 @@ export default function ExpressionPanel() {
           const cls_       = classifyMV(val_);
           const isDrawable = !!val_?.triangle || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
                              cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
-          const canUnitize = node && node.type !== 'scalar';
+          const isTriangle = !!val_?.triangle;
+          const canUnitize = node && node.type !== 'scalar' && !isTriangle;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item, values);
-          const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
+          const showingArea = isTriangle && (showAreaMap[node?.id] ?? false);
+          const displayVal = item.text.trim()
+            ? (isTriangle && val_
+                ? (showingArea
+                    ? `area: ${(val_.value / 2).toFixed(2)}`
+                    : `${val_.value.toFixed(3)}`)
+                : getDisplayValue(item.text, values))
+            : null;
           const mvStr     = node ? formatMV(values[node.id], false) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
@@ -399,6 +408,16 @@ export default function ExpressionPanel() {
                 </label>
 
                 <div className="expr-body">
+                  {isTriangle && (
+                    <span className="norm-buttons">
+                      <button
+                        className={`norm-btn${showingArea ? ' active' : ''}`}
+                        title="Show as area (÷2) and draw the triangle polygon"
+                        onClick={() => setShowArea(item.id, !showingArea)}
+                        tabIndex={-1}
+                      >area</button>
+                    </span>
+                  )}
                   {canUnitize && (
                     <span className="norm-buttons">
                       {!isIdealObj && (
