@@ -234,11 +234,6 @@ export function useGraph() {
     return map;
   }, [items]);
 
-  const values = useMemo(() => {
-    try { return evaluate(nodes); }
-    catch { return {}; }
-  }, [nodes]);
-
   const normalizeMap = useMemo(() => {
     const map = {};
     for (const item of items) {
@@ -248,7 +243,12 @@ export function useGraph() {
     return map;
   }, [items]);
 
-  // colorMap: nodeId → resolved color (custom or type default)
+  const values = useMemo(() => {
+    try { return evaluate(nodes, normalizeMap); }
+    catch { return {}; }
+  }, [nodes, normalizeMap]);
+
+  // colorMap: nodeId → resolved color (custom or kind default)
   const colorMap = useMemo(() => {
     const map = {};
     for (const item of items) {
@@ -259,29 +259,19 @@ export function useGraph() {
     return map;
   }, [items]);
 
-  // vectorPositions: nodeId → { x, y, linked } draw position.
+  // vectorPositions: nodeId → { x, y, linked } draw position for vector nodes.
   // drawPos can be { x, y } (static) or { ref: nodeId } (follows a point).
-  // Also covers meetPoint nodes whose current value is an ideal vector { vx, vy, px, py }.
   const vectorPositions = useMemo(() => {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
-      if (!node) continue;
-      if (node.type === 'vector') {
-        const dp = item.drawPos;
-        if (dp?.ref) {
-          const eu = toEuclidean(values[dp.ref]);
-          map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true };
-        } else {
-          map[node.id] = { ...(dp ?? { x: 0, y: 0 }), linked: false };
-        }
-      } else if (node.type === 'meetPoint') {
-        const val = values[node.id];
-        if (!val || !('vx' in val)) continue;
-        const dp = item.drawPos;
-        // If user has moved the anchor, use it; otherwise start at the midpoint between the lines.
-        map[node.id] = dp ? { x: dp.x, y: dp.y, linked: false }
-                          : { x: val.px, y: val.py, linked: false };
+      if (!node || node.type !== 'vector') continue;
+      const dp = item.drawPos;
+      if (dp?.ref) {
+        const eu = toEuclidean(values[dp.ref]);
+        map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true };
+      } else {
+        map[node.id] = { ...(dp ?? { x: 0, y: 0 }), linked: false };
       }
     }
     return map;

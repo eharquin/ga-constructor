@@ -1,4 +1,5 @@
 import { NODE_TYPES } from './nodeTypes.js';
+import { normalizeMV } from '../pga.js';
 
 // DFS topological sort. Throws on cycles.
 function topoSort(nodes) {
@@ -23,7 +24,9 @@ function topoSort(nodes) {
 }
 
 // Evaluate the full graph. Returns { [id]: PGA element }.
-export function evaluate(nodes) {
+// normalizeMap: { [id]: boolean } — when true, the value is normalized before
+// being stored so downstream expressions see the normalized version.
+export function evaluate(nodes, normalizeMap = {}) {
   const order = topoSort(nodes);
   const values = {};
 
@@ -34,7 +37,17 @@ export function evaluate(nodes) {
     const depValues = node.deps.map((d) => values[d]);
     if (depValues.some((v) => v == null)) continue; // broken dependency
     try {
-      values[id] = fn(depValues, node.params ?? {});
+      let val = fn(depValues, node.params ?? {});
+      if (normalizeMap[id] && val != null) {
+        if (val && 'vx' in val && typeof val.length === 'undefined') {
+          // {vx, vy} ideal vector — normalize inline
+          const len = Math.sqrt(val.vx ** 2 + val.vy ** 2);
+          if (len > 1e-10) val = { vx: val.vx / len, vy: val.vy / len };
+        } else {
+          val = normalizeMV(val) ?? val;
+        }
+      }
+      values[id] = val;
     } catch {
       // node failed to compute — leave it undefined
     }

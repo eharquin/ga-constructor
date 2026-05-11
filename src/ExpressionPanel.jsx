@@ -1,28 +1,43 @@
 import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { parseExpression } from './graph/parseExpression.js';
-import { toEuclidean, lineBaseAndDir } from './pga.js';
+import { toEuclidean, toIdealVector, classifyMV } from './pga.js';
 import './ExpressionPanel.css';
 
-const TYPE_COLOR = {
+const KIND_COLOR = {
   scalar:      '#a6e3a1',
-  freePoint:   '#89b4fa',
-  vector:      '#f9e2af',
-  motorExp:    '#74c7ec',
-  motorApply:  '#94e2d5',
-  joinLine:    '#cba6f7',
-  freeLine:    '#cba6f7',
-  meetPoint:   '#fab387',
-  multivector: '#f38ba8',
-  dual:        '#f38ba8',
-  reverse:     '#f38ba8',
-  mvExpr:      '#b4befe',
+  finitePoint: '#89b4fa',
+  idealPoint:  '#f9e2af',
+  line:        '#cba6f7',
+  idealLine:   '#cba6f7',
+  pseudoscalar:'#f38ba8',
+  rotor:       '#74c7ec',
+  translator:  '#74c7ec',
+  motor:       '#94e2d5',
+  reflector:   '#fab387',
   triangle:    '#89dceb',
+  mixed:       '#b4befe',
 };
 
-function resolveColor(item) {
+// Fallback type color for nodes whose value is not yet computed.
+const TYPE_COLOR_FALLBACK = {
+  scalar:    '#a6e3a1',
+  freePoint: '#89b4fa',
+  vector:    '#f9e2af',
+  motorExp:  '#74c7ec',
+  triangle:  '#89dceb',
+};
+
+function resolveColor(item, values) {
+  if (item.color) return item.color;
   const node = parseExpression(item.text);
-  return item.color ?? (node ? TYPE_COLOR[node.type] : '#6c7086') ?? '#6c7086';
+  if (!node) return '#6c7086';
+  const val = values?.[node.id];
+  // Special objects not handled by classifyMV
+  if (val?.triangle) return KIND_COLOR.triangle;
+  if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.idealPoint;
+  const cls = classifyMV(val);
+  return cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');
 }
 
 function getDisplayValue(text, values) {
@@ -30,24 +45,32 @@ function getDisplayValue(text, values) {
   if (!node) return null;
   const val = values[node.id];
   if (val == null) return null;
-  if (node.type === 'scalar')    return String(val);
-  if (node.type === 'triangle')  return val?.area != null ? `area: ${val.area.toFixed(2)}` : '—';
-  if (node.type === 'joinLine')  return 'Line';
-  if (node.type === 'motorExp')  return 'Motor';
-  if (node.type === 'vector')    return `(${val.vx.toFixed(1)}, ${val.vy.toFixed(1)})`;
-  if (node.type === 'mvExpr') {
-    if (typeof val === 'number') return val.toFixed(3);
-    const eu = toEuclidean(val);
-    if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
-    if (lineBaseAndDir(val)) return 'Line';
-    if (val?.length >= 8 && Math.abs(val[0] ?? 0) > 1e-10) return 'Motor';
-    return '—';
+
+  // Scalar number
+  if (typeof val === 'number') return val.toFixed ? val.toFixed(4).replace(/\.?0+$/, '') : String(val);
+
+  // Triangle special object
+  if (val.triangle) return val.area != null ? `area: ${val.area.toFixed(2)}` : '—';
+
+  // {vx, vy} ideal vector
+  if ('vx' in val) return `(${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
+
+  const cls = classifyMV(val);
+  if (!cls) return '—';
+
+  switch (cls.kind) {
+    case 'scalar':      return val[0].toFixed(4).replace(/\.?0+$/, '');
+    case 'finitePoint': { const eu = toEuclidean(val); return eu ? `(${eu.x.toFixed(2)}, ${eu.y.toFixed(2)})` : '—'; }
+    case 'idealPoint':  { const iv = toIdealVector(val); return iv ? `(${iv.vx.toFixed(2)}, ${iv.vy.toFixed(2)})` : '—'; }
+    case 'line':        return 'Line';
+    case 'idealLine':   return 'Ideal line';
+    case 'pseudoscalar':return `${val[7].toFixed(4).replace(/\.?0+$/, '')} e012`;
+    case 'rotor':       return 'Rotor';
+    case 'translator':  return 'Translator';
+    case 'motor':       return 'Motor';
+    case 'reflector':   return 'Reflector';
+    default:            return '—';
   }
-  const eu = toEuclidean(val);
-  if (eu) return `(${eu.x.toFixed(1)}, ${eu.y.toFixed(1)})`;
-  if (lineBaseAndDir(val)) return 'Line';
-  if (node.type === 'motorApply' || node.type === 'multivector' || node.type === 'dual') return '—';
-  return 'ideal point';
 }
 
 // ── Multivector label ─────────────────────────────────────────────────────────
@@ -261,14 +284,15 @@ export default function ExpressionPanel() {
         {items.map((item, index) => {
           const node      = parseExpression(item.text);
           const isInvalid = item.text.trim() !== '' && !node;
-          const isScalar     = node?.type === 'scalar';
-          const isVector     = node?.type === 'vector';
-          const isMeetVector = node?.type === 'meetPoint' && values[node?.id] != null && 'vx' in values[node.id];
-          const hasPosition  = isVector || isMeetVector;
-          const canUnitize   = node && node.type !== 'scalar' && node.type !== 'motorExp' && node.type !== 'triangle';
-          const isDrawable = node && node.type !== 'scalar' && node.type !== 'motorExp';
+          const isScalar   = node?.type === 'scalar';
+          const hasPosition = node?.type === 'vector';
+          const val_       = node ? values[node.id] : null;
+          const cls_       = classifyMV(val_);
+          const isDrawable = !!val_?.triangle || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
+                             cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
+          const canUnitize = node && node.type !== 'scalar';
           const isPlaying = isScalar && playingIds.has(item.id);
-          const color     = resolveColor(item);
+          const color     = resolveColor(item, values);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
           const mvStr     = node ? formatMV(values[node.id], item.normalize ?? false) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;

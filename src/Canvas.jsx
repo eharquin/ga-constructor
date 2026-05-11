@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { toEuclidean, lineBaseAndDir, toIdealVector } from './pga.js';
+import { toEuclidean, lineBaseAndDir, toIdealVector, classifyMV } from './pga.js';
 import { parseExpression } from './graph/parseExpression.js';
 
 const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
@@ -17,11 +17,6 @@ function c2w(cx, cy, vp) {
   return { x: (cx - vp.offsetX) / vp.scale, y: -(cy - vp.offsetY) / vp.scale };
 }
 
-function normalizeVec(vx, vy, doNormalize) {
-  if (!doNormalize) return { vx, vy };
-  const len = Math.sqrt(vx * vx + vy * vy);
-  return len < 1e-10 ? { vx: 0, vy: 0 } : { vx: vx / len, vy: vy / len };
-}
 
 function roundToScale(val, scale) {
   const decimals = Math.max(0, Math.round(Math.log10(scale)));
@@ -36,8 +31,9 @@ function svgPt(e, svg) {
 // ─── Hit testing ─────────────────────────────────────────────────────────────
 
 function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
-  for (const [id, node] of Object.entries(nodes)) {
-    if (node.type === 'scalar' || node.type === 'vector' || node.type === 'joinLine') continue;
+  for (const [id] of Object.entries(nodes)) {
+    const cls = classifyMV(values[id]);
+    if (cls?.kind !== 'finitePoint') continue;
     const eu = toEuclidean(values[id]);
     if (!eu) continue;
     const { cx, cy } = w2c(eu.x, eu.y, vp);
@@ -67,15 +63,6 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds) {
         const tip = w2c(pos.x + val.vx, pos.y + val.vy, vp);
         if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'vectorTip' };
-      }
-    }
-    if (node.type === 'meetPoint') {
-      const val = values[id];
-      if (val && 'vx' in val) {
-        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
-        const tail = w2c(pos.x, pos.y, vp);
-        if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'vector' };
       }
     }
     if (node.type === 'multivector') {
@@ -317,7 +304,7 @@ export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const {
-    nodes, values, colorMap, labelMap, vectorPositions, normalizeMap, orderedNodeIds, items,
+    nodes, values, colorMap, labelMap, vectorPositions, orderedNodeIds, items,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -466,7 +453,7 @@ export default function Canvas() {
   // Build SVG objects in item draw order
   const objects = orderedNodeIds.map(id => {
     const node = nodes[id];
-    if (!node || node.type === 'scalar' || node.type === 'motorExp') return null;
+    if (!node) return null;
     if (hiddenIds.has(id)) return null;
     const val = values[id];
     if (val == null) return null;
@@ -474,54 +461,42 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const hovered = id === hoveredId;
 
-    if (node.type === 'triangle') {
+    // Triangle: special object with p1/p2/p3 polygon data
+    if (val.triangle) {
       return <SvgTriangle key={id} p1={val.p1} p2={val.p2} p3={val.p3} label={label} color={color} vp={vp} />;
     }
-    if (node.type === 'joinLine') {
-      return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
-    }
-    if (node.type === 'vector') {
+
+    // {vx, vy} ideal vector from vector node — configurable anchor via vectorPositions
+    if (typeof val === 'object' && 'vx' in val) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
-      const dir = normalizeVec(val.vx, val.vy, normalizeMap[id]);
       return (
         <SvgVector key={id}
-          vx={dir.vx} vy={dir.vy} px={pos.x} py={pos.y}
+          vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
           label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked}
         />
       );
     }
-    if (val && 'px' in val && 'vx' in val) {
-      const pos = vectorPositions[id] ?? { x: val.px, y: val.py };
-      const dir = normalizeVec(val.vx, val.vy, normalizeMap[id]);
-      return (
-        <SvgVector key={id}
-          vx={dir.vx} vy={dir.vy} px={pos.x} py={pos.y}
-          label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false}
-        />
-      );
+
+    // PGA array: classify and render by kind
+    const cls = classifyMV(val);
+    if (!cls) return null;
+
+    switch (cls.kind) {
+      case 'finitePoint': {
+        const eu = toEuclidean(val);
+        if (!eu) return null;
+        return <SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} />;
+      }
+      case 'idealPoint': {
+        const iv = toIdealVector(val);
+        if (!iv) return null;
+        return <SvgVector key={id} vx={iv.vx} vy={iv.vy} px={0} py={0} label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false} />;
+      }
+      case 'line':
+        return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
+      default:
+        return null; // scalar, pseudoscalar, motor, rotor, translator, reflector, idealLine, mixed — no canvas render
     }
-    const eu = toEuclidean(val);
-    if (eu) {
-      return (
-        <SvgPoint key={id}
-          x={eu.x} y={eu.y}
-          label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered}
-        />
-      );
-    }
-    if (lineBaseAndDir(val)) {
-      return <SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} />;
-    }
-    const ideal = toIdealVector(val);
-    if (ideal) {
-      return (
-        <SvgVector key={id}
-          vx={ideal.vx} vy={ideal.vy} px={0} py={0}
-          label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false}
-        />
-      );
-    }
-    return null;
   });
 
   return (

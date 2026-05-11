@@ -84,6 +84,77 @@ export const toIdealVector = (p) => {
   return { vx, vy };
 };
 
+// Finite norm² in PGA(2,0,1): scalar_part(A · Ã).
+// Equivalent to testing A·e0 = 0: the product v*e0 is non-zero only when
+// indices 0 (scalar), 2 (e1), 3 (e2), or 6 (e12) are non-zero.
+const finitNormSq = (v) => v[0] ** 2 + v[2] ** 2 + v[3] ** 2 + v[6] ** 2;
+
+// Classify a raw 8-element PGA multivector by its grade structure.
+// Returns { kind } or null for invalid input.
+// Kinds:
+//   'scalar'      — grade-0 only
+//   'line'        — grade-1 with finite part (e1 or e2); also a reflector
+//   'idealLine'   — grade-1 with only e0 (ideal reflector)
+//   'finitePoint' — grade-2 with e12 ≠ 0
+//   'idealPoint'  — grade-2 with e12 = 0
+//   'pseudoscalar'— grade-3 only (e012)
+//   'rotor'       — even-grade: scalar + e12 (rotation motor)
+//   'translator'  — even-grade: scalar + e01/e02 (translation motor)
+//   'motor'       — even-grade: general (rotation + translation)
+//   'reflector'   — odd-grade: grade-1 + grade-3 (glide reflection: R·Motor)
+//   'mixed'       — anything else
+export const classifyMV = (val) => {
+  if (!val || typeof val.length !== 'number' || val.length < 8) return null;
+
+  const eps = 1e-10;
+  const g0 = Math.abs(val[0]) > eps;
+  const g1 = Math.abs(val[1]) > eps || Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
+  const g2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps || Math.abs(val[6]) > eps;
+  const g3 = Math.abs(val[7]) > eps;
+
+  if (g0 && !g1 && !g2 && !g3) return { kind: 'scalar' };
+
+  if (!g0 && g1 && !g2 && !g3)
+    return { kind: (Math.abs(val[2]) < eps && Math.abs(val[3]) < eps) ? 'idealLine' : 'line' };
+
+  if (!g0 && !g1 && g2 && !g3)
+    return { kind: Math.abs(val[6]) > eps ? 'finitePoint' : 'idealPoint' };
+
+  if (!g0 && !g1 && !g2 && g3) return { kind: 'pseudoscalar' };
+
+  // Even-grade: grade-0 + grade-2 (motors)
+  if (g0 && !g1 && g2 && !g3) {
+    const hasIdeal = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps;
+    const hasRotor = Math.abs(val[6]) > eps;
+    if (hasRotor && !hasIdeal) return { kind: 'rotor' };
+    if (hasIdeal && !hasRotor) return { kind: 'translator' };
+    return { kind: 'motor' };
+  }
+
+  // Odd-grade: grade-1 + grade-3 (reflector · motor = glide reflection)
+  if (!g0 && g1 && !g2 && g3) return { kind: 'reflector' };
+
+  return { kind: 'mixed' };
+};
+
+// Normalize a raw 8-element PGA multivector using the general PGA norm:
+//   finite objects (A·e0 ≠ 0) → ||A||  = sqrt(scalar_part(A · Ã))
+//   ideal  objects (A·e0 = 0) → ||A||∞ = ||dual(A)||  (dual's finite norm)
+// Returns a normalized PGA element, or val unchanged when norm ≈ 0 or input is invalid.
+export const normalizeMV = (val) => {
+  if (!val || typeof val.length !== 'number' || val.length < 8) return val;
+
+  let normSq = finitNormSq(val);
+  if (normSq < 1e-20) normSq = finitNormSq(dualOp(val)); // ideal: dual's finite norm
+
+  const norm = Math.sqrt(normSq);
+  if (norm < 1e-10) return val;
+
+  const result = new PGA(8);
+  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  return result;
+};
+
 // For a grade-1 line L: direction (ux,uy) and a canonical base point (bx,by).
 // Line: c·e0 + a·e1 + b·e2  →  equation  a·x + b·y + c = 0
 export const lineBaseAndDir = (L) => {
