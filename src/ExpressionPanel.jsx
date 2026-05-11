@@ -313,9 +313,11 @@ export default function ExpressionPanel() {
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values);
+          // Extract scalar value: plain number (triangle) or PGA scalar array (mvExpr)
+          const scalarNum = typeof val_ === 'number' ? val_ : (classifyMV(val_)?.kind === 'scalar' ? val_[0] : null);
           const displayVal = item.text.trim()
-            ? (isAreaNode && typeof val_ === 'number'
-                ? (showingArea ? `area: ${val_.toFixed(2)}` : val_.toFixed(3))
+            ? (isAreaNode && scalarNum !== null
+                ? (showingArea ? `area: ${scalarNum.toFixed(2)}` : scalarNum.toFixed(3))
                 : getDisplayValue(item.text, values))
             : null;
           const mvStr     = node ? formatMV(values[node.id], false) : null;

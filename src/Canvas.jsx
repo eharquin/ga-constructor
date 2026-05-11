@@ -479,7 +479,9 @@ export default function Canvas() {
       continue;
     }
     // mvExpr with triple join (e.g. 0.5*(A & B & C)): try to draw polygon from deps
-    if (showAreaMap[id] && typeof val === 'number' && node.deps.length >= 3) {
+    // val may be a plain number (triangle node) or a PGA scalar array (mvExpr)
+    const isScalarVal = typeof val === 'number' || classifyMV(val)?.kind === 'scalar';
+    if (showAreaMap[id] && isScalarVal && node.deps.length >= 3) {
       const eu = node.deps.slice(0, 3).map(d => toEuclidean(values[d]));
       if (eu[0] && eu[1] && eu[2]) {
         backLayer.push(<SvgTriangle key={id} p1={eu[0]} p2={eu[1]} p3={eu[2]} label={label} color={color} vp={vp} />);
