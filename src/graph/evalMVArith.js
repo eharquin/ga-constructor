@@ -291,16 +291,18 @@ export function evalMVArith(str, env) {
         eat();
         if (arg === null) return null;
         if (t.val === 'sqrt') {
-        if (typeof arg === 'number') return Math.sqrt(arg);
-        const mv = toMV(arg);
-        if (!mv) return null;
-        // PGA.Sqrt uses (1+M)/|1+M|. When scalar(M) < 0 (e.g. P*R where e₁₂²=-1
-        // makes the scalar part -1), 1+M is nilpotent and the norm is 0 → NaN.
-        // In PGA the double cover means M and -M represent the same motion,
-        // so we normalise to a positive scalar before computing the sqrt.
-        const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
-        return PGA.Sqrt(normalised);
-      }
+          if (typeof arg === 'number') return Math.sqrt(arg);
+          const mv = toMV(arg);
+          if (!mv) return null;
+          // Pure grade-0 scalar: Math.sqrt of the scalar component
+          if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
+            const r = new PGA(8); r[0] = Math.sqrt(mv[0]); return r;
+          }
+          // Motor (even-grade): PGA.Sqrt for the geometric square root.
+          // Normalise sign first: M and -M represent the same motor (double cover).
+          const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
+          return PGA.Sqrt(normalised);
+        }
         return null;
       }
       const v = fullEnv[t.val];
