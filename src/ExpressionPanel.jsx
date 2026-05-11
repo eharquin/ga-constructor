@@ -293,8 +293,8 @@ export default function ExpressionPanel() {
           const canUnitize = node && node.type !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
-          // Auto-clear norm mode if the object became ideal
-          if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, null);
+          // Auto-switch to inorm if the object became ideal while norm was active
+          if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying = isScalar && playingIds.has(item.id);
           const color     = resolveColor(item, values);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
