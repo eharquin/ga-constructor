@@ -642,6 +642,10 @@ export default function ExpressionPanel() {
                     <tr><td><code>~A</code></td><td>Reverse / reversion.</td></tr>
                     <tr><td><code>sqrt(A)</code></td><td>Square root. Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
                     <tr><td><code>abs(A)</code> or <code>|A|</code></td><td>Absolute value of a scalar.</td></tr>
+                    <tr><td><code>sin cos tan</code></td><td>Trigonometric functions (radians).</td></tr>
+                    <tr><td><code>csc sec cot</code></td><td>Reciprocal trig: 1/sin, 1/cos, cos/sin.</td></tr>
+                    <tr><td><code>asin acos atan</code></td><td>Arc (inverse) trig functions — return angle in radians.</td></tr>
+                    <tr><td><code>acsc asec acot</code></td><td>Arc reciprocal trig: asin(1/x), acos(1/x), π/2−atan(x).</td></tr>
                     <tr><td><code>A.e12</code></td><td>Extract blade coefficient as scalar. Supports permuted names: <code>A.e21 = −A.e12</code>.</td></tr>
                   </tbody>
                 </table>
