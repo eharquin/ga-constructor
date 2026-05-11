@@ -23,26 +23,58 @@ const TYPE_COLOR = {
   reverse:     '#f38ba8',
 };
 
+const ITEM = (id, text, extra = {}) => ({
+  id, text, color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null, ...extra,
+});
+
 const INITIAL_ITEMS = [
-  // Free points — drag them around
-  { id: 'expr_0',  text: 'A = point(-6, 3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  { id: 'expr_1',  text: 'B = point(5, -3)',   color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  { id: 'expr_2',  text: 'C = point(-3, -5)',  color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  { id: 'expr_3',  text: 'D = point(6, 3)',    color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  // Join (&): line through two points
-  { id: 'expr_4',  text: 'L1 = A & B',            color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  { id: 'expr_5',  text: 'L2 = C & D',            color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  // Meet (^): intersection point of two lines
-  { id: 'expr_6',  text: 'X = L1 ^ L2',           color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  // Multivector arithmetic: midpoint of A and B
-  { id: 'expr_7',  text: 'Mid = (A + B) / 2',     color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  // Scalar — click ▶ to animate
-  { id: 'expr_8',  text: 't = 0.3',               color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  // Motor: rotation around X by angle t
-  { id: 'expr_9',  text: 'R = exp(X, t)',          color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  // Apply motor: A and B rotated around X
-  { id: 'expr_10', text: 'A2 = R >>> A',           color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
-  { id: 'expr_11', text: 'B2 = R >>> B',           color: null, anim: null, drawPos: null, label: null, visible: true, normalizeMode: null},
+  // ── Draggable vertices of a triangle ─────────────────────────────────────────
+  ITEM('expr_0',  'A = point(-5, 3)'),
+  ITEM('expr_1',  'B = point(5, 2)'),
+  ITEM('expr_2',  'C = point(0, -5)'),
+
+  // ── Animatable scalar (press ▶) ───────────────────────────────────────────────
+  ITEM('expr_3',  't = 0', { anim: { min: 0, max: 6.28, step: 0.05 } }),
+
+  // ── Triangle + sides via join ─────────────────────────────────────────────────
+  ITEM('expr_4',  'T = A & B & C'),          // triangle — shows area
+  ITEM('expr_5',  'L1 = A & B'),             // side AB
+  ITEM('expr_6',  'L2 = B & C'),             // side BC
+  ITEM('expr_7',  'L3 = C & A'),             // side CA
+
+  // ── Midpoints and medians ─────────────────────────────────────────────────────
+  ITEM('expr_8',  'Mbc = (B + C) / 2'),      // MV arithmetic midpoint
+  ITEM('expr_9',  'Mca = (C + A) / 2'),
+  ITEM('expr_10', 'mA = A & Mbc'),            // median from A
+  ITEM('expr_11', 'mB = B & Mca'),            // median from B
+
+  // ── Centroid = meet of medians ────────────────────────────────────────────────
+  ITEM('expr_12', 'G = mA ^ mB'),
+
+  // ── Rotor around centroid G, angle t ─────────────────────────────────────────
+  ITEM('expr_13', 'R = exp(G, t)'),
+  ITEM('expr_14', 'A2 = R >>> A'),
+  ITEM('expr_15', 'B2 = R >>> B'),
+  ITEM('expr_16', 'C2 = R >>> C'),
+  ITEM('expr_17', 'T2 = A2 & B2 & C2'),      // rotated triangle
+
+  // ── Ideal direction + translator ─────────────────────────────────────────────
+  ITEM('expr_18', 'V = vector(1, 0.5)'),      // ideal point / direction
+  ITEM('expr_19', 'Tr = exp(V, t)'),          // translator along V
+  ITEM('expr_20', 'D = Tr >>> G'),            // translated centroid
+
+  // ── Dual of centroid (polar line) ─────────────────────────────────────────────
+  ITEM('expr_21', 'Polar = !G'),
+
+  // ── Meet of original and rotated sides ───────────────────────────────────────
+  ITEM('expr_22', 'L1r = A2 & B2'),           // rotated AB
+  ITEM('expr_23', 'Xi = L2 ^ L1r'),           // traces a curve as t varies
+
+  // ── Normalized line (try pressing norm) ──────────────────────────────────────
+  ITEM('expr_24', 'Ln = A & C'),
+
+  // ── General blade expression ──────────────────────────────────────────────────
+  ITEM('expr_25', 'N = 3(e1 + e2 + e0)'),    // explicit line via blade sum
 ];
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
@@ -119,7 +151,7 @@ function reducer(items, action) {
 
 export function useGraph() {
   const [items, dispatch] = useReducer(reducer, INITIAL_ITEMS);
-  const nextId = useRef(12);
+  const nextId = useRef(26);
 
   // Animation state — kept separate from items so value updates don't re-trigger the effect
   const [playingIds,   setPlayingIds]   = useState(new Set());
