@@ -443,10 +443,12 @@ export function useGraph() {
     const { xExpr, yExpr } = node.params;
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
     const isZeroLit = (s) => isLiteral(s) && +s === 0;
-    // Constrain drag to zero for directions whose expression is a zero literal —
-    // this prevents diagonal drag on e.g. x*e01 from introducing a vx component.
-    const cvx = isZeroLit(xExpr) ? 0 : vx;
-    const cvy = isZeroLit(yExpr) ? 0 : vy;
+    const isVarRef  = (s) => /^-?[A-Za-z_][A-Za-z0-9_]*$/.test(s.trim());
+    // Constrain to zero only when the other axis is a scalar variable —
+    // preserves forms like V = x*e01 (drag updates x without leaking into e02).
+    // For all-literal forms like V = e01, allow free drag in any direction.
+    const cvx = (isZeroLit(xExpr) && isVarRef(yExpr)) ? 0 : vx;
+    const cvy = (isZeroLit(yExpr) && isVarRef(xExpr)) ? 0 : vy;
     const xHandled = tryUpdateScalar(xExpr, cvx);
     const yHandled = tryUpdateScalar(yExpr, cvy);
     if (!xHandled || !yHandled) {
