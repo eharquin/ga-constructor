@@ -3,8 +3,7 @@ import { parseExpression } from './graph/parseExpression.js';
 import { evaluate } from './graph/evaluate.js';
 import { toEuclidean, classifyMV } from './pga.js';
 
-const TRACE_SAMPLES = 96;
-const DEFAULT_TRACE_ANIM = { min: 0, max: 6.28, step: 0.05 };
+const TRAIL_MAX_POINTS = 5000;
 
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
@@ -270,74 +269,71 @@ export function useGraph() {
     return map;
   }, [items]);
 
-  // For each item with trace=true, sweep each animatable scalar dep across its
-  // range and capture the 2D position of the node value at each sample —
-  // produces one polyline per varying scalar (others held at current value).
-  const trajectoriesMap = useMemo(() => {
-    const tracedItems = items.filter((it) => it.trace);
-    if (!tracedItems.length) return {};
-
-    const animMap = new Map(); // scalarNodeId → anim range
-    for (const it of items) {
-      const n = parseExpression(it.text);
-      if (n?.type === 'scalar') animMap.set(n.id, it.anim ?? DEFAULT_TRACE_ANIM);
-    }
-
-    const gatherScalarDeps = (rootId) => {
-      const result = [];
-      const seen = new Set();
-      const walk = (id) => {
-        if (seen.has(id)) return;
-        seen.add(id);
-        const n = nodes[id];
-        if (!n) return;
-        if (n.type === 'scalar') {
-          if (animMap.has(id)) result.push(id);
-          return;
-        }
-        for (const d of n.deps) walk(d);
-      };
-      walk(rootId);
-      return result;
-    };
-
-    const extractXY = (v) => {
-      if (!v) return null;
-      if (typeof v === 'object' && 'vx' in v) return { x: v.vx, y: v.vy };
-      const eu = toEuclidean(v);
-      return eu ?? null;
-    };
-
-    const map = {};
-    for (const it of tracedItems) {
-      const node = parseExpression(it.text);
-      if (!node) continue;
-      const scalars = gatherScalarDeps(node.id);
-      if (!scalars.length) continue;
-
-      const trajectories = [];
-      for (const sid of scalars) {
-        const anim = animMap.get(sid);
-        const points = [];
-        for (let i = 0; i <= TRACE_SAMPLES; i++) {
-          const tv = anim.min + (anim.max - anim.min) * i / TRACE_SAMPLES;
-          const overridden = { ...nodes, [sid]: { ...nodes[sid], params: { value: tv } } };
-          let vs;
-          try { vs = evaluate(overridden, normalizeMap); }
-          catch { points.push(null); continue; }
-          points.push(extractXY(vs[node.id]));
-        }
-        trajectories.push({ scalarId: sid, points });
-      }
-      if (trajectories.length) map[node.id] = trajectories;
-    }
-    return map;
-  }, [nodes, normalizeMap, items]);
-
   const values = useMemo(() => {
     try { return evaluate(nodes, normalizeMap); }
     catch { return {}; }
   }, [nodes, normalizeMap]);
+
+  // Trails: per-node arrays of positions accumulated during animation playback.
+  const [trails, setTrails] = useState({});
+
+  // Append the current position of each traced item to its trail whenever
+  // values change while at least one scalar animation is playing.
+  useEffect(() => {
+    if (playingIds.size === 0) return;
+    setTrails((prev) => {
+      let next = prev;
+      let mutated = false;
+      const ensureCopy = () => { if (!mutated) { next = { ...prev }; mutated = true; } };
+      for (const item of items) {
+        if (!item.trace) continue;
+        const n = parseExpression(item.text);
+        if (!n) continue;
+        const val = values[n.id];
+        if (!val) continue;
+        let pos = null;
+        if (typeof val === 'object' && 'vx' in val) pos = { x: val.vx, y: val.vy };
+        else { const eu = toEuclidean(val); if (eu) pos = eu; }
+        if (!pos) continue;
+        const arr = next[n.id] ?? [];
+        const last = arr[arr.length - 1];
+        if (last && Math.abs(last.x - pos.x) < 1e-6 && Math.abs(last.y - pos.y) < 1e-6) continue;
+        ensureCopy();
+        next[n.id] = arr.length < TRAIL_MAX_POINTS ? [...arr, pos] : [...arr.slice(1), pos];
+      }
+      return next;
+    });
+  }, [values, playingIds, items]);
+
+  const trajectoriesMap = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      if (!item.trace) continue;
+      const n = parseExpression(item.text);
+      if (!n) continue;
+      const trail = trails[n.id];
+      if (!trail || trail.length < 2) continue;
+      map[n.id] = [{ scalarId: null, points: trail }];
+    }
+    return map;
+  }, [items, trails]);
+
+  // Toggle trace; starting a fresh trace clears the existing trail.
+  const setItemTrace = (id, trace) => {
+    dispatch({ type: 'SET_TRACE', id, trace });
+    if (trace) {
+      const item = items.find((i) => i.id === id);
+      const n = item && parseExpression(item.text);
+      if (n) {
+        setTrails((prev) => {
+          if (!prev[n.id]) return prev;
+          const next = { ...prev };
+          delete next[n.id];
+          return next;
+        });
+      }
+    }
+  };
 
   // labelMap: nodeId → resolved label string (or null when disabled).
   // {varname} in the label text is substituted with the current scalar value of varname.
@@ -659,7 +655,7 @@ export function useGraph() {
     labelOptsMap,
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemMovable:    (id, movable)    => dispatch({ type: 'SET_MOVABLE',    id, movable }),
-    setItemTrace:      (id, trace)      => dispatch({ type: 'SET_TRACE',      id, trace }),
+    setItemTrace,
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,
     movableMap,
