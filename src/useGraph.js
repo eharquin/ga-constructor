@@ -3,6 +3,9 @@ import { parseExpression } from './graph/parseExpression.js';
 import { evaluate } from './graph/evaluate.js';
 import { toEuclidean, classifyMV } from './pga.js';
 
+const TRACE_SAMPLES = 96;
+const DEFAULT_TRACE_ANIM = { min: 0, max: 6.28, step: 0.05 };
+
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
 
@@ -34,7 +37,7 @@ const TYPE_COLOR_FALLBACK = {
 };
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, trace: false, normalizeMode: null, ...extra,
 });
 
 const INITIAL_ITEMS = [
@@ -102,7 +105,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, trace: false, normalizeMode: null }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -135,13 +138,17 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, movable: action.movable } : it
       );
+    case 'SET_TRACE':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, trace: action.trace } : it
+      );
     case 'SET_NORMALIZE_MODE':
       return items.map((it) =>
         it.id === action.id ? { ...it, normalizeMode: action.mode } : it
       );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, trace: false, normalizeMode: null };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -293,6 +300,70 @@ export function useGraph() {
     }
     return map;
   }, [items]);
+
+  // For each item with trace=true, sweep each animatable scalar dep across its
+  // range and capture the 2D position of the node value at each sample —
+  // produces one polyline per varying scalar (others held at current value).
+  const trajectoriesMap = useMemo(() => {
+    const tracedItems = items.filter((it) => it.trace);
+    if (!tracedItems.length) return {};
+
+    const animMap = new Map(); // scalarNodeId → anim range
+    for (const it of items) {
+      const n = parseExpression(it.text);
+      if (n?.type === 'scalar') animMap.set(n.id, it.anim ?? DEFAULT_TRACE_ANIM);
+    }
+
+    const gatherScalarDeps = (rootId) => {
+      const result = [];
+      const seen = new Set();
+      const walk = (id) => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        const n = nodes[id];
+        if (!n) return;
+        if (n.type === 'scalar') {
+          if (animMap.has(id)) result.push(id);
+          return;
+        }
+        for (const d of n.deps) walk(d);
+      };
+      walk(rootId);
+      return result;
+    };
+
+    const extractXY = (v) => {
+      if (!v) return null;
+      if (typeof v === 'object' && 'vx' in v) return { x: v.vx, y: v.vy };
+      const eu = toEuclidean(v);
+      return eu ?? null;
+    };
+
+    const map = {};
+    for (const it of tracedItems) {
+      const node = parseExpression(it.text);
+      if (!node) continue;
+      const scalars = gatherScalarDeps(node.id);
+      if (!scalars.length) continue;
+
+      const trajectories = [];
+      for (const sid of scalars) {
+        const anim = animMap.get(sid);
+        const points = [];
+        for (let i = 0; i <= TRACE_SAMPLES; i++) {
+          const tv = anim.min + (anim.max - anim.min) * i / TRACE_SAMPLES;
+          const overridden = { ...nodes, [sid]: { ...nodes[sid], params: { value: tv } } };
+          let vs;
+          try { vs = evaluate(overridden, normalizeMap); }
+          catch { points.push(null); continue; }
+          points.push(extractXY(vs[node.id]));
+        }
+        trajectories.push({ scalarId: sid, points });
+      }
+      if (trajectories.length) map[node.id] = trajectories;
+    }
+    return map;
+  }, [nodes, normalizeMap, items]);
 
   const values = useMemo(() => {
     try { return evaluate(nodes, normalizeMap); }
@@ -619,9 +690,11 @@ export function useGraph() {
     labelOptsMap,
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemMovable:    (id, movable)    => dispatch({ type: 'SET_MOVABLE',    id, movable }),
+    setItemTrace:      (id, trace)      => dispatch({ type: 'SET_TRACE',      id, trace }),
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,
     movableMap,
+    trajectoriesMap,
     reorderItem,
     insertItemAfter,
     deleteItem,

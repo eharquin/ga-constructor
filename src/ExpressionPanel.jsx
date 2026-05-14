@@ -209,7 +209,7 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemMovable, setItemTrace, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
   } = useGraphContext();
@@ -302,6 +302,7 @@ export default function ExpressionPanel() {
           const isList      = !!val_?.list;
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
                               cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
+          const isTraceable = !isList && ((val_ && typeof val_ === 'object' && 'vx' in val_) || cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint');
           const canUnitize  = node && node.type !== 'scalar' && !isList;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
@@ -411,6 +412,19 @@ export default function ExpressionPanel() {
                   >{item.movable === false ? '🔒' : '🔓'}</button>
                 ) : (
                   <span className="lock-toggle-gap" />
+                )}
+
+                {/* Trace toggle — draws trajectory across animatable scalar deps */}
+                {isTraceable ? (
+                  <button
+                    type="button"
+                    className={`trace-toggle${item.trace ? ' active' : ''}`}
+                    onClick={() => setItemTrace(item.id, !item.trace)}
+                    tabIndex={-1}
+                    title={item.trace ? 'Hide trajectory' : 'Show trajectory'}
+                  >∿</button>
+                ) : (
+                  <span className="trace-toggle-gap" />
                 )}
 
                 {/* Color swatch */}

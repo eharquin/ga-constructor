@@ -301,6 +301,31 @@ function renderLabel(label, cx, cy, opts) {
   );
 }
 
+// Trajectory: one polyline per animatable scalar dep (sampled in useGraph).
+// Breaks on null samples (failed evaluations).
+function SvgTrajectory({ trajectories, color, vp }) {
+  const segments = [];
+  trajectories.forEach((traj, ti) => {
+    let cur = [];
+    const flush = () => { if (cur.length > 1) segments.push({ key: `${ti}-${segments.length}`, pts: cur.join(' ') }); cur = []; };
+    for (const p of traj.points) {
+      if (!p) { flush(); continue; }
+      const { cx, cy } = w2c(p.x, p.y, vp);
+      cur.push(`${cx},${cy}`);
+    }
+    flush();
+  });
+  return (
+    <g pointerEvents="none">
+      {segments.map(({ key, pts }) => (
+        <polyline key={key} points={pts}
+          fill="none" stroke={color} strokeOpacity={0.55}
+          strokeWidth={1.5} strokeDasharray="4 3" strokeLinecap="round" />
+      ))}
+    </g>
+  );
+}
+
 function SvgPolygon({ points, label, color, vp, opts }) {
   const pts = points.map(p => { const { cx, cy } = w2c(p.x, p.y, vp); return `${cx},${cy}`; }).join(' ');
   const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
@@ -321,7 +346,7 @@ export default function Canvas() {
   const wrapperRef = useRef(null);
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
-    movableMap,
+    movableMap, trajectoriesMap,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -482,6 +507,11 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const opts    = labelOptsMap[id] ?? null;
     const hovered = id === hoveredId;
+
+    const traj = trajectoriesMap?.[id];
+    if (traj) {
+      backLayer.push(<SvgTrajectory key={`traj-${id}`} trajectories={traj} color={color} vp={vp} />);
+    }
 
     // Scalar-valued nodes (triangle, meetChain): no canvas render
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
