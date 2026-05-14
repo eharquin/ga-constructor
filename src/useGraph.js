@@ -41,54 +41,23 @@ const ITEM = (id, text, extra = {}) => ({
 });
 
 const INITIAL_ITEMS = [
-  // ── Draggable vertices of a triangle ─────────────────────────────────────────
-  ITEM('expr_0',  'A = point(-5, 3)'),
-  ITEM('expr_1',  'B = point(5, 2)'),
-  ITEM('expr_2',  'C = point(0, -5)'),
+  // Draggable starting point
+  ITEM('expr_0', 'P = 5.2*e01 + 5.2*e02 + e12'),
 
-  // ── Animatable scalar (press ▶) ───────────────────────────────────────────────
-  ITEM('expr_3',  't = 0', { anim: { min: 0, max: 6.28, step: 0.05 } }),
+  // Translation direction
+  ITEM('expr_1', 'V = vector(-6.48, 0.92)'),
 
-  // ── Triangle + sides via join ─────────────────────────────────────────────────
-  ITEM('expr_4',  'T = A & B & C'),          // 2× signed area scalar
-  ITEM('expr_4b', 'Tri = [A, B, C]'),        // polygon drawn from points
-  ITEM('expr_5',  'L1 = A & B'),             // side AB
-  ITEM('expr_6',  'L2 = B & C'),             // side BC
-  ITEM('expr_7',  'L3 = C & A'),             // side CA
+  // Animatable scalars driving the motors
+  ITEM('expr_2', 't = 0', { anim: { min: 0, max: 1,    step: 0.02 } }),
+  ITEM('expr_3', 'a = 0', { anim: { min: 0, max: 3.14, step: 0.05 } }),
 
-  // ── Midpoints and medians ─────────────────────────────────────────────────────
-  ITEM('expr_8',  'Mbc = (B + C) / 2'),      // MV arithmetic midpoint
-  ITEM('expr_9',  'Mca = (C + A) / 2'),
-  ITEM('expr_10', 'mA = A & Mbc'),            // median from A
-  ITEM('expr_11', 'mB = B & Mca'),            // median from B
+  // Translator along V, rotor around the origin
+  ITEM('expr_4', 'T = exp(V, t)'),
+  ITEM('expr_5', 'R = exp(e12, a)'),
 
-  // ── Centroid = meet of medians ────────────────────────────────────────────────
-  ITEM('expr_12', 'G = mA ^ mB'),
-
-  // ── Rotor around centroid G, angle t ─────────────────────────────────────────
-  ITEM('expr_13', 'R = exp(G, t)'),
-  ITEM('expr_14', 'A2 = R >>> A'),
-  ITEM('expr_15', 'B2 = R >>> B'),
-  ITEM('expr_16', 'C2 = R >>> C'),
-  ITEM('expr_17', 'T2 = [A2, B2, C2]'),      // rotated polygon
-
-  // ── Ideal direction + translator ─────────────────────────────────────────────
-  ITEM('expr_18', 'V = vector(1, 0.5)'),      // ideal point / direction
-  ITEM('expr_19', 'Tr = exp(V, t)'),          // translator along V
-  ITEM('expr_20', 'D = Tr >>> G'),            // translated centroid
-
-  // ── Dual of centroid (polar line) ─────────────────────────────────────────────
-  ITEM('expr_21', 'Polar = !G'),
-
-  // ── Meet of original and rotated sides ───────────────────────────────────────
-  ITEM('expr_22', 'L1r = A2 & B2'),           // rotated AB
-  ITEM('expr_23', 'Xi = L2 ^ L1r'),           // traces a curve as t varies
-
-  // ── Normalized line (try pressing norm) ──────────────────────────────────────
-  ITEM('expr_24', 'Ln = A & C'),
-
-  // ── General blade expression ──────────────────────────────────────────────────
-  ITEM('expr_25', 'N = 3(e1 + e2 + e0)'),    // explicit line via blade sum
+  // Composed motor + transformed point (trajectory on)
+  ITEM('expr_6', 'M = R * T'),
+  ITEM('expr_7', 'Q = M >>> P', { trace: true }),
 ];
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
@@ -179,7 +148,7 @@ function reducer(items, action) {
 
 export function useGraph() {
   const [items, dispatch] = useReducer(reducer, INITIAL_ITEMS);
-  const nextId = useRef(27);
+  const nextId = useRef(8);
 
   // Animation state — kept separate from items so value updates don't re-trigger the effect
   const [playingIds,   setPlayingIds]   = useState(new Set());
