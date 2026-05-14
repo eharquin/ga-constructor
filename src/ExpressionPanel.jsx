@@ -209,7 +209,7 @@ export default function ExpressionPanel() {
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
-    setItemText, setItemColor, setItemVisible, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
+    setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
   } = useGraphContext();
@@ -286,6 +286,17 @@ export default function ExpressionPanel() {
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar    = node?.type === 'scalar';
           const hasPosition = node?.type === 'vector';
+          const isDraggable = (() => {
+            if (!node) return false;
+            if (node.type === 'freePoint' || node.type === 'vector') return true;
+            if (node.type === 'multivector') {
+              const { coeffExprs, components, dual } = node.params ?? {};
+              if (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined) return true;
+              if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) return true;
+              if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) return true;
+            }
+            return false;
+          })();
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
@@ -388,6 +399,19 @@ export default function ExpressionPanel() {
                   tabIndex={-1}
                   title="Toggle visibility"
                 />
+
+                {/* Lock toggle — drag-eligible items only */}
+                {isDraggable ? (
+                  <button
+                    type="button"
+                    className={`lock-toggle${item.movable === false ? ' locked' : ''}`}
+                    onClick={() => setItemMovable(item.id, item.movable === false)}
+                    tabIndex={-1}
+                    title={item.movable === false ? 'Locked (click to allow drag)' : 'Movable (click to lock)'}
+                  >{item.movable === false ? '🔒' : '🔓'}</button>
+                ) : (
+                  <span className="lock-toggle-gap" />
+                )}
 
                 {/* Color swatch */}
                 <label className="color-swatch" style={{ background: color }} title="Change color">

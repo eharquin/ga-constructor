@@ -34,7 +34,7 @@ const TYPE_COLOR_FALLBACK = {
 };
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, normalizeMode: null, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null, ...extra,
 });
 
 const INITIAL_ITEMS = [
@@ -102,7 +102,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, normalizeMode: null }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -131,13 +131,17 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, visible: action.visible } : it
       );
+    case 'SET_MOVABLE':
+      return items.map((it) =>
+        it.id === action.id ? { ...it, movable: action.movable } : it
+      );
     case 'SET_NORMALIZE_MODE':
       return items.map((it) =>
         it.id === action.id ? { ...it, normalizeMode: action.mode } : it
       );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, normalizeMode: null };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -277,6 +281,15 @@ export function useGraph() {
     for (const item of items) {
       const node = parseExpression(item.text);
       if (node) map[node.id] = item.normalizeMode ?? null;
+    }
+    return map;
+  }, [items]);
+
+  const movableMap = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      const node = parseExpression(item.text);
+      if (node) map[node.id] = item.movable !== false;
     }
     return map;
   }, [items]);
@@ -603,8 +616,10 @@ export function useGraph() {
     setLabelOpts:   (id, opts)    => dispatch({ type: 'SET_LABEL_OPTS', id, opts }),
     labelOptsMap,
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
+    setItemMovable:    (id, movable)    => dispatch({ type: 'SET_MOVABLE',    id, movable }),
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,
+    movableMap,
     reorderItem,
     insertItemAfter,
     deleteItem,

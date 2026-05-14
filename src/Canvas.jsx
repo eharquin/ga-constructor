@@ -42,9 +42,10 @@ function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
   return null;
 }
 
-function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds) {
+function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap) {
   for (const [id, node] of Object.entries(nodes)) {
     if (hiddenIds?.has(id)) continue;
+    if (movableMap?.[id] === false) continue;
     if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint') continue;
     if (node.type === 'freePoint') {
       const eu = toEuclidean(values[id]);
@@ -320,6 +321,7 @@ export default function Canvas() {
   const wrapperRef = useRef(null);
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
+    movableMap,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -345,7 +347,7 @@ export default function Canvas() {
 
   const snap = useRef(null);
   snap.current = {
-    nodes, values, vp, colorMap, vectorPositions, hiddenIds,
+    nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -399,8 +401,8 @@ export default function Canvas() {
     if (e.button !== 0) return;
     svgRef.current.setPointerCapture(e.pointerId);
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp, hiddenIds } = snap.current;
-    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds);
+    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap } = snap.current;
+    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap);
     if (hit) {
       ptDragRef.current = hit;
       setCursor('crosshair');
@@ -440,7 +442,7 @@ export default function Canvas() {
       setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
     } else {
-      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds);
+      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap);
       const hitId = hit?.id ?? null;
       const newCursor = hitId ? 'pointer' : 'grab';
       if (newCursor !== cursor) setCursor(newCursor);
@@ -459,8 +461,8 @@ export default function Canvas() {
 
   function handleDoubleClick(e) {
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp, hiddenIds, addFreePoint } = snap.current;
-    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds)) return;
+    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, addFreePoint } = snap.current;
+    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap)) return;
     const { x, y } = c2w(mx, my, vp);
     addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
