@@ -23,6 +23,12 @@ export default function App() {
     localStorage.setItem('ga-theme', theme);
   }, [theme]);
 
+  const toggleTheme = () => {
+    document.documentElement.classList.add('theme-fade');
+    setTheme(t => t === 'dark' ? 'light' : 'dark');
+    setTimeout(() => document.documentElement.classList.remove('theme-fade'), 350);
+  };
+
   useEffect(() => {
     const onMove = (e) => {
       if (!dragRef.current) return;
@@ -54,7 +60,7 @@ export default function App() {
           </select>
           <button
             className="app-theme-toggle"
-            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            onClick={toggleTheme}
             title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           >{theme === 'dark' ? '☀' : '☾'}</button>
         </header>
