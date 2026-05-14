@@ -136,21 +136,21 @@ function SvgGrid({ vp, W, H }) {
     <g>
       {wxs.map((wx, i) => {
         const { cx } = w2c(wx, 0, vp);
-        return <line key={i} x1={cx} y1={0} x2={cx} y2={H} stroke="#ebebf2" strokeWidth={1} />;
+        return <line key={i} x1={cx} y1={0} x2={cx} y2={H} style={{ stroke: 'var(--grid-line)' }} strokeWidth={1} />;
       })}
       {wys.map((wy, i) => {
         const { cy } = w2c(0, wy, vp);
-        return <line key={i} x1={0} y1={cy} x2={W} y2={cy} stroke="#ebebf2" strokeWidth={1} />;
+        return <line key={i} x1={0} y1={cy} x2={W} y2={cy} style={{ stroke: 'var(--grid-line)' }} strokeWidth={1} />;
       })}
-      <line x1={ox} y1={0} x2={ox} y2={H} stroke="rgba(100,100,160,0.4)" strokeWidth={1.5} />
-      <line x1={0}  y1={oy} x2={W} y2={oy} stroke="rgba(100,100,160,0.4)" strokeWidth={1.5} />
+      <line x1={ox} y1={0} x2={ox} y2={H} style={{ stroke: 'var(--axis-line)' }} strokeWidth={1.5} />
+      <line x1={0}  y1={oy} x2={W} y2={oy} style={{ stroke: 'var(--axis-line)' }} strokeWidth={1.5} />
       {wxs.map((wx, i) => {
         if (Math.abs(wx) < step * 0.01) return null;
         const { cx } = w2c(wx, 0, vp);
         const anchor = cx < 10 ? 'start' : cx > W - 10 ? 'end' : 'middle';
         return (
           <text key={i} x={cx} y={ly} textAnchor={anchor}
-                fontSize={10} fontFamily="monospace" fill="#9090b0" pointerEvents="none">
+                fontSize={10} fontFamily="monospace" style={{ fill: 'var(--grid-label)' }} pointerEvents="none">
             {fmtGridLabel(wx, step)}
           </text>
         );
@@ -160,7 +160,7 @@ function SvgGrid({ vp, W, H }) {
         const { cy } = w2c(0, wy, vp);
         return (
           <text key={i} x={yLabelX} y={cy + 4} textAnchor={yAnchor}
-                fontSize={10} fontFamily="monospace" fill="#9090b0" pointerEvents="none">
+                fontSize={10} fontFamily="monospace" style={{ fill: 'var(--grid-label)' }} pointerEvents="none">
             {fmtGridLabel(wy, step)}
           </text>
         );
@@ -181,7 +181,7 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts }) {
       <circle
         cx={cx} cy={cy} r={r}
         fill={color}
-        stroke={hovered ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)'}
+        style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
         strokeWidth={hovered ? 2 : 1.5}
       />
       {renderLabel(label, cx, cy, opts)}
@@ -244,14 +244,14 @@ function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDragg
       {arrowPts && <polygon points={arrowPts} fill={color} />}
       {hovered && tipDraggable && len > 8 && (
         <circle cx={tip.cx} cy={tip.cy} r={5}
-                fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth={1.5} />
+                fill="none" style={{ stroke: 'var(--point-ring-hover)' }} strokeWidth={1.5} />
       )}
       {!linked ? (
         <>
           {hovered && <circle cx={tail.cx} cy={tail.cy} r={tailR + 4} fill={color + '28'} />}
           <circle cx={tail.cx} cy={tail.cy} r={tailR}
                   fill={color}
-                  stroke={hovered ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)'}
+                  style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
                   strokeWidth={hovered ? 2 : 1.5} />
         </>
       ) : hovered && (
@@ -291,7 +291,7 @@ function renderLabel(label, cx, cy, opts) {
       x={tx} y={ty}
       textAnchor={cfg.anchor}
       dominantBaseline={cfg.baseline}
-      fill="#1c1c2e"
+      style={{ fill: 'var(--text)' }}
       fontFamily="monospace"
       fontSize={fontSize}
       fontWeight="bold"
@@ -541,7 +541,7 @@ export default function Canvas() {
         onDoubleClick={handleDoubleClick}
         onDragStart={(e) => e.preventDefault()}
       >
-        <rect width={size.w} height={size.h} fill="#fafafa" />
+        <rect width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
         <SvgGrid vp={vp} W={size.w} H={size.h} />
         {backLayer}
         {frontLayer}

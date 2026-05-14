@@ -15,7 +15,13 @@ const ALGEBRAS = [
 export default function App() {
   const [panelWidth, setPanelWidth] = useState(300);
   const [algebra, setAlgebra]       = useState('pga201');
+  const [theme, setTheme]           = useState(() => localStorage.getItem('ga-theme') || 'light');
   const dragRef = useRef(null); // { startX, startW } while dragging
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('ga-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const onMove = (e) => {
@@ -46,6 +52,11 @@ export default function App() {
               <option key={a.id} value={a.id}>{a.label}</option>
             ))}
           </select>
+          <button
+            className="app-theme-toggle"
+            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >{theme === 'dark' ? '☀' : '☾'}</button>
         </header>
         <div className="workspace">
           <div className="panel-wrapper" style={{ width: panelWidth }}>

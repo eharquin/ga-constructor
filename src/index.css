@@ -9,10 +9,86 @@ html, body, #root {
   overflow: hidden;
 }
 
+:root {
+  --bg:                 #f5f5f7;
+  --bg-panel:           #ffffff;
+  --bg-row-hover:       #f5f5fb;
+  --bg-canvas:          #fafafa;
+  --bg-soft:            #fafaff;
+  --bg-code:            #f0f0f8;
+  --bg-suggest:         #9a650015;
+  --bg-active:          #6699ff18;
+  --bg-overlay:         rgba(0, 0, 0, 0.45);
+  --shadow-modal:       0 8px 40px rgba(0, 0, 0, 0.22);
+
+  --text:               #1c1c2e;
+  --text-muted:         #9090b0;
+  --text-dim:           #c0c0d4;
+  --text-strong:        #4060a0;
+  --accent:             #6699ff;
+  --accent-soft:        #b4d0ff;
+  --accent2:            #2ca876;
+  --error:              #d44060;
+  --warning:            #9a6500;
+
+  --border:             #e2e2ea;
+  --border-subtle:      #eeeef4;
+  --border-input:       #d0d0e4;
+  --border-strong:      #b0b0c8;
+  --border-divider:     #f0f0f8;
+
+  --grid-line:          #ebebf2;
+  --axis-line:          rgba(100, 100, 160, 0.4);
+  --grid-label:         #9090b0;
+  --point-stroke:       rgba(0, 0, 0, 0.18);
+  --point-stroke-hover: rgba(0, 0, 0, 0.45);
+  --point-ring-hover:   rgba(0, 0, 0, 0.30);
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg:                 #15151e;
+  --bg-panel:           #1d1d28;
+  --bg-row-hover:       #25253a;
+  --bg-canvas:          #11111a;
+  --bg-soft:            #20202e;
+  --bg-code:            #2a2a3e;
+  --bg-suggest:         #c89a4022;
+  --bg-active:          #6699ff2a;
+  --bg-overlay:         rgba(0, 0, 0, 0.65);
+  --shadow-modal:       0 8px 40px rgba(0, 0, 0, 0.55);
+
+  --text:               #e2e2ee;
+  --text-muted:         #8a8aaa;
+  --text-dim:           #55556e;
+  --text-strong:        #a8c0ff;
+  --accent:             #7faaff;
+  --accent-soft:        #3a4a78;
+  --accent2:            #4ec898;
+  --error:              #ff6a88;
+  --warning:            #d0a040;
+
+  --border:             #2e2e42;
+  --border-subtle:      #262638;
+  --border-input:       #3a3a52;
+  --border-strong:      #555570;
+  --border-divider:     #262638;
+
+  --grid-line:          #25253a;
+  --axis-line:          rgba(180, 180, 230, 0.35);
+  --grid-label:         #6a6a88;
+  --point-stroke:       rgba(255, 255, 255, 0.20);
+  --point-stroke-hover: rgba(255, 255, 255, 0.55);
+  --point-ring-hover:   rgba(255, 255, 255, 0.40);
+
+  color-scheme: dark;
+}
+
 body {
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background: #f5f5f7;
-  color: #1c1c2e;
+  background: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

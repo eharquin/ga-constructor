@@ -4,8 +4,8 @@
   flex-direction: column;
   height: 100dvh;
   overflow: hidden;
-  background: #f5f5f7;
-  color: #1c1c2e;
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* Compact top bar */
@@ -15,32 +15,51 @@
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e2ea;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
 }
 
 .app-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1c1c2e;
+  color: var(--text);
   font-family: monospace;
   letter-spacing: 0.5px;
 }
 
 .app-algebra-select {
   font-size: 12px;
-  color: #7878a0;
+  color: var(--text-muted);
   font-family: monospace;
   background: transparent;
-  border: 1px solid #d0d0e0;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
   padding: 2px 6px;
   cursor: pointer;
   outline: none;
 }
 .app-algebra-select:hover {
-  border-color: #a0a0c0;
-  color: #4444aa;
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+/* Theme toggle button — sits to the right in the header */
+.app-theme-toggle {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.app-theme-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--bg-row-hover);
 }
 
 /* Main area: sidebar + canvas */
@@ -63,12 +82,12 @@
   width: 5px;
   cursor: col-resize;
   background: transparent;
-  border-right: 1px solid #e2e2ea;
+  border-right: 1px solid var(--border);
   transition: border-color 0.15s;
 }
 
 .panel-resize:hover {
-  border-right-color: #b0b0c8;
+  border-right-color: var(--border-strong);
 }
 
 /* Canvas fills remaining space */
