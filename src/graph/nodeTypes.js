@@ -154,7 +154,10 @@ export const NODE_TYPES = {
       const pgaP = raw && 'vx' in raw ? idealPoint(raw.vx, raw.vy) : raw;
       if (!pgaP) return null;
       const w = pgaP[6];
-      if (Math.abs(w) < 1e-10) return null;
+      // Non-point input (line, etc.) — use the generic sandwich.
+      if (Math.abs(w) < 1e-10) {
+        return PGA.Mul(PGA.Mul(T, pgaP), reverseOp(T));
+      }
 
       const sin_s = T[6];
       if (Math.abs(sin_s) < 1e-10) {
