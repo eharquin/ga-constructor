@@ -141,12 +141,22 @@ export const classifyMV = (val) => {
 // Normalize by the finite norm: ||A|| = sqrt(scalar_part(A · Ã)).
 // Works for finite objects (lines, finite points, motors…).
 // Returns val unchanged when the finite norm is zero (ideal objects).
+//
+// Sign canonicalization: for a finite point (pure grade-2 with e12 ≠ 0), flip
+// the overall sign so the weight e12 ends up positive. (P and −P represent the
+// same Euclidean point; the convention picks the positive-weight representative.)
 export const normalizeMVFinit = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
   const norm = Math.sqrt(finitNormSq(val));
   if (norm < 1e-10) return val;
+  const eps = 1e-10;
+  const g0 = Math.abs(val[0]) > eps;
+  const g1 = Math.abs(val[1]) > eps || Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
+  const g3 = Math.abs(val[7]) > eps;
+  const isFinitePoint = !g0 && !g1 && !g3 && Math.abs(val[6]) > eps;
+  const sign = (isFinitePoint && val[6] < 0) ? -1 : 1;
   const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  for (let i = 0; i < 8; i++) result[i] = (val[i] * sign) / norm;
   return result;
 };
 
