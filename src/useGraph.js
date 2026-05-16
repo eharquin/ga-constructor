@@ -538,10 +538,14 @@ export function useGraph() {
     dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
   };
 
+  // Matches items whose drawn position lives in vectorPositions: vector nodes,
+  // meetPoints, and anything whose value classifies as an idealPoint (duals etc.).
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
-      return n?.id === nodeId && (n?.type === 'vector' || n?.type === 'meetPoint');
+      if (!n || n.id !== nodeId) return false;
+      if (n.type === 'vector' || n.type === 'meetPoint') return true;
+      return classifyMV(values[n.id])?.kind === 'idealPoint';
     });
 
   // Set static draw position for a vector.

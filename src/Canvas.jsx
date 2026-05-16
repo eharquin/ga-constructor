@@ -96,10 +96,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (node.type !== 'vector' && valKind === 'idealPoint') {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
       const tail = w2c(pos.x, pos.y, vp);
-      const distSq = (mx - tail.cx) ** 2 + (my - tail.cy) ** 2;
-      // eslint-disable-next-line no-console
-      console.debug('[hitTest idealPoint]', { id, type: node.type, pos, tailScreen: { cx: tail.cx, cy: tail.cy }, click: { mx, my }, distSq, hits: distSq <= HIT_RADIUS ** 2 });
-      if (distSq <= HIT_RADIUS ** 2)
+      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
     }
   }
@@ -440,8 +437,6 @@ export default function Canvas() {
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
         const nearby = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);
-        // eslint-disable-next-line no-console
-        console.debug('[drag vector]', { id, nearby, rx, ry, hasSetDrawPos: typeof setDrawPos });
         if (nearby) snap.current.setDrawPosRef(id, nearby);
         else        setDrawPos(id, rx, ry);
       }
