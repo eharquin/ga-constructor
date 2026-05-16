@@ -285,7 +285,10 @@ export default function ExpressionPanel() {
           const node      = parseExpression(item.text);
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar    = node?.type === 'scalar';
-          const hasPosition = node?.type === 'vector';
+          // Position sub-row applies to vector nodes and to any node whose value
+          // classifies as an idealPoint (so duals/derived ideal points get one too).
+          const hasPosition = node?.type === 'vector' ||
+                              (node && classifyMV(values[node.id])?.kind === 'idealPoint');
           const isDraggable = (() => {
             if (!node) return false;
             if (node.type === 'freePoint' || node.type === 'vector') return true;
