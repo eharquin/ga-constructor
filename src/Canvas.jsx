@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { toEuclidean, lineBaseAndDir, toIdealVector, classifyMV } from './pga.js';
+import { toEuclidean, lineBaseAndDir, toIdealVector, classifyMV, objectWeight } from './pga.js';
 import { parseExpression } from './graph/parseExpression.js';
 
 const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
@@ -181,10 +181,10 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1 }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
-  const r = hovered ? 8 : 6;
+  const r = (hovered ? 8 : 6) * weight;
   return (
     <g>
       {hovered && <circle cx={cx} cy={cy} r={r + 5} fill={color + '28'} />}
@@ -202,14 +202,14 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts }) {
 // Line at infinity (pure e0): drawn as a dashed ellipse inscribed in the canvas,
 // since the ideal line has no Euclidean position — it's the boundary of the
 // projective plane. The visual is screen-space (doesn't move with pan/zoom).
-function SvgIdealLine({ label, color, W, H, opts }) {
+function SvgIdealLine({ label, color, W, H, opts, weight = 1 }) {
   const cx = W / 2, cy = H / 2;
   const rx = Math.max(8, W / 2 - 6);
   const ry = Math.max(8, H / 2 - 6);
   return (
     <g pointerEvents="none">
       <ellipse cx={cx} cy={cy} rx={rx} ry={ry}
-        fill="none" stroke={color} strokeWidth={2} strokeDasharray="6 4" strokeOpacity={0.7} />
+        fill="none" stroke={color} strokeWidth={2 * weight} strokeDasharray="6 4" strokeOpacity={0.7} />
       {renderLabel(label, cx, cy - ry + 14, opts)}
     </g>
   );
@@ -224,9 +224,9 @@ const idealPointEllipsePos = (vx, vy, W, H) => {
   const angle = Math.atan2(vy, vx);
   return { x: cx + rx * Math.cos(angle), y: cy - ry * Math.sin(angle) };
 };
-function SvgIdealPointMarker({ vx, vy, color, W, H, hovered }) {
+function SvgIdealPointMarker({ vx, vy, color, W, H, hovered, weight = 1 }) {
   const { x, y } = idealPointEllipsePos(vx, vy, W, H);
-  const r = hovered ? 6 : 4;
+  const r = (hovered ? 6 : 4) * weight;
   return (
     <g pointerEvents="none">
       {hovered && <circle cx={x} cy={y} r={r + 4} fill={color + '28'} />}
@@ -238,7 +238,7 @@ function SvgIdealPointMarker({ vx, vy, color, W, H, hovered }) {
   );
 }
 
-function SvgLine({ L, label, color, vp, W, H, opts }) {
+function SvgLine({ L, label, color, vp, W, H, opts, weight = 1 }) {
   const bd = lineBaseAndDir(L);
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
@@ -259,7 +259,7 @@ function SvgLine({ L, label, color, vp, W, H, opts }) {
   return (
     <g>
       <line x1={p1.cx} y1={p1.cy} x2={p2.cx} y2={p2.cy}
-            stroke={color} strokeWidth={2.5} strokeLinecap="round" />
+            stroke={color} strokeWidth={2.5 * weight} strokeLinecap="round" />
       {renderLabel(label, lx, ly, opts)}
     </g>
   );
@@ -538,6 +538,7 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const opts    = labelOptsMap[id] ?? null;
     const hovered = id === hoveredId;
+    const weight  = objectWeight(val);
 
     // Scalar-valued nodes (triangle, meetChain): no canvas render
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
@@ -558,7 +559,7 @@ export default function Canvas() {
       if (hasIdealLine) {
         backLayer.push(
           <SvgIdealPointMarker key={`${id}-inf`} vx={val.vx} vy={val.vy}
-            color={color} W={size.w} H={size.h} hovered={hovered} />
+            color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />
         );
       }
       continue;
@@ -571,7 +572,7 @@ export default function Canvas() {
       case 'finitePoint': {
         const eu = toEuclidean(val);
         if (!eu) break;
-        frontLayer.push(<SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} />);
+        frontLayer.push(<SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} />);
         break;
       }
       case 'idealPoint': {
@@ -580,15 +581,15 @@ export default function Canvas() {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={pos.x} py={pos.y} label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} tipDraggable={false} opts={opts} />);
         if (hasIdealLine) {
-          backLayer.push(<SvgIdealPointMarker key={`${id}-inf`} vx={iv.vx} vy={iv.vy} color={color} W={size.w} H={size.h} hovered={hovered} />);
+          backLayer.push(<SvgIdealPointMarker key={`${id}-inf`} vx={iv.vx} vy={iv.vy} color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />);
         }
         break;
       }
       case 'line':
-        backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} />);
+        backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
       case 'idealLine':
-        backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} />);
+        backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
       default:
         break;

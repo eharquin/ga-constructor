@@ -159,6 +159,35 @@ export const normalizeMV = (val) => {
   return result;
 };
 
+// Weight of an object: the scalar factor relative to its "unit" representative.
+// Used to drive visual thickness — a point/line with weight w renders w× thicker.
+//
+//   Finite point  (e12 ≠ 0):  norm  = |e12|             — `5*e12`     → 5
+//   Ideal point   (e12 = 0):  inorm = √(e01² + e02²)    — `5*e01`     → 5
+//   Line thru origin (e0 = 0): norm  = √(e1² + e2²)      — `5*(e1+e2)` → 5√2
+//   Line w/ offset   (e0 ≠ 0): inorm = |c| via Dual      — `5*(e0+e1+e2)` → 5
+//   Ideal line   (only e0):   inorm = |c| via Dual      — `5*e0`      → 5
+//   Vector `{vx, vy}`:        Euclidean magnitude        — `vector(3,4)` → 5
+export const objectWeight = (val) => {
+  if (val == null) return 1;
+  if (typeof val === 'number') return Math.abs(val);
+  if (typeof val === 'object' && 'vx' in val)
+    return Math.sqrt(val.vx ** 2 + val.vy ** 2);
+  if (typeof val.length !== 'number' || val.length < 8) return 1;
+  const eps = 1e-10;
+  const hasE0   = Math.abs(val[1]) > eps;
+  const hasFin1 = Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
+  const isGrade1 = hasE0 || hasFin1;
+  const hasIdeal2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps;
+  const hasE12  = Math.abs(val[6]) > eps;
+  const isGrade2 = hasIdeal2 || hasE12;
+  if (isGrade1 && !isGrade2)
+    return hasE0 ? PGA.Length(PGA.Dual(val)) : PGA.Length(val);
+  if (isGrade2 && !isGrade1)
+    return hasE12 ? PGA.Length(val) : PGA.Length(PGA.Dual(val));
+  return PGA.Length(val) || 1;
+};
+
 // For a grade-1 line L: direction (ux,uy) and a canonical base point (bx,by).
 // Line: c·e0 + a·e1 + b·e2  →  equation  a·x + b·y + c = 0
 export const lineBaseAndDir = (L) => {
