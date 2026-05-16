@@ -3,6 +3,8 @@
 // Rejects anything that isn't [A-Za-z0-9 +\-*/(). ,] — blocks strings, property
 // access, semicolons, etc. so user input cannot reach browser globals.
 
+import { evalMVArith, parseBladeName } from './evalMVArith.js';
+
 const MATH = {
   sin: Math.sin, cos: Math.cos, tan: Math.tan,
   asin: Math.asin, acos: Math.acos, atan: Math.atan, atan2: Math.atan2,
@@ -15,11 +17,14 @@ const MATH = {
 
 export const MATH_NAMES = new Set(Object.keys(MATH));
 
-// Extract non-math identifier names from an expression string.
+// Extract non-math, non-blade identifier names from an expression string.
+// Blade names (e01, e21 …) are reserved tokens, not deps.
 export function extractVarNames(expr) {
   const names = new Set();
   for (const [, name] of expr.matchAll(/\b([A-Za-z_]\w*)\b/g)) {
-    if (!MATH_NAMES.has(name)) names.add(name);
+    if (MATH_NAMES.has(name)) continue;
+    if (parseBladeName(name)) continue;
+    names.add(name);
   }
   return [...names];
 }
@@ -39,4 +44,16 @@ export function evalExpr(expr, scalars = {}) {
   } catch {
     return NaN;
   }
+}
+
+// Scalar-valued evaluator that also accepts `.blade` accessors (e.g. P.e01).
+// Routes through evalMVArith when the expression contains a property-access
+// pattern (which evalExpr can't resolve since deps may be MVs); otherwise
+// falls back to evalExpr to preserve math constants like PI/E.
+export function evalScalar(expr, scalars = {}) {
+  if (/\.[A-Za-z_]/.test(expr)) {
+    const result = evalMVArith(expr, scalars);
+    return typeof result === 'number' && isFinite(result) ? result : NaN;
+  }
+  return evalExpr(expr, scalars);
 }

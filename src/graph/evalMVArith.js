@@ -15,7 +15,7 @@ const BLADE_INDEX = { e0: 1, e1: 2, e2: 3, e01: 4, e02: 5, e12: 6, e012: 7 };
 // Returns { index, sign } where sign = ±1 (parity of the permutation),
 // or null for invalid / unrecognised names.
 // Examples: e12→{6,+1}, e21→{6,-1}, e102→{7,-1}, e120→{7,+1}
-function parseBladeName(name) {
+export function parseBladeName(name) {
   if (!name || !name.startsWith('e')) return null;
   const digits = name.slice(1).split('').map(Number);
   if (digits.some(d => isNaN(d) || d < 0 || d > 2)) return null;

@@ -1,5 +1,5 @@
 import { PGA, point2D, line2D, idealPoint, toEuclidean, lineBaseAndDir, dualOp, reverseOp } from '../pga.js';
-import { evalExpr } from './evalExpr.js';
+import { evalScalar } from './evalExpr.js';
 import { evalMVArith } from './evalMVArith.js';
 
 // Convert a value to a PGA element (ideal point for vectors, pass-through otherwise).
@@ -15,12 +15,12 @@ function resolveInlineGeom(geom, depValues) {
   if (geom.kind === 'ref') return local[0];
   if (geom.kind === 'vector') {
     const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
-    const vx = evalExpr(geom.xExpr, s), vy = evalExpr(geom.yExpr, s);
+    const vx = evalScalar(geom.xExpr, s), vy = evalScalar(geom.yExpr, s);
     return isNaN(vx) || isNaN(vy) ? null : { vx, vy };
   }
   if (geom.kind === 'point') {
     const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
-    const x = evalExpr(geom.xExpr, s), y = evalExpr(geom.yExpr, s);
+    const x = evalScalar(geom.xExpr, s), y = evalScalar(geom.yExpr, s);
     return isNaN(x) || isNaN(y) ? null : point2D(x, y);
   }
   if (geom.kind === 'mv') {
@@ -28,7 +28,7 @@ function resolveInlineGeom(geom, depValues) {
     for (let i = 0; i < 8; i++) mv[i] = geom.components[i] || 0;
     if (geom.deps.length && geom.coeffExprs) {
       const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
-      for (const [idx, expr] of Object.entries(geom.coeffExprs)) mv[+idx] = evalExpr(expr, s);
+      for (const [idx, expr] of Object.entries(geom.coeffExprs)) mv[+idx] = evalScalar(expr, s);
     }
     return mv;
   }
@@ -50,9 +50,10 @@ function pointOnLine(L, t) {
 }
 
 // Evaluate both coordinate expressions with the dep-scalar environment.
+// Uses evalScalar so `.blade` accessors (P.e01, etc.) work in coord exprs.
 function evalCoords(depValues, { xExpr, yExpr, deps }) {
   const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
-  return { vx: evalExpr(xExpr, scalars), vy: evalExpr(yExpr, scalars) };
+  return { vx: evalScalar(xExpr, scalars), vy: evalScalar(yExpr, scalars) };
 }
 
 // Each type defines: label (display name), compute(depValues[], params) → value.
@@ -73,9 +74,9 @@ export const NODE_TYPES = {
     label: 'Free Line',
     compute: (depValues, { aExpr, bExpr, cExpr, deps }) => {
       const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
-      const a = evalExpr(aExpr, scalars);
-      const b = evalExpr(bExpr, scalars);
-      const c = evalExpr(cExpr, scalars);
+      const a = evalScalar(aExpr, scalars);
+      const b = evalScalar(bExpr, scalars);
+      const c = evalScalar(cExpr, scalars);
       if (isNaN(a) || isNaN(b) || isNaN(c)) return null;
       return line2D(a, b, c);
     },
@@ -249,7 +250,7 @@ export const NODE_TYPES = {
             const prod = PGA.Mul(left, blade);
             for (let i = 0; i < 8; i++) mv[i] = (mv[i] || 0) + (prod[i] || 0);
           } else {
-            mv[idx] = evalExpr(expr, scalars);
+            mv[idx] = evalScalar(expr, scalars);
           }
         }
       }

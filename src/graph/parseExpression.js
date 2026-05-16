@@ -20,7 +20,7 @@
 // builtins (sin, cos, PI …) — anything accepted by evalExpr.
 
 import { extractVarNames } from './evalExpr.js';
-import { extractMVDeps } from './evalMVArith.js';
+import { extractMVDeps, parseBladeName } from './evalMVArith.js';
 
 // ─── Multivector expression parser ────────────────────────────────────────────
 
@@ -359,15 +359,15 @@ export function parseExpression(text) {
     }
   }
 
-  // ~ID — reverse of a named object
+  // ~ID — reverse of a named object (skip when ID is a basis blade — let mvExpr handle it)
   const revId = expr.match(new RegExp(`^~${WS.source}(${ID.source})$`));
-  if (revId) {
+  if (revId && !parseBladeName(revId[1])) {
     return { id, label, type: 'reverse', deps: [revId[1]], params: {} };
   }
 
-  // !ID — dual of a named object
+  // !ID — dual of a named object (skip when ID is a basis blade)
   const dualId = expr.match(new RegExp(`^!${WS.source}(${ID.source})$`));
-  if (dualId) {
+  if (dualId && !parseBladeName(dualId[1])) {
     return { id, label, type: 'dual', deps: [dualId[1]], params: {} };
   }
 
