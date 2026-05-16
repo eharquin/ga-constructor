@@ -161,14 +161,25 @@ export const normalizeMVFinit = (val) => {
 };
 
 // Normalize by the ideal norm: ||A||∞ = ||dual(A)||.
-// Works for ideal objects (ideal points, ideal lines, pseudoscalar…).
-// Returns val unchanged when the ideal norm is zero (finite objects that have no ideal part).
+// Works for ideal objects (ideal points, ideal lines, pseudoscalar…) and finite
+// lines (where the ideal norm = |c|, the offset from origin).
+// Returns val unchanged when the ideal norm is zero (finite objects with no ideal part).
+//
+// Sign canonicalization: for a line (grade-1 with non-zero e0), flip the overall
+// sign so the offset coefficient e0 ends up positive (i.e. = 1 after normalization).
+// L and −L represent the same line; this picks the canonical e0 = +1 form.
 export const normalizeMVIdeal = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
   const norm = Math.sqrt(finitNormSq(dualOp(val)));
   if (norm < 1e-10) return val;
+  const eps = 1e-10;
+  const g0 = Math.abs(val[0]) > eps;
+  const g2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps || Math.abs(val[6]) > eps;
+  const g3 = Math.abs(val[7]) > eps;
+  const isLineLike = !g0 && !g2 && !g3 && Math.abs(val[1]) > eps;
+  const sign = (isLineLike && val[1] < 0) ? -1 : 1;
   const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  for (let i = 0; i < 8; i++) result[i] = (val[i] * sign) / norm;
   return result;
 };
 
