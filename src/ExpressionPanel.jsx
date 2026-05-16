@@ -52,15 +52,15 @@ function getDisplayValue(text, values) {
   if (val.list) return `Polygon (${val.points.length} pts)`;
 
   // {vx, vy} ideal vector
-  if ('vx' in val) return `(${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
+  if ('vx' in val) return `Ideal point (${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
 
   const cls = classifyMV(val);
   if (!cls) return '—';
 
   switch (cls.kind) {
     case 'scalar':      return val[0].toFixed(4).replace(/\.?0+$/, '');
-    case 'finitePoint': { const eu = toEuclidean(val); return eu ? `(${eu.x.toFixed(2)}, ${eu.y.toFixed(2)})` : '—'; }
-    case 'idealPoint':  { const iv = toIdealVector(val); return iv ? `(${iv.vx.toFixed(2)}, ${iv.vy.toFixed(2)})` : '—'; }
+    case 'finitePoint': { const eu = toEuclidean(val); return eu ? `Point (${eu.x.toFixed(2)}, ${eu.y.toFixed(2)})` : '—'; }
+    case 'idealPoint':  { const iv = toIdealVector(val); return iv ? `Ideal point (${iv.vx.toFixed(2)}, ${iv.vy.toFixed(2)})` : '—'; }
     case 'line':        return 'Line';
     case 'idealLine':   return 'Ideal line';
     case 'pseudoscalar':return `${val[7].toFixed(4).replace(/\.?0+$/, '')} e012`;
