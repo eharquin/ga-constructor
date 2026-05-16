@@ -440,6 +440,8 @@ export default function Canvas() {
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
         const nearby = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);
+        // eslint-disable-next-line no-console
+        console.debug('[drag vector]', { id, nearby, rx, ry, hasSetDrawPos: typeof setDrawPos });
         if (nearby) snap.current.setDrawPosRef(id, nearby);
         else        setDrawPos(id, rx, ry);
       }
