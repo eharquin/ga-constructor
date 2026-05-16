@@ -10,7 +10,7 @@
 //   NAME = 5e02 - 1e01             → multivector (literal basis-blade linear combo)
 //   NAME = x*e01 + y*e02 + w*e12  → multivector with variable coefficients (deps)
 //   NAME = !(mv_expr)              → multivector with dual applied
-//   NAME = exp(G, s)               → motorExp (motor from G scaled by s)
+//   NAME = exp(V)                  → motorExp (motor exponential of any bivector expression)
 //   NAME = M >>> G                 → motorApply (sandwich product, M must be a named ID)
 //
 // G, G1, G2 (geometric args) accept: named ID, point(…), vector(…), or a
@@ -268,24 +268,17 @@ export function parseExpression(text) {
     return { id, label, type: 'freeLine', deps, params: { aExpr, bExpr, cExpr, deps } };
   }
 
-  // exp(G, s) — motor exponential; G can be a named ID, vector(…), point(…), or blade expr
+  // exp(V) — motor exponential of any MV expression (vector, point, t*V, a*P, e01+e12, …)
   if (expr.startsWith('exp(') && expr.endsWith(')')) {
     const inner = expr.slice(4, -1).trim();
-    const parts = splitTopLevelComma(inner);
-    if (parts) {
-      const geomStr = parts[0].trim();
-      const scalarExpr = parts[1].trim();
-      if (scalarExpr) {
-        const geom = parseInlineGeom(geomStr);
-        if (geom) {
-          geom.depOffset = 0;
-          const scalarDeps = extractVarNames(scalarExpr);
-          return {
-            id, label, type: 'motorExp',
-            deps: [...geom.deps, ...scalarDeps],
-            params: { geom, scalarExpr, scalarDeps },
-          };
-        }
+    if (inner && splitTopLevelComma(inner) === null) {
+      const mvDeps = extractMVDeps(inner);
+      if (mvDeps !== null) {
+        return {
+          id, label, type: 'motorExp',
+          deps: mvDeps,
+          params: { exprStr: inner, deps: mvDeps },
+        };
       }
     }
   }

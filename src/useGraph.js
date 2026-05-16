@@ -51,8 +51,8 @@ const INITIAL_ITEMS = [
   ITEM('expr_3', 'a = 0', { anim: { min: 0, max: 3.14, step: 0.05 } }),
 
   // Translator along V, rotor around the origin
-  ITEM('expr_4', 'T = exp(V, t)'),
-  ITEM('expr_5', 'R = exp(e12, a)'),
+  ITEM('expr_4', 'T = exp(t*V)'),
+  ITEM('expr_5', 'R = exp(a*e12)'),
 
   // Composed motor + transformed point (trajectory on)
   ITEM('expr_6', 'M = R * T'),

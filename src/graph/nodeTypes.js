@@ -89,39 +89,38 @@ export const NODE_TYPES = {
       return { vx, vy };
     },
   },
-  // exp(G, s): build a motor from a geometric element G scaled by s.
-  // G can be a named node, an inline vector/point/blade expression.
+  // exp(V): motor exponential of a bivector expression V.
+  // V can be any MV expression: a named vector/point, a scaled form like t*V or a*P,
+  // a blade combination, etc. The exponent uses V as-is — pass `t*V` to scale.
+  //
+  // For V with V² = -c² (e.g. point with weight c, or any rotational generator):
+  //   exp(V) = cos(c) + (sin(c)/c) · V       — rotor (around the point, by angle 2c)
+  // For nilpotent V (V² = 0, e.g. ideal point / vector / pure e0):
+  //   exp(V) = 1 + V                          — pure translator
   motorExp: {
     label: 'Motor',
-    compute: (depValues, { geom, scalarExpr, scalarDeps }) => {
-      const geomVal = geom ? resolveInlineGeom(geom, depValues) : depValues[0];
-      if (!geomVal) return null;
-      const geomDepsCount = geom ? geom.deps.length : 1;
-      const scalars = Object.fromEntries((scalarDeps ?? []).map((d, i) => [d, depValues[geomDepsCount + i]]));
-      const s = evalExpr(scalarExpr, scalars);
-      if (isNaN(s)) return null;
+    compute: (depValues, { exprStr, deps: paramDeps }) => {
+      const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
+      const raw = evalMVArith(exprStr, env);
+      if (raw == null) return null;
 
-      // Promote { vx, vy } vectors to their ideal-point MV form.
-      const V = ('vx' in geomVal) ? idealPoint(geomVal.vx, geomVal.vy) : geomVal;
-
-      // Grade-2 point (e12 ≠ 0) → rotation around that point (proper trig motor)
-      if (Math.abs(V[6] || 0) > 1e-10) {
-        const w  = V[6];
-        const px = -V[5] / w;
-        const py =  V[4] / w;
-        const M  = new PGA(8);
-        M[0] =  Math.cos(s);
-        M[4] = -py * Math.sin(s);
-        M[5] =  px * Math.sin(s);
-        M[6] =  Math.sin(s);
-        return M;
+      // Promote { vx, vy } → ideal-point MV.
+      const V = (typeof raw === 'object' && 'vx' in raw) ? idealPoint(raw.vx, raw.vy) : raw;
+      if (typeof V === 'number') {
+        const T = new PGA(8); T[0] = Math.exp(V); return T;
       }
+      if (!V.length || V.length < 8) return null;
 
-      // Nilpotent V (V² = 0) → exp(s·V) = 1 + s·V exactly.
-      // Covers ideal points (e01/e02 only), pure e0, and the zero case.
+      const c = V[6] || 0;
       const T = new PGA(8);
-      T[0] = 1;
-      for (let i = 1; i < 8; i++) T[i] = (V[i] || 0) * s;
+      if (Math.abs(c) < 1e-10) {
+        T[0] = 1;
+        for (let i = 1; i < 8; i++) T[i] = V[i] || 0;
+        return T;
+      }
+      const factor = Math.sin(c) / c;
+      T[0] = Math.cos(c);
+      for (let i = 1; i < 8; i++) T[i] = factor * (V[i] || 0);
       return T;
     },
   },

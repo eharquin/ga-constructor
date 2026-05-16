@@ -691,8 +691,8 @@ export default function ExpressionPanel() {
                 <h3>Motors</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>R = exp(A, t)</code></td><td>Rotor: rotation around point A by angle 2t.</td></tr>
-                    <tr><td><code>T = exp(V, t)</code></td><td>Translator: translation along vector V by 2t.</td></tr>
+                    <tr><td><code>R = exp(a*A)</code></td><td>Rotor: <code>cos(a) + (sin(a)/a)·(a·A)</code> — rotation around point A (sandwich angle = 2a). <code>exp(A)</code> is the unscaled form.</td></tr>
+                    <tr><td><code>T = exp(t*V)</code></td><td>Translator: <code>1 + t·V</code> — V is nilpotent so the series terminates. <code>exp(V)</code> is the unscaled form.</td></tr>
                     <tr><td><code>B = R &gt;&gt;&gt; A</code></td><td>Sandwich product: apply motor R to object A.</td></tr>
                   </tbody>
                 </table>
