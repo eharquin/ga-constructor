@@ -96,7 +96,10 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (node.type !== 'vector' && valKind === 'idealPoint') {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
       const tail = w2c(pos.x, pos.y, vp);
-      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+      const distSq = (mx - tail.cx) ** 2 + (my - tail.cy) ** 2;
+      // eslint-disable-next-line no-console
+      console.debug('[hitTest idealPoint]', { id, type: node.type, pos, tailScreen: { cx: tail.cx, cy: tail.cy }, click: { mx, my }, distSq, hits: distSq <= HIT_RADIUS ** 2 });
+      if (distSq <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
     }
   }
