@@ -199,6 +199,22 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts }) {
   );
 }
 
+// Line at infinity (pure e0): drawn as a dashed ellipse inscribed in the canvas,
+// since the ideal line has no Euclidean position — it's the boundary of the
+// projective plane. The visual is screen-space (doesn't move with pan/zoom).
+function SvgIdealLine({ label, color, W, H, opts }) {
+  const cx = W / 2, cy = H / 2;
+  const rx = Math.max(8, W / 2 - 6);
+  const ry = Math.max(8, H / 2 - 6);
+  return (
+    <g pointerEvents="none">
+      <ellipse cx={cx} cy={cy} rx={rx} ry={ry}
+        fill="none" stroke={color} strokeWidth={2} strokeDasharray="6 4" strokeOpacity={0.7} />
+      {renderLabel(label, cx, cy - ry + 14, opts)}
+    </g>
+  );
+}
+
 function SvgLine({ L, label, color, vp, W, H, opts }) {
   const bd = lineBaseAndDir(L);
   if (!bd) return null;
@@ -531,6 +547,9 @@ export default function Canvas() {
       }
       case 'line':
         backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} />);
+        break;
+      case 'idealLine':
+        backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} />);
         break;
       default:
         break;
