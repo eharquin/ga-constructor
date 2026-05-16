@@ -81,4 +81,14 @@ A chronological log of all prompts given to Claude in this project.
 
 53. **Removed trail/trajectory feature** — Stripped the `∿` trace toggle, `trace` per-item flag, `SET_TRACE` reducer case, `setItemTrace` API, `trails` state, trail-accumulation useEffect, `trajectoriesMap` memo, `SvgTrajectory` component (Canvas.jsx), trace-toggle wiring in ExpressionPanel.jsx, `.trace-toggle*` CSS rules, `TRAIL_MAX_POINTS` constant, and `{ trace: true }` on the showcase Q item. Also updated CLAUDE.md to drop the trace/trajectory sections.
 
+54. **Delegated more operations to ganja** — Replaced hand-rolled GA primitives with ganja's built-ins so we share a single sign convention and shed dead/buggy code:
+    - `dualOp` → `PGA.Dual` (right-complement convention; fixes the e1↔e02 sign that diverged from ganja).
+    - `reverseOp` → `PGA.Reverse`.
+    - `motorApply.compute` → `PGA.sw(T, A)`. Drops a ~25-line "optimized 2D point sandwich" path that was *incorrect* for composed motors (it treated T[4]/T[5] as the rotation center, valid only for pure rotations — composed translation+rotation motors gave wrong results).
+    - `motorExp.compute` → `V.Exp()` (instance method). Drops the closed-form `cos(c)+(sin(c)/c)·V` branch and also **fixes the previously-noted limitation** for V with both e0 and e12 components (V² no longer needs to be a pure scalar).
+    - `evalMVArith` `>>>` → `PGA.sw` (was `PGA.Mul(PGA.Mul(M,A), reverseOp(M))`).
+    - `evalMVArith` `sqrt(motor)` → `M.Log()` → halve → `.Exp()`. The old code called `PGA.Sqrt` which **doesn't exist on the static class**; the call was silently swallowed by `evaluate.js`'s try/catch, so `sqrt(M)` had been broken since it was written.
+    - `point2D`, `idealPoint`, `line2D` → use `PGA.Bivector`/`PGA.Vector` typed constructors.
+    - `finitNormSq` removed; `normalizeMVFinit`, `normalizeMVIdeal`, `normalizeMV` now call `PGA.Length` (and `PGA.Length(PGA.Dual(val))` for the ideal-norm path).
+
 ---

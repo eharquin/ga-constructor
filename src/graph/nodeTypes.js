@@ -91,38 +91,21 @@ export const NODE_TYPES = {
     },
   },
   // exp(V): motor exponential of a bivector expression V.
-  // V can be any MV expression: a named vector/point, a scaled form like t*V or a*P,
-  // a blade combination, etc. The exponent uses V as-is — pass `t*V` to scale.
-  //
-  // For V with V² = -c² (e.g. point with weight c, or any rotational generator):
-  //   exp(V) = cos(c) + (sin(c)/c) · V       — rotor (around the point, by angle 2c)
-  // For nilpotent V (V² = 0, e.g. ideal point / vector / pure e0):
-  //   exp(V) = 1 + V                          — pure translator
+  // Delegates to ganja's V.Exp() — handles nilpotent V (V² = 0 → 1 + V),
+  // rotational V (V² = -c² → cos(c) + (sin(c)/c)·V), and the mixed case
+  // (V with both e0 and e12 components) uniformly via the Taylor expansion.
   motorExp: {
     label: 'Motor',
     compute: (depValues, { exprStr, deps: paramDeps }) => {
       const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
       const raw = evalMVArith(exprStr, env);
       if (raw == null) return null;
-
-      // Promote { vx, vy } → ideal-point MV.
       const V = (typeof raw === 'object' && 'vx' in raw) ? idealPoint(raw.vx, raw.vy) : raw;
       if (typeof V === 'number') {
         const T = new PGA(8); T[0] = Math.exp(V); return T;
       }
       if (!V.length || V.length < 8) return null;
-
-      const c = V[6] || 0;
-      const T = new PGA(8);
-      if (Math.abs(c) < 1e-10) {
-        T[0] = 1;
-        for (let i = 1; i < 8; i++) T[i] = V[i] || 0;
-        return T;
-      }
-      const factor = Math.sin(c) / c;
-      T[0] = Math.cos(c);
-      for (let i = 1; i < 8; i++) T[i] = factor * (V[i] || 0);
-      return T;
+      return V.Exp();
     },
   },
 
@@ -136,33 +119,7 @@ export const NODE_TYPES = {
       const raw = geom ? resolveInlineGeom(geom, depValues) : depValues[1];
       const pgaP = raw && 'vx' in raw ? idealPoint(raw.vx, raw.vy) : raw;
       if (!pgaP) return null;
-      const w = pgaP[6];
-      // Non-point input (line, etc.) — use the generic sandwich.
-      if (Math.abs(w) < 1e-10) {
-        return PGA.Mul(PGA.Mul(T, pgaP), reverseOp(T));
-      }
-
-      const sin_s = T[6];
-      if (Math.abs(sin_s) < 1e-10) {
-        const result = new PGA(8);
-        result[4] = pgaP[4] - 2 * T[5];
-        result[5] = pgaP[5] + 2 * T[4];
-        result[6] = w;
-        return result;
-      }
-
-      const cos_s = T[0];
-      const px = T[5] / sin_s, py = -T[4] / sin_s;
-      const cos_2s = cos_s * cos_s - sin_s * sin_s;
-      const sin_2s = 2 * cos_s * sin_s;
-      const x = -pgaP[5] / w, y = pgaP[4] / w;
-      const xp = px + cos_2s * (x - px) + sin_2s * (y - py);
-      const yp = py - sin_2s * (x - px) + cos_2s * (y - py);
-      const result = new PGA(8);
-      result[4] = yp * w;
-      result[5] = -xp * w;
-      result[6] = w;
-      return result;
+      return PGA.sw(T, pgaP);
     },
   },
 

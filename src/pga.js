@@ -5,33 +5,14 @@ import Algebra from 'ganja.js';
 //                        [0] [1] [2] [3]  [4]  [5]  [6]   [7]
 export const PGA = Algebra(2, 0, 1);
 
-// Euclidean 2D point at (x, y).
-// Grade-2 bivector: y·e01 - x·e02 + w·e12
-export const point2D = (x, y) => {
-  const p = new PGA(8);
-  p[4] = y;   // e01
-  p[5] = -x;  // e02
-  p[6] = 1;   // e12 (weight)
-  return p;
-};
+// Euclidean 2D point at (x, y) as the grade-2 bivector  y·e01 − x·e02 + e12.
+export const point2D = (x, y) => PGA.Bivector(y, -x, 1);
 
-// 2D PGA line: a·e1 + b·e2 + c·e0  →  equation a·x + b·y + c = 0
-export const line2D = (a, b, c) => {
-  const L = new PGA(8);
-  L[1] = c;   // e0
-  L[2] = a;   // e1
-  L[3] = b;   // e2
-  return L;
-};
+// 2D PGA line a·e1 + b·e2 + c·e0  →  equation a·x + b·y + c = 0.
+export const line2D = (a, b, c) => PGA.Vector(c, a, b);
 
-// Ideal point (point at infinity) — represents a direction (vx, vy). Weight = 0.
-export const idealPoint = (vx, vy) => {
-  const p = new PGA(8);
-  p[4] = vy;   // e01
-  p[5] = -vx;  // e02
-  // p[6] = 0  (e12, weight = 0 → ideal)
-  return p;
-};
+// Ideal point (point at infinity) — direction (vx, vy), weight 0.
+export const idealPoint = (vx, vy) => PGA.Bivector(vy, -vx, 0);
 
 // 2D PGA dual — right-complement convention (A ∧ Dual(A) = +I).
 // Delegates to ganja's PGA.Dual so we share the same sign conventions as
@@ -53,19 +34,11 @@ export const toEuclidean = (p) => {
   return { x: -p[5] / w, y: p[4] / w };
 };
 
-// Reverse (reversion) of a multivector: grade-k blades get sign (-1)^(k(k-1)/2).
-// In PGA(2,0,1): grade 0,1 → unchanged; grade 2,3 → negated.
+// Reverse (reversion) — grade-k blades get sign (-1)^(k(k-1)/2).
+// Delegates to ganja's PGA.Reverse so we share the same conventions.
 export const reverseOp = (mv) => {
-  const result = new PGA(8);
-  result[0] =  mv[0];   // scalar   (grade 0) +
-  result[1] =  mv[1];   // e0       (grade 1) +
-  result[2] =  mv[2];   // e1       (grade 1) +
-  result[3] =  mv[3];   // e2       (grade 1) +
-  result[4] = -mv[4];   // e01      (grade 2) −
-  result[5] = -mv[5];   // e02      (grade 2) −
-  result[6] = -mv[6];   // e12      (grade 2) −
-  result[7] = -mv[7];   // e012     (grade 3) −
-  return result;
+  if (!mv || typeof mv.length !== 'number' || mv.length < 8) return mv;
+  return PGA.Reverse(mv);
 };
 
 // Extract raw (unnormalised) vector (vx,vy) from a grade-2 ideal point (w≈0).
@@ -79,10 +52,7 @@ export const toIdealVector = (p) => {
   return { vx, vy };
 };
 
-// Finite norm² in PGA(2,0,1): scalar_part(A · Ã).
-// Equivalent to testing A·e0 = 0: the product v*e0 is non-zero only when
-// indices 0 (scalar), 2 (e1), 3 (e2), or 6 (e12) are non-zero.
-const finitNormSq = (v) => v[0] ** 2 + v[2] ** 2 + v[3] ** 2 + v[6] ** 2;
+// Finite norm in PGA(2,0,1): √(scalar_part(A · Ã)) — delegates to ganja's PGA.Length.
 
 // Classify a raw 8-element PGA multivector by its grade structure.
 // Returns { kind } or null for invalid input.
@@ -142,7 +112,7 @@ export const classifyMV = (val) => {
 // same Euclidean point; the convention picks the positive-weight representative.)
 export const normalizeMVFinit = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-  const norm = Math.sqrt(finitNormSq(val));
+  const norm = PGA.Length(val);
   if (norm < 1e-10) return val;
   const eps = 1e-10;
   const g0 = Math.abs(val[0]) > eps;
@@ -165,7 +135,7 @@ export const normalizeMVFinit = (val) => {
 // L and −L represent the same line; this picks the canonical e0 = +1 form.
 export const normalizeMVIdeal = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-  const norm = Math.sqrt(finitNormSq(dualOp(val)));
+  const norm = PGA.Length(PGA.Dual(val));
   if (norm < 1e-10) return val;
   const eps = 1e-10;
   const g0 = Math.abs(val[0]) > eps;
@@ -181,9 +151,8 @@ export const normalizeMVIdeal = (val) => {
 // General norm: finite norm when non-zero, ideal norm otherwise.
 export const normalizeMV = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-  let normSq = finitNormSq(val);
-  if (normSq < 1e-20) normSq = finitNormSq(dualOp(val));
-  const norm = Math.sqrt(normSq);
+  let norm = PGA.Length(val);
+  if (norm < 1e-10) norm = PGA.Length(PGA.Dual(val));
   if (norm < 1e-10) return val;
   const result = new PGA(8);
   for (let i = 0; i < 8; i++) result[i] = val[i] / norm;

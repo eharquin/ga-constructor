@@ -289,7 +289,7 @@ function applyOp(left, op, right) {
   if (op === '>>>') {
     const M = toMV(left), A = toMV(right);
     if (!M || !A) return null;
-    return PGA.Mul(PGA.Mul(M, A), reverseOp(M));
+    return PGA.sw(M, A);
   }
   return null;
 }
@@ -393,10 +393,14 @@ export function evalMVArith(str, env) {
           if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
             const r = new PGA(8); r[0] = Math.sqrt(mv[0]); return r;
           }
-          // Motor (even-grade): PGA.Sqrt for the geometric square root.
+          // Motor (even-grade): geometric square root via Log() / 2 then Exp().
+          // PGA.Sqrt doesn't exist in ganja — Log/half/Exp is the standard route.
           // Normalise sign first: M and -M represent the same motor (double cover).
           const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
-          return PGA.Sqrt(normalised);
+          const log = normalised.Log();
+          const half = new PGA(8);
+          for (let i = 0; i < 8; i++) half[i] = (log[i] || 0) * 0.5;
+          return half.Exp();
         }
         return null;
       }
