@@ -215,6 +215,29 @@ function SvgIdealLine({ label, color, W, H, opts }) {
   );
 }
 
+// Ideal-point marker on the line-at-infinity ellipse. The point at infinity in
+// direction (vx, vy) sits where that direction meets the ellipse boundary.
+const idealPointEllipsePos = (vx, vy, W, H) => {
+  const cx = W / 2, cy = H / 2;
+  const rx = Math.max(8, W / 2 - 6);
+  const ry = Math.max(8, H / 2 - 6);
+  const angle = Math.atan2(vy, vx);
+  return { x: cx + rx * Math.cos(angle), y: cy - ry * Math.sin(angle) };
+};
+function SvgIdealPointMarker({ vx, vy, color, W, H, hovered }) {
+  const { x, y } = idealPointEllipsePos(vx, vy, W, H);
+  const r = hovered ? 6 : 4;
+  return (
+    <g pointerEvents="none">
+      {hovered && <circle cx={x} cy={y} r={r + 4} fill={color + '28'} />}
+      <circle cx={x} cy={y} r={r}
+        fill={color}
+        style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
+        strokeWidth={1.5} />
+    </g>
+  );
+}
+
 function SvgLine({ L, label, color, vp, W, H, opts }) {
   const bd = lineBaseAndDir(L);
   if (!bd) return null;
@@ -518,12 +541,16 @@ export default function Canvas() {
       continue;
     }
 
-    // {vx, vy} ideal vector → back layer
+    // {vx, vy} ideal vector → back layer (arrow + marker on the line-at-infinity ellipse)
     if (typeof val === 'object' && 'vx' in val) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
       backLayer.push(
         <SvgVector key={id} vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
           label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} opts={opts} />
+      );
+      backLayer.push(
+        <SvgIdealPointMarker key={`${id}-inf`} vx={val.vx} vy={val.vy}
+          color={color} W={size.w} H={size.h} hovered={hovered} />
       );
       continue;
     }
@@ -543,6 +570,7 @@ export default function Canvas() {
         if (!iv) break;
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={pos.x} py={pos.y} label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} tipDraggable={false} opts={opts} />);
+        backLayer.push(<SvgIdealPointMarker key={`${id}-inf`} vx={iv.vx} vy={iv.vy} color={color} W={size.w} H={size.h} hovered={hovered} />);
         break;
       }
       case 'line':
