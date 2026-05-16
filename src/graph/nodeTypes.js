@@ -101,20 +101,14 @@ export const NODE_TYPES = {
       const s = evalExpr(scalarExpr, scalars);
       if (isNaN(s)) return null;
 
-      // { vx, vy } → translator
-      if ('vx' in geomVal) {
-        const T = new PGA(8);
-        T[0] = 1;
-        T[4] = -geomVal.vx * s;
-        T[5] = -geomVal.vy * s;
-        return T;
-      }
+      // Promote { vx, vy } vectors to their ideal-point MV form.
+      const V = ('vx' in geomVal) ? idealPoint(geomVal.vx, geomVal.vy) : geomVal;
 
-      // Grade-2 point (e12 ≠ 0) → rotation around that point
-      if (Math.abs(geomVal[6]) > 1e-10) {
-        const w  = geomVal[6];
-        const px = -geomVal[5] / w;
-        const py =  geomVal[4] / w;
+      // Grade-2 point (e12 ≠ 0) → rotation around that point (proper trig motor)
+      if (Math.abs(V[6] || 0) > 1e-10) {
+        const w  = V[6];
+        const px = -V[5] / w;
+        const py =  V[4] / w;
         const M  = new PGA(8);
         M[0] =  Math.cos(s);
         M[4] = -py * Math.sin(s);
@@ -123,23 +117,12 @@ export const NODE_TYPES = {
         return M;
       }
 
-      // Ideal point (e12 = 0, pure e01/e02) → translator.
-      // PGA.Exp gives NaN here (nilpotent); use 1 + Ls directly.
-      // idealPoint(vx,vy) stores: p[4]=vy, p[5]=-vx
-      if (Math.abs(geomVal[4] || 0) > 1e-10 || Math.abs(geomVal[5] || 0) > 1e-10) {
-        const vx = -(geomVal[5] || 0);
-        const vy =  geomVal[4] || 0;
-        const T  = new PGA(8);
-        T[0] = 1;
-        T[4] = -vx * s;
-        T[5] = -vy * s;
-        return T;
-      }
-
-      // General PGA bivector — motor via PGA.Exp
-      const Ls = new PGA(8);
-      for (let i = 0; i < 8; i++) Ls[i] = (geomVal[i] || 0) * s;
-      return PGA.Exp(Ls);
+      // Nilpotent V (V² = 0) → exp(s·V) = 1 + s·V exactly.
+      // Covers ideal points (e01/e02 only), pure e0, and the zero case.
+      const T = new PGA(8);
+      T[0] = 1;
+      for (let i = 1; i < 8; i++) T[i] = (V[i] || 0) * s;
+      return T;
     },
   },
 

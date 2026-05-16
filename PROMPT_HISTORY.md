@@ -66,4 +66,8 @@ A chronological log of all prompts given to Claude in this project.
 46. **Launch script** — Added `launch.sh`: runs `npm install` if `node_modules/` missing, starts `npm run dev` in the background, tails its log until a URL appears, prints `➜ Local: <url>`, then `wait`s on the server. Cleans up on Ctrl-C.
 47. **`T >>> L` for lines** — `motorApply.compute` in `src/graph/nodeTypes.js` was hardcoded for finite points (returned `null` when the input had no e12 weight). Added a fallback: when the input lacks e12 weight (line, ideal point, …), evaluate the generic sandwich `PGA.Mul(PGA.Mul(T, G), reverseOp(T))`. Points keep the optimized 2D path.
 
+## 2026-05-16
+
+48. **`exp(V, t)` returns literal `1 + t·V`** — Collapsed `motorExp.compute` to two branches: (a) grade-2 with e12 ≠ 0 → proper trig motor `cos(s) + sin(s)·V` (rotation around a point); (b) everything else → nilpotent path returning `1 + s·V` exactly (V² = 0 in PGA(2,0,1) for pure-ideal bivectors, so the Taylor series terminates). Vectors `{vx, vy}` are promoted via `idealPoint(vx, vy)` before the branch, so the sign-flip (`-vx·s, -vy·s`) and the implicit `2×` factor are both gone. Geometric consequence: `T = exp(V, t)` translates points *perpendicular* to V by `2t·|V|` rather than *along* V — clean algebra, different geometry. Showcase still works; the trajectory just goes the other direction.
+
 ---
