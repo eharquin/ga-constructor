@@ -3,8 +3,6 @@ import { parseExpression } from './graph/parseExpression.js';
 import { evaluate } from './graph/evaluate.js';
 import { toEuclidean, classifyMV } from './pga.js';
 
-const TRAIL_MAX_POINTS = 5000;
-
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
 
@@ -36,7 +34,7 @@ const TYPE_COLOR_FALLBACK = {
 };
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, trace: false, normalizeMode: null, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null, ...extra,
 });
 
 const INITIAL_ITEMS = [
@@ -54,9 +52,9 @@ const INITIAL_ITEMS = [
   ITEM('expr_4', 'T = exp(t*V)'),
   ITEM('expr_5', 'R = exp(a*e12)'),
 
-  // Composed motor + transformed point (trajectory on)
+  // Composed motor + transformed point
   ITEM('expr_6', 'M = R * T'),
-  ITEM('expr_7', 'Q = M >>> P', { trace: true }),
+  ITEM('expr_7', 'Q = M >>> P'),
 ];
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
@@ -73,7 +71,7 @@ function pickPointName(usedIds) {
 function reducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, trace: false, normalizeMode: null }];
+      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
     case 'SET_TEXT':
       return items.map((it) =>
         it.id === action.id ? { ...it, text: action.text } : it
@@ -106,17 +104,13 @@ function reducer(items, action) {
       return items.map((it) =>
         it.id === action.id ? { ...it, movable: action.movable } : it
       );
-    case 'SET_TRACE':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, trace: action.trace } : it
-      );
     case 'SET_NORMALIZE_MODE':
       return items.map((it) =>
         it.id === action.id ? { ...it, normalizeMode: action.mode } : it
       );
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, trace: false, normalizeMode: null };
+      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null };
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -273,67 +267,6 @@ export function useGraph() {
     try { return evaluate(nodes, normalizeMap); }
     catch { return {}; }
   }, [nodes, normalizeMap]);
-
-  // Trails: per-node arrays of positions accumulated during animation playback.
-  const [trails, setTrails] = useState({});
-
-  // Append the current position of each traced item to its trail whenever
-  // values change while at least one scalar animation is playing.
-  useEffect(() => {
-    if (playingIds.size === 0) return;
-    setTrails((prev) => {
-      let next = prev;
-      let mutated = false;
-      const ensureCopy = () => { if (!mutated) { next = { ...prev }; mutated = true; } };
-      for (const item of items) {
-        if (!item.trace) continue;
-        const n = parseExpression(item.text);
-        if (!n) continue;
-        const val = values[n.id];
-        if (!val) continue;
-        let pos = null;
-        if (typeof val === 'object' && 'vx' in val) pos = { x: val.vx, y: val.vy };
-        else { const eu = toEuclidean(val); if (eu) pos = eu; }
-        if (!pos) continue;
-        const arr = next[n.id] ?? [];
-        const last = arr[arr.length - 1];
-        if (last && Math.abs(last.x - pos.x) < 1e-6 && Math.abs(last.y - pos.y) < 1e-6) continue;
-        ensureCopy();
-        next[n.id] = arr.length < TRAIL_MAX_POINTS ? [...arr, pos] : [...arr.slice(1), pos];
-      }
-      return next;
-    });
-  }, [values, playingIds, items]);
-
-  const trajectoriesMap = useMemo(() => {
-    const map = {};
-    for (const item of items) {
-      if (!item.trace) continue;
-      const n = parseExpression(item.text);
-      if (!n) continue;
-      const trail = trails[n.id];
-      if (!trail || trail.length < 2) continue;
-      map[n.id] = [{ scalarId: null, points: trail }];
-    }
-    return map;
-  }, [items, trails]);
-
-  // Toggle trace; starting a fresh trace clears the existing trail.
-  const setItemTrace = (id, trace) => {
-    dispatch({ type: 'SET_TRACE', id, trace });
-    if (trace) {
-      const item = items.find((i) => i.id === id);
-      const n = item && parseExpression(item.text);
-      if (n) {
-        setTrails((prev) => {
-          if (!prev[n.id]) return prev;
-          const next = { ...prev };
-          delete next[n.id];
-          return next;
-        });
-      }
-    }
-  };
 
   // labelMap: nodeId → resolved label string (or null when disabled).
   // {varname} in the label text is substituted with the current scalar value of varname.
@@ -655,11 +588,9 @@ export function useGraph() {
     labelOptsMap,
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemMovable:    (id, movable)    => dispatch({ type: 'SET_MOVABLE',    id, movable }),
-    setItemTrace,
     setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,
     movableMap,
-    trajectoriesMap,
     reorderItem,
     insertItemAfter,
     deleteItem,

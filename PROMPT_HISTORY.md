@@ -79,4 +79,6 @@ A chronological log of all prompts given to Claude in this project.
     
     Known limitations left as-is: (a) `exp(V)` with V having both e0 and e12 components uses the cos+(sin/c)·V form, exact only when V² is a pure scalar; (b) `M >>> [P1, P2, ...]` doesn't transform polygons as a unit; (c) operator precedence is flat (single parseTerm level) — `A * B ^ C` is `(A*B) ^ C` not the GA-conventional `A * (B ^ C)`.
 
+53. **Removed trail/trajectory feature** — Stripped the `∿` trace toggle, `trace` per-item flag, `SET_TRACE` reducer case, `setItemTrace` API, `trails` state, trail-accumulation useEffect, `trajectoriesMap` memo, `SvgTrajectory` component (Canvas.jsx), trace-toggle wiring in ExpressionPanel.jsx, `.trace-toggle*` CSS rules, `TRAIL_MAX_POINTS` constant, and `{ trace: true }` on the showcase Q item. Also updated CLAUDE.md to drop the trace/trajectory sections.
+
 ---

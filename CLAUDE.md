@@ -27,13 +27,10 @@ Value-based type system: panel colors and canvas rendering driven by `classifyMV
 
 **Per-item interactivity controls** (top of each row, next to the visibility checkbox):
 - 🔓/🔒 lock toggle — disables drag without hiding the object (drag-eligible items only)
-- ∿ trace toggle — accumulates a trail of 2D positions as animations play, drawn as a dashed polyline behind the object
 
 **Dark theme** — CSS custom properties at `:root` (light) and `[data-theme="dark"]` in `index.css`. Toggle button in app header writes to `localStorage` and adds a transient `theme-fade` class to `<html>` so the swap cross-fades over 300ms. SVG colors (grid, axis, labels, point strokes, canvas background) use `style={{ fill: 'var(--…)' }}` so they retheme too.
 
-**Trajectory trails** (`useGraph.js`) — `trails` state, `[nodeId] → [{x,y}, …]`. A `useEffect` watching `values + playingIds + items` appends the current position of each traced item whenever values change while at least one scalar animation is playing. `setItemTrace(id, true)` clears the existing trail to start fresh. Cap: `TRAIL_MAX_POINTS = 5000` (FIFO). `trajectoriesMap` re-shapes trails into the same `[{scalarId, points}]` form Canvas consumes.
-
-**Base showcase** — 8-item example demonstrating motor composition + trajectory: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(V,t)`, rotor `R = exp(e12,a)`, composed motor `M = R*T`, transformed point `Q = M >>> P` (trace on by default).
+**Base showcase** — 8-item motor-composition example: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(t*V)`, rotor `R = exp(a*e12)`, composed motor `M = R*T`, transformed point `Q = M >>> P`.
 
 Expression Reference in help modal covers all features.
 
