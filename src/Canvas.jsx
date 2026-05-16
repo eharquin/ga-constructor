@@ -521,6 +521,13 @@ export default function Canvas() {
   const backLayer = [];
   const frontLayer = [];
 
+  // Ideal-point markers on the line-at-infinity ellipse are only drawn when
+  // some visible node *is* the ideal line — otherwise the ellipse isn't on
+  // screen, so a marker on it would have no anchor.
+  const hasIdealLine = orderedNodeIds.some((id) =>
+    !hiddenIds.has(id) && classifyMV(values[id])?.kind === 'idealLine'
+  );
+
   for (const id of orderedNodeIds) {
     const node = nodes[id];
     if (!node) continue;
@@ -541,17 +548,19 @@ export default function Canvas() {
       continue;
     }
 
-    // {vx, vy} ideal vector → back layer (arrow + marker on the line-at-infinity ellipse)
+    // {vx, vy} ideal vector → back layer (arrow + optional marker on the ideal-line ellipse)
     if (typeof val === 'object' && 'vx' in val) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
       backLayer.push(
         <SvgVector key={id} vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
           label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} opts={opts} />
       );
-      backLayer.push(
-        <SvgIdealPointMarker key={`${id}-inf`} vx={val.vx} vy={val.vy}
-          color={color} W={size.w} H={size.h} hovered={hovered} />
-      );
+      if (hasIdealLine) {
+        backLayer.push(
+          <SvgIdealPointMarker key={`${id}-inf`} vx={val.vx} vy={val.vy}
+            color={color} W={size.w} H={size.h} hovered={hovered} />
+        );
+      }
       continue;
     }
 
@@ -570,7 +579,9 @@ export default function Canvas() {
         if (!iv) break;
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={pos.x} py={pos.y} label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} tipDraggable={false} opts={opts} />);
-        backLayer.push(<SvgIdealPointMarker key={`${id}-inf`} vx={iv.vx} vy={iv.vy} color={color} W={size.w} H={size.h} hovered={hovered} />);
+        if (hasIdealLine) {
+          backLayer.push(<SvgIdealPointMarker key={`${id}-inf`} vx={iv.vx} vy={iv.vy} color={color} W={size.w} H={size.h} hovered={hovered} />);
+        }
         break;
       }
       case 'line':
