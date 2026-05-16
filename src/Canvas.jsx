@@ -89,6 +89,15 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
           return { id, dragType: 'litMVPoint' };
       }
     }
+    // Value-driven: any node whose value is an idealPoint allows tail dragging
+    // (purely visual position via vectorPositions). Covers `D = !L`, derived
+    // ideal points from motors, etc.
+    if (node.type !== 'vector' && classifyMV(values[id])?.kind === 'idealPoint') {
+      const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+      const tail = w2c(pos.x, pos.y, vp);
+      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'vector' };
+    }
   }
   return null;
 }
@@ -515,7 +524,8 @@ export default function Canvas() {
       case 'idealPoint': {
         const iv = toIdealVector(val);
         if (!iv) break;
-        backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={0} py={0} label={label} color={color} vp={vp} hovered={hovered} linked={false} tipDraggable={false} opts={opts} />);
+        const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
+        backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={pos.x} py={pos.y} label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} tipDraggable={false} opts={opts} />);
         break;
       }
       case 'line':

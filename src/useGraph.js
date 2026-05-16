@@ -316,13 +316,18 @@ export function useGraph() {
     return map;
   }, [items, values]);
 
-  // vectorPositions: nodeId → { x, y, linked } draw position for vector nodes.
+  // vectorPositions: nodeId → { x, y, linked } draw position.
+  // Applies to vector nodes and to any node whose value classifies as idealPoint
+  // (so dual/derived ideal points get a movable tail too, just like raw vectors).
   // drawPos can be { x, y } (static) or { ref: nodeId } (follows a point).
   const vectorPositions = useMemo(() => {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
-      if (!node || node.type !== 'vector') continue;
+      if (!node) continue;
+      const isVec = node.type === 'vector';
+      const isIdeal = !isVec && classifyMV(values[node.id])?.kind === 'idealPoint';
+      if (!isVec && !isIdeal) continue;
       const dp = item.drawPos;
       if (dp?.ref) {
         const eu = toEuclidean(values[dp.ref]);
