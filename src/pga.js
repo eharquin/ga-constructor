@@ -33,20 +33,15 @@ export const idealPoint = (vx, vy) => {
   return p;
 };
 
-// 2D PGA dual (complement w.r.t. e012 pseudoscalar).
-// grade-1 ↔ grade-2 :  e0↔e12,  e1↔e02,  e2↔e01
-// grade-0 ↔ grade-3 :  1↔e012
+// 2D PGA dual — right-complement convention (A ∧ Dual(A) = +I).
+// Delegates to ganja's PGA.Dual so we share the same sign conventions as
+// any other ganja-based computation.
+//   e0 → +e12,  e1 → -e02,  e2 → +e01,
+//   e01 → +e2,  e02 → -e1,  e12 → +e0,
+//   1 ↔ e012
 export const dualOp = (mv) => {
-  const result = new PGA(8);
-  result[6] = mv[1];   // e0   → e12
-  result[5] = mv[2];   // e1   → e02
-  result[4] = mv[3];   // e2   → e01
-  result[1] = mv[6];   // e12  → e0
-  result[2] = mv[5];   // e02  → e1
-  result[3] = mv[4];   // e01  → e2
-  result[0] = mv[7];   // e012 → scalar
-  result[7] = mv[0];   // scalar → e012
-  return result;
+  if (!mv || typeof mv.length !== 'number' || mv.length < 8) return mv;
+  return PGA.Dual(mv);
 };
 
 // Extract Euclidean (x,y) from a grade-2 PGA(2,0,1) point. Returns null for ideal points.
