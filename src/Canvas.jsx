@@ -46,7 +46,8 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
   for (const [id, node] of Object.entries(nodes)) {
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint') continue;
+    const valKind = classifyMV(values[id])?.kind;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
     if (node.type === 'freePoint') {
       const eu = toEuclidean(values[id]);
       if (!eu) continue;
@@ -91,8 +92,8 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     }
     // Value-driven: any node whose value is an idealPoint allows tail dragging
     // (purely visual position via vectorPositions). Covers `D = !L`, derived
-    // ideal points from motors, etc.
-    if (node.type !== 'vector' && classifyMV(values[id])?.kind === 'idealPoint') {
+    // ideal points from motors, anonymous `!L`, etc.
+    if (node.type !== 'vector' && valKind === 'idealPoint') {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
       const tail = w2c(pos.x, pos.y, vp);
       if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
