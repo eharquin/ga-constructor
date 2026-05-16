@@ -229,6 +229,9 @@ export const NODE_TYPES = {
 
   // Multivector: build a PGA element from a base component array plus optional variable coefficients.
   // params.coeffExprs: { [idx]: exprString } — evaluated using deps as scalar environment.
+  // If a coefficient is a single var (optionally negated) that resolves to a non-scalar value
+  // (vector or MV), the term is interpreted as the algebraic product `dep × blade` instead of
+  // a scalar coefficient — so `V * e12` returns the orthogonal vector, not garbage in slot 6.
   multivector: {
     label: 'Multivector',
     compute: (depValues, { components, dual, deps: paramDeps, coeffExprs }) => {
@@ -236,8 +239,19 @@ export const NODE_TYPES = {
       for (let i = 0; i < 8; i++) mv[i] = components[i] || 0;
       if (paramDeps?.length && coeffExprs) {
         const scalars = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
-        for (const [idx, expr] of Object.entries(coeffExprs)) {
-          mv[+idx] = evalExpr(expr, scalars);
+        for (const [idxStr, expr] of Object.entries(coeffExprs)) {
+          const idx = +idxStr;
+          const varRef = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
+          const depVal = varRef ? scalars[varRef[2]] : null;
+          if (depVal != null && typeof depVal !== 'number') {
+            const sign = varRef[1] === '-' ? -1 : 1;
+            const left = ('vx' in depVal) ? idealPoint(depVal.vx, depVal.vy) : depVal;
+            const blade = new PGA(8); blade[idx] = sign;
+            const prod = PGA.Mul(left, blade);
+            for (let i = 0; i < 8; i++) mv[i] = (mv[i] || 0) + (prod[i] || 0);
+          } else {
+            mv[idx] = evalExpr(expr, scalars);
+          }
         }
       }
       return dual ? dualOp(mv) : mv;

@@ -69,5 +69,6 @@ A chronological log of all prompts given to Claude in this project.
 ## 2026-05-16
 
 48. **`exp(V, t)` returns literal `1 + t·V`** — Collapsed `motorExp.compute` to two branches: (a) grade-2 with e12 ≠ 0 → proper trig motor `cos(s) + sin(s)·V` (rotation around a point); (b) everything else → nilpotent path returning `1 + s·V` exactly (V² = 0 in PGA(2,0,1) for pure-ideal bivectors, so the Taylor series terminates). Vectors `{vx, vy}` are promoted via `idealPoint(vx, vy)` before the branch, so the sign-flip (`-vx·s, -vy·s`) and the implicit `2×` factor are both gone. Geometric consequence: `T = exp(V, t)` translates points *perpendicular* to V by `2t·|V|` rather than *along* V — clean algebra, different geometry. Showcase still works; the trajectory just goes the other direction.
+49. **`V * e12` returns the orthogonal vector** — `parseMVExpr` matches `var * blade` and stores it as a *scalar* coefficient in `coeffExprs`, so `V * e12` with V a vector got `mv[6] = evalExpr('V', …) = NaN`. Patched `multivector.compute` to detect when a coefficient is a single var (optionally negated) that resolves to a non-scalar dep, and accumulate the true algebraic product `dep × blade` instead. Now `V*e12` returns `vx·e01 + vy·e02` (the perpendicular ideal point), and `x*e01 + 2*e02` with x a scalar still works through the original path.
 
 ---
