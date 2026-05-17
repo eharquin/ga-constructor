@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
+import { useSettings } from './SettingsContext.jsx';
 import './ExpressionPanel.css';
 
 const FALLBACK_COLOR = '#6c7086';
@@ -18,15 +19,19 @@ function resolveColor(item, values, algebra) {
   return cls ? (KIND_COLOR[cls.kind] ?? FALLBACK_COLOR) : (TYPE_COLOR_FALLBACK[node.type] ?? FALLBACK_COLOR);
 }
 
-function getDisplayValue(text, values, algebra) {
+function getDisplayValue(text, values, algebra, decimals = 4) {
   const node = algebra.parseExpression(text);
   if (!node) return null;
   const val = values[node.id];
   if (val == null) return null;
+  const d = decimals;
+  const dc = Math.max(0, Math.min(decimals, 2)); // tighter for coordinates
+  const fmtN = (n) => parseFloat(n.toFixed(d)).toString();
+  const fmtC = (n) => n.toFixed(dc);
 
-  if (typeof val === 'number') return val.toFixed ? val.toFixed(4).replace(/\.?0+$/, '') : String(val);
+  if (typeof val === 'number') return fmtN(val);
   if (val.list) return `Polygon (${val.points.length} pts)`;
-  if ('vx' in val) return `Vector (${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
+  if ('vx' in val) return `Vector (${fmtC(val.vx)}, ${fmtC(val.vy)})`;
 
   const cls = algebra.classifyMV(val);
   if (!cls) return '—';
@@ -34,14 +39,14 @@ function getDisplayValue(text, values, algebra) {
   const toE = algebra.toEuclidean;
   const toI = algebra.toIdealVector;
   switch (cls.kind) {
-    case 'scalar':      return val[0].toFixed(4).replace(/\.?0+$/, '');
-    case 'finitePoint': { const eu = toE?.(val); return eu ? `Point (${eu.x.toFixed(2)}, ${eu.y.toFixed(2)})` : '—'; }
-    case 'idealPoint':  { const iv = toI?.(val); return iv ? `Ideal point (${iv.vx.toFixed(2)}, ${iv.vy.toFixed(2)})` : '—'; }
-    case 'vector':      return `Vector (${(val[1] ?? 0).toFixed(2)}, ${(val[2] ?? 0).toFixed(2)})`;
-    case 'bivector':    return `Bivector (${(val[3] ?? val[val.length - 1]).toFixed(4).replace(/\.?0+$/, '')} e12)`;
+    case 'scalar':      return fmtN(val[0]);
+    case 'finitePoint': { const eu = toE?.(val); return eu ? `Point (${fmtC(eu.x)}, ${fmtC(eu.y)})` : '—'; }
+    case 'idealPoint':  { const iv = toI?.(val); return iv ? `Ideal point (${fmtC(iv.vx)}, ${fmtC(iv.vy)})` : '—'; }
+    case 'vector':      return `Vector (${fmtC(val[1] ?? 0)}, ${fmtC(val[2] ?? 0)})`;
+    case 'bivector':    return `Bivector (${fmtN(val[3] ?? val[val.length - 1])} e12)`;
     case 'line':        return 'Line';
     case 'idealLine':   return 'Ideal line';
-    case 'pseudoscalar':return `${val[7].toFixed(4).replace(/\.?0+$/, '')} e012`;
+    case 'pseudoscalar':return `${fmtN(val[7])} e012`;
     case 'rotor':       return 'Rotor';
     case 'translator':  return 'Translator';
     case 'motor':       return 'Motor';
@@ -52,10 +57,11 @@ function getDisplayValue(text, values, algebra) {
 
 // ── Multivector label ─────────────────────────────────────────────────────────
 
-function fmtCoeff(c) {
-  const r = Math.round(c * 1e4) / 1e4;
+function fmtCoeff(c, decimals = 4) {
+  const factor = Math.pow(10, decimals);
+  const r = Math.round(c * factor) / factor;
   if (Number.isInteger(r)) return String(r);
-  return r.toPrecision(4).replace(/\.?0+$/, '');
+  return r.toPrecision(decimals).replace(/\.?0+$/, '');
 }
 
 // Format a PGA value as a blade sum: "80e01 + 180e02 + e12", "3e0 - e1", etc.
@@ -63,7 +69,7 @@ function fmtCoeff(c) {
 // Compute the PGA norm used for unitization.
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
-function formatMV(val, algebra) {
+function formatMV(val, algebra, decimals = 4) {
   if (val == null || typeof val === 'number') return null;
   const bladeNames = algebra?.bladeNames;
   const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
@@ -97,11 +103,11 @@ function formatMV(val, algebra) {
     const absC  = Math.abs(c);
     let termStr;
     if (blade === '1') {
-      termStr = fmtCoeff(absC);
+      termStr = fmtCoeff(absC, decimals);
     } else if (Math.abs(absC - 1) < 1e-10) {
       termStr = blade;
     } else {
-      termStr = fmtCoeff(absC) + blade;
+      termStr = fmtCoeff(absC, decimals) + blade;
     }
     terms.push({ neg, termStr });
   }
@@ -171,6 +177,7 @@ function parseRef(str) {
 
 export default function ExpressionPanel() {
   const { algebra } = useAlgebra();
+  const { settings } = useSettings();
   const { parseExpression, classifyMV } = algebra;
   const {
     items, nodes, values, vectorPositions, playingIds,
@@ -281,8 +288,8 @@ export default function ExpressionPanel() {
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values, algebra);
-          const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra) : null;
-          const mvStr     = node ? formatMV(values[node.id], algebra) : null;
+          const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra, settings.decimals) : null;
+          const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense

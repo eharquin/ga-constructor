@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
+import { useSettings } from './SettingsContext.jsx';
 
 const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
 const HIT_RADIUS  = 12;
@@ -388,7 +389,7 @@ function renderLabel(label, cx, cy, opts) {
 // (sign of value) indicated by a small curved arrow at the centroid showing
 // the traversal direction (px,py) → (px+V) → (px+V+W) → (px+W) → (px,py).
 // (px, py) is the anchor — the origin corner of the parallelogram.
-function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts, px = 0, py = 0, hovered = false, linked = false }) {
+function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts, px = 0, py = 0, hovered = false, linked = false, showAnchor = true }) {
   const o  = w2c(px, py, vp);
   const p1 = w2c(px + v1.vx, py + v1.vy, vp);
   const p2 = w2c(px + v1.vx + v2.vx, py + v1.vy + v2.vy, vp);
@@ -421,13 +422,14 @@ function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts, px = 0, 
                stroke={color} strokeWidth={2} strokeLinejoin="round" />
       <path d={arc} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
       <polygon points={`${ex},${ey} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
-      {/* Anchor handle at the origin corner so the user can grab and drag */}
-      {!linked ? (
+      {/* Anchor handle at the origin corner so the user can grab and drag.
+          Hidden when `showAnchor` is off unless hovered. */}
+      {!linked ? ((showAnchor || hovered) && (
         <circle cx={o.cx} cy={o.cy} r={anchorR}
                 fill={color}
                 style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
                 strokeWidth={hovered ? 2 : 1.5} />
-      ) : hovered && (
+      )) : hovered && (
         <circle cx={o.cx} cy={o.cy} r={11}
                 fill="none" stroke={color + 'bb'}
                 strokeWidth={1.5} strokeDasharray="3 3" />
@@ -440,7 +442,7 @@ function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts, px = 0, 
 // VGA bivector fallback: literal `b*e12` or a wedge expression that isn't a
 // simple `V ^ W` of two vector deps. Fixed-radius loop centred at (px, py) —
 // only the sign of the value drives the curve direction.
-function SvgBivector({ value, label, color, vp, opts, px = 0, py = 0, hovered = false, linked = false }) {
+function SvgBivector({ value, label, color, vp, opts, px = 0, py = 0, hovered = false, linked = false, showAnchor = true }) {
   const { cx, cy } = w2c(px, py, vp);
   const r = 22;
   const dir = value >= 0 ? 1 : -1;
@@ -464,13 +466,14 @@ function SvgBivector({ value, label, color, vp, opts, px = 0, py = 0, hovered = 
     <g>
       <path d={d} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} strokeLinecap="round" />
       <polygon points={`${tipX},${tipY} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
-      {/* Anchor handle at the loop centre */}
-      {!linked ? (
+      {/* Anchor handle at the loop centre. Hidden when `showAnchor` is off
+          unless hovered. */}
+      {!linked ? ((showAnchor || hovered) && (
         <circle cx={cx} cy={cy} r={hovered ? 7 : 5}
                 fill={color}
                 style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
                 strokeWidth={hovered ? 2 : 1.5} />
-      ) : hovered && (
+      )) : hovered && (
         <circle cx={cx} cy={cy} r={11}
                 fill="none" stroke={color + 'bb'}
                 strokeWidth={1.5} strokeDasharray="3 3" />
@@ -534,6 +537,7 @@ export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const { algebra } = useAlgebra();
+  const { settings } = useSettings();
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
@@ -642,7 +646,9 @@ export default function Canvas() {
       if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
-        const nearby = findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, SNAP_RADIUS ** 2, algebra, id);
+        const nearby = settings.snapOnDrag
+          ? findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, SNAP_RADIUS ** 2, algebra, id)
+          : null;
         if (nearby) snap.current.setDrawPosRef(id, nearby.id, nearby.anchor);
         else        setDrawPos(id, rx, ry);
       }
@@ -704,7 +710,7 @@ export default function Canvas() {
     const label   = labelMap[id] ?? null;
     const opts    = labelOptsMap[id] ?? null;
     const hovered = id === hoveredId;
-    const weight  = objectWeight(val);
+    const weight  = settings.weightThickness ? objectWeight(val) : 1;
 
     // Scalar-valued nodes (triangle, meetChain) have no canvas presence.
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
@@ -764,7 +770,8 @@ export default function Canvas() {
               backLayer.push(
                 <SvgWedgeParallelogram key={id} v1={a} v2={b} value={plan.value}
                   label={label} color={color} vp={vp} opts={opts}
-                  px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked} />
+                  px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked}
+                  showAnchor={settings.alwaysShowAnchors} />
               );
               drewWedge = true;
             }
@@ -773,7 +780,8 @@ export default function Canvas() {
         if (!drewWedge) {
           backLayer.push(
             <SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts}
-              px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked} />
+              px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked}
+              showAnchor={settings.alwaysShowAnchors} />
           );
         }
         break;
@@ -802,7 +810,7 @@ export default function Canvas() {
         onDragStart={(e) => e.preventDefault()}
       >
         <rect width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
-        <SvgGrid vp={vp} W={size.w} H={size.h} />
+        {settings.showGrid && <SvgGrid vp={vp} W={size.w} H={size.h} />}
         {backLayer}
         {frontLayer}
       </svg>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { GraphProvider, useGraphContext } from './GraphContext.jsx';
 import { AlgebraProvider, useAlgebra } from './AlgebraContext.jsx';
+import { SettingsProvider, useSettings } from './SettingsContext.jsx';
 import ExpressionPanel from './ExpressionPanel.jsx';
 import Canvas from './Canvas.jsx';
 import './App.css';
@@ -106,6 +107,58 @@ function SavedGraphsControls() {
   );
 }
 
+function OptionsMenu() {
+  const { settings, setSetting } = useSettings();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const Toggle = ({ label, k }) => (
+    <label className="options-row">
+      <input type="checkbox" checked={!!settings[k]} onChange={(e) => setSetting(k, e.target.checked)} />
+      <span>{label}</span>
+    </label>
+  );
+
+  return (
+    <div className="options-wrapper" ref={ref}>
+      <button
+        className={`app-icon-btn${open ? ' active' : ''}`}
+        onClick={() => setOpen((o) => !o)}
+        title="Display options"
+      >⚙</button>
+      {open && (
+        <div className="options-popover" onClick={(e) => e.stopPropagation()}>
+          <div className="options-section-label">Display</div>
+          <Toggle label="Weight-scaled thickness"          k="weightThickness" />
+          <Toggle label="Show MV expression below input"   k="showMvExpression" />
+          <Toggle label="Show grid + axes"                 k="showGrid" />
+          <Toggle label="Snap to nearby anchors on drag"   k="snapOnDrag" />
+          <Toggle label="Always show anchor handles"       k="alwaysShowAnchors" />
+          <label className="options-row">
+            <span>Decimals</span>
+            <select
+              className="options-select"
+              value={settings.decimals}
+              onChange={(e) => setSetting('decimals', +e.target.value)}
+            >
+              <option value={2}>2</option>
+              <option value={4}>4</option>
+              <option value={6}>6</option>
+            </select>
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AlgebraSelect() {
   const { items } = useGraphContext();
   const { algebraId, setAlgebraId, ALGEBRAS } = useAlgebra();
@@ -166,6 +219,7 @@ function AppShell() {
         <AlgebraSelect />
         <span className="app-header-spacer" />
         <SavedGraphsControls />
+        <OptionsMenu />
         <button
           className="app-theme-toggle"
           onClick={toggleTheme}
@@ -193,10 +247,12 @@ function AppShell() {
 
 export default function App() {
   return (
-    <AlgebraProvider>
-      <GraphProvider>
-        <AppShell />
-      </GraphProvider>
-    </AlgebraProvider>
+    <SettingsProvider>
+      <AlgebraProvider>
+        <GraphProvider>
+          <AppShell />
+        </GraphProvider>
+      </AlgebraProvider>
+    </SettingsProvider>
   );
 }
