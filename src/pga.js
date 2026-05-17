@@ -5,48 +5,24 @@ import Algebra from 'ganja.js';
 //                        [0] [1] [2] [3]  [4]  [5]  [6]   [7]
 export const PGA = Algebra(2, 0, 1);
 
-// Euclidean 2D point at (x, y).
-// Grade-2 bivector: y·e01 - x·e02 + w·e12
-export const point2D = (x, y) => {
-  const p = new PGA(8);
-  p[4] = y;   // e01
-  p[5] = -x;  // e02
-  p[6] = 1;   // e12 (weight)
-  return p;
-};
+// Euclidean 2D point at (x, y) as the grade-2 bivector  y·e01 − x·e02 + e12.
+export const point2D = (x, y) => PGA.Bivector(y, -x, 1);
 
-// 2D PGA line: a·e1 + b·e2 + c·e0  →  equation a·x + b·y + c = 0
-export const line2D = (a, b, c) => {
-  const L = new PGA(8);
-  L[1] = c;   // e0
-  L[2] = a;   // e1
-  L[3] = b;   // e2
-  return L;
-};
+// 2D PGA line a·e1 + b·e2 + c·e0  →  equation a·x + b·y + c = 0.
+export const line2D = (a, b, c) => PGA.Vector(c, a, b);
 
-// Ideal point (point at infinity) — represents a direction (vx, vy). Weight = 0.
-export const idealPoint = (vx, vy) => {
-  const p = new PGA(8);
-  p[4] = vy;   // e01
-  p[5] = -vx;  // e02
-  // p[6] = 0  (e12, weight = 0 → ideal)
-  return p;
-};
+// Ideal point (point at infinity) — direction (vx, vy), weight 0.
+export const idealPoint = (vx, vy) => PGA.Bivector(vy, -vx, 0);
 
-// 2D PGA dual (complement w.r.t. e012 pseudoscalar).
-// grade-1 ↔ grade-2 :  e0↔e12,  e1↔e02,  e2↔e01
-// grade-0 ↔ grade-3 :  1↔e012
+// 2D PGA dual — right-complement convention (A ∧ Dual(A) = +I).
+// Delegates to ganja's PGA.Dual so we share the same sign conventions as
+// any other ganja-based computation.
+//   e0 → +e12,  e1 → -e02,  e2 → +e01,
+//   e01 → +e2,  e02 → -e1,  e12 → +e0,
+//   1 ↔ e012
 export const dualOp = (mv) => {
-  const result = new PGA(8);
-  result[6] = mv[1];   // e0   → e12
-  result[5] = mv[2];   // e1   → e02
-  result[4] = mv[3];   // e2   → e01
-  result[1] = mv[6];   // e12  → e0
-  result[2] = mv[5];   // e02  → e1
-  result[3] = mv[4];   // e01  → e2
-  result[0] = mv[7];   // e012 → scalar
-  result[7] = mv[0];   // scalar → e012
-  return result;
+  if (!mv || typeof mv.length !== 'number' || mv.length < 8) return mv;
+  return PGA.Dual(mv);
 };
 
 // Extract Euclidean (x,y) from a grade-2 PGA(2,0,1) point. Returns null for ideal points.
@@ -58,19 +34,11 @@ export const toEuclidean = (p) => {
   return { x: -p[5] / w, y: p[4] / w };
 };
 
-// Reverse (reversion) of a multivector: grade-k blades get sign (-1)^(k(k-1)/2).
-// In PGA(2,0,1): grade 0,1 → unchanged; grade 2,3 → negated.
+// Reverse (reversion) — grade-k blades get sign (-1)^(k(k-1)/2).
+// Delegates to ganja's PGA.Reverse so we share the same conventions.
 export const reverseOp = (mv) => {
-  const result = new PGA(8);
-  result[0] =  mv[0];   // scalar   (grade 0) +
-  result[1] =  mv[1];   // e0       (grade 1) +
-  result[2] =  mv[2];   // e1       (grade 1) +
-  result[3] =  mv[3];   // e2       (grade 1) +
-  result[4] = -mv[4];   // e01      (grade 2) −
-  result[5] = -mv[5];   // e02      (grade 2) −
-  result[6] = -mv[6];   // e12      (grade 2) −
-  result[7] = -mv[7];   // e012     (grade 3) −
-  return result;
+  if (!mv || typeof mv.length !== 'number' || mv.length < 8) return mv;
+  return PGA.Reverse(mv);
 };
 
 // Extract raw (unnormalised) vector (vx,vy) from a grade-2 ideal point (w≈0).
@@ -84,10 +52,7 @@ export const toIdealVector = (p) => {
   return { vx, vy };
 };
 
-// Finite norm² in PGA(2,0,1): scalar_part(A · Ã).
-// Equivalent to testing A·e0 = 0: the product v*e0 is non-zero only when
-// indices 0 (scalar), 2 (e1), 3 (e2), or 6 (e12) are non-zero.
-const finitNormSq = (v) => v[0] ** 2 + v[2] ** 2 + v[3] ** 2 + v[6] ** 2;
+// Finite norm in PGA(2,0,1): √(scalar_part(A · Ã)) — delegates to ganja's PGA.Length.
 
 // Classify a raw 8-element PGA multivector by its grade structure.
 // Returns { kind } or null for invalid input.
@@ -141,37 +106,86 @@ export const classifyMV = (val) => {
 // Normalize by the finite norm: ||A|| = sqrt(scalar_part(A · Ã)).
 // Works for finite objects (lines, finite points, motors…).
 // Returns val unchanged when the finite norm is zero (ideal objects).
+//
+// Sign canonicalization: for a finite point (pure grade-2 with e12 ≠ 0), flip
+// the overall sign so the weight e12 ends up positive. (P and −P represent the
+// same Euclidean point; the convention picks the positive-weight representative.)
 export const normalizeMVFinit = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-  const norm = Math.sqrt(finitNormSq(val));
+  const norm = PGA.Length(val);
   if (norm < 1e-10) return val;
+  const eps = 1e-10;
+  const g0 = Math.abs(val[0]) > eps;
+  const g1 = Math.abs(val[1]) > eps || Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
+  const g3 = Math.abs(val[7]) > eps;
+  const isFinitePoint = !g0 && !g1 && !g3 && Math.abs(val[6]) > eps;
+  const sign = (isFinitePoint && val[6] < 0) ? -1 : 1;
   const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  for (let i = 0; i < 8; i++) result[i] = (val[i] * sign) / norm;
   return result;
 };
 
 // Normalize by the ideal norm: ||A||∞ = ||dual(A)||.
-// Works for ideal objects (ideal points, ideal lines, pseudoscalar…).
-// Returns val unchanged when the ideal norm is zero (finite objects that have no ideal part).
+// Works for ideal objects (ideal points, ideal lines, pseudoscalar…) and finite
+// lines (where the ideal norm = |c|, the offset from origin).
+// Returns val unchanged when the ideal norm is zero (finite objects with no ideal part).
+//
+// Sign canonicalization: for a line (grade-1 with non-zero e0), flip the overall
+// sign so the offset coefficient e0 ends up positive (i.e. = 1 after normalization).
+// L and −L represent the same line; this picks the canonical e0 = +1 form.
 export const normalizeMVIdeal = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-  const norm = Math.sqrt(finitNormSq(dualOp(val)));
+  const norm = PGA.Length(PGA.Dual(val));
   if (norm < 1e-10) return val;
+  const eps = 1e-10;
+  const g0 = Math.abs(val[0]) > eps;
+  const g2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps || Math.abs(val[6]) > eps;
+  const g3 = Math.abs(val[7]) > eps;
+  const isLineLike = !g0 && !g2 && !g3 && Math.abs(val[1]) > eps;
+  const sign = (isLineLike && val[1] < 0) ? -1 : 1;
   const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
+  for (let i = 0; i < 8; i++) result[i] = (val[i] * sign) / norm;
   return result;
 };
 
 // General norm: finite norm when non-zero, ideal norm otherwise.
 export const normalizeMV = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return val;
-  let normSq = finitNormSq(val);
-  if (normSq < 1e-20) normSq = finitNormSq(dualOp(val));
-  const norm = Math.sqrt(normSq);
+  let norm = PGA.Length(val);
+  if (norm < 1e-10) norm = PGA.Length(PGA.Dual(val));
   if (norm < 1e-10) return val;
   const result = new PGA(8);
   for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
   return result;
+};
+
+// Weight of an object: the scalar factor relative to its "unit" representative.
+// Used to drive visual thickness — a point/line with weight w renders w× thicker.
+//
+//   Finite point  (e12 ≠ 0):  norm  = |e12|             — `5*e12`     → 5
+//   Ideal point   (e12 = 0):  inorm = √(e01² + e02²)    — `5*e01`     → 5
+//   Line thru origin (e0 = 0): norm  = √(e1² + e2²)      — `5*(e1+e2)` → 5√2
+//   Line w/ offset   (e0 ≠ 0): inorm = |c| via Dual      — `5*(e0+e1+e2)` → 5
+//   Ideal line   (only e0):   inorm = |c| via Dual      — `5*e0`      → 5
+//   Vector `{vx, vy}`:        Euclidean magnitude        — `vector(3,4)` → 5
+export const objectWeight = (val) => {
+  if (val == null) return 1;
+  if (typeof val === 'number') return Math.abs(val);
+  if (typeof val === 'object' && 'vx' in val)
+    return Math.sqrt(val.vx ** 2 + val.vy ** 2);
+  if (typeof val.length !== 'number' || val.length < 8) return 1;
+  const eps = 1e-10;
+  const hasE0   = Math.abs(val[1]) > eps;
+  const hasFin1 = Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
+  const isGrade1 = hasE0 || hasFin1;
+  const hasIdeal2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps;
+  const hasE12  = Math.abs(val[6]) > eps;
+  const isGrade2 = hasIdeal2 || hasE12;
+  if (isGrade1 && !isGrade2)
+    return hasE0 ? PGA.Length(PGA.Dual(val)) : PGA.Length(val);
+  if (isGrade2 && !isGrade1)
+    return hasE12 ? PGA.Length(val) : PGA.Length(PGA.Dual(val));
+  return PGA.Length(val) || 1;
 };
 
 // For a grade-1 line L: direction (ux,uy) and a canonical base point (bx,by).

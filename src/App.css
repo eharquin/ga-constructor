@@ -43,9 +43,11 @@
   color: var(--text-strong);
 }
 
+/* Pushes the trailing controls (save/open/theme) to the right edge */
+.app-header-spacer { flex: 1; }
+
 /* Theme toggle button — sits to the right in the header */
 .app-theme-toggle {
-  margin-left: auto;
   background: transparent;
   border: 1px solid var(--border-input);
   border-radius: 4px;
@@ -61,6 +63,173 @@
   color: var(--text);
   background: var(--bg-row-hover);
 }
+
+/* Save / Open icon buttons in the header */
+.app-icon-btn {
+  background: transparent;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 3px 7px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.app-icon-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--bg-row-hover);
+}
+.app-icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* Modal — generic backdrop + frame; reused by saved-graphs dialog */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-modal);
+  min-width: 320px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+.modal-close:hover { color: var(--text); }
+.modal-body {
+  padding: 12px 14px;
+  overflow: auto;
+}
+.modal-empty {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 12px;
+  padding: 14px 0;
+  text-align: center;
+}
+.modal-btn {
+  background: transparent;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.modal-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--bg-row-hover);
+}
+.modal-btn:disabled { opacity: 0.5; cursor: default; }
+.modal-btn-danger:hover:not(:disabled) {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.saved-graphs-modal { width: 380px; }
+.saved-graphs-list { list-style: none; margin: 0; padding: 0; }
+.saved-graphs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: monospace;
+  font-size: 13px;
+}
+.saved-graphs-row:last-child { border-bottom: none; }
+.saved-graphs-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+.saved-graphs-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Options menu (gear icon + popover) */
+.options-wrapper { position: relative; display: inline-block; }
+.app-icon-btn.active {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--bg-row-hover);
+}
+.options-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 500;
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-modal);
+  padding: 10px 12px;
+  min-width: 240px;
+  font-family: monospace;
+  font-size: 12px;
+}
+.options-section-label {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.options-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+}
+.options-row input[type="checkbox"] { cursor: pointer; }
+.options-row span { flex: 1; }
+.options-select {
+  background: transparent;
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+.options-select:hover { border-color: var(--border-strong); color: var(--text); }
 
 /* Main area: sidebar + canvas */
 .workspace {

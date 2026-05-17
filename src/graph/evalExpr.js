@@ -15,11 +15,15 @@ const MATH = {
 
 export const MATH_NAMES = new Set(Object.keys(MATH));
 
-// Extract non-math identifier names from an expression string.
-export function extractVarNames(expr) {
+// Extract non-math, non-blade identifier names from an expression string.
+// parseBladeName is algebra-specific — pass it in so blade tokens from any
+// algebra get filtered out of the dep list.
+export function extractVarNames(expr, parseBladeName) {
   const names = new Set();
   for (const [, name] of expr.matchAll(/\b([A-Za-z_]\w*)\b/g)) {
-    if (!MATH_NAMES.has(name)) names.add(name);
+    if (MATH_NAMES.has(name)) continue;
+    if (parseBladeName && parseBladeName(name)) continue;
+    names.add(name);
   }
   return [...names];
 }
@@ -27,9 +31,7 @@ export function extractVarNames(expr) {
 // Evaluate expr with the given scalar variable bindings.
 // Returns NaN on any error (unknown var, syntax error, division by zero, etc.).
 export function evalExpr(expr, scalars = {}) {
-  // Character-level safety: only allow chars needed for arithmetic
   if (!/^[\w\s+\-*/(). ,[\]]*$/.test(expr)) return NaN;
-
   const ctx = { ...MATH, ...scalars };
   try {
     // eslint-disable-next-line no-new-func
@@ -39,4 +41,17 @@ export function evalExpr(expr, scalars = {}) {
   } catch {
     return NaN;
   }
+}
+
+// Scalar-valued evaluator that also accepts `.blade` accessors (e.g. P.e01).
+// Routes through evalMVArith when the expression contains a property-access
+// pattern (which evalExpr can't resolve since deps may be MVs); otherwise
+// falls back to evalExpr to preserve math constants like PI/E.
+// evalMVArith is algebra-bound — pass it in.
+export function evalScalar(expr, scalars = {}, evalMVArith = null) {
+  if (evalMVArith && /\.[A-Za-z_]/.test(expr)) {
+    const result = evalMVArith(expr, scalars);
+    return typeof result === 'number' && isFinite(result) ? result : NaN;
+  }
+  return evalExpr(expr, scalars);
 }
