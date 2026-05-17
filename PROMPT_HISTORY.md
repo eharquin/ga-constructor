@@ -101,4 +101,24 @@ A chronological log of all prompts given to Claude in this project.
 
 58. **VGA(2,0,0) as a second algebra** — Cut `feat/vga-algebra` off `fix/feature-audit`. Refactored every PGA assumption out of the parser/evaluator/nodeTypes into per-algebra adapter modules under `src/algebras/<id>/index.js`. Graph modules (`parseExpression`, `evalMVArith`, `nodeTypes`, `evaluate`) became factory functions; each adapter binds them against its own spec (`Algebra` instance, `bladeIndex`, `parseBladeName`, `classifyMV`, `getRenderPlan`, `supportedNodeTypes`, `INITIAL_ITEMS`, `KIND_COLOR`). Added `src/AlgebraContext.jsx`; `GraphProvider` reads the active algebra from it and threads it through `useGraph(algebra)`. Header dropdown wired (confirm-then-reset). Saved graphs gain an `algebra` tag — loading a cross-algebra save prompts the user to auto-switch first. **New VGA renderers in `Canvas.jsx`:** `SvgBivector` (oriented loop at origin, radius ∝ √\|b\|) and `SvgRotor` (arc spanning 2·atan2(b, a) with angle label). VGA showcase: `V = 3*e1 + 2*e2`, `W = vector(-1, 2.5)`, `S = V|W`, `B = V^W`, `R = exp((a/2)*e12)`, `V_rot = R >>> V`. Full notes in `docs/recap_2026-05-17.md`.
 
+59. **Remove magnitude-driven thickness on VGA bivector** — `SvgBivector` was scaling the loop radius by `√|b|` and stroke width by `weight = objectWeight(val)`. Both removed. Loop now renders at fixed radius (22) and stroke (2); only the sign of `b` drives the curved-arrow direction. Magnitude is communicated by the panel label, not the canvas geometry.
+
+60. **URL request** — Reported `http://localhost:5173/` (Vite dev server).
+
+61. **Bivector V^W as oriented parallelogram** — When `B = <id> ^ <id>` and both deps resolve to vectors, `Canvas.jsx` now renders an `SvgWedgeParallelogram` (vertices at `0`, `V`, `V+W`, `W`) with a centroid arc indicating sign. Area scales directly with `|V^W|`. Detection is inline in the bivector render branch; literal `b*e12` or compound wedge expressions still fall back to `SvgBivector`.
+
+62. **Every vector tail draggable + ref to another vector's tip** — Derived vectors (`U = V + W` → mvExpr classified as `vector`) had no entry in `vectorPositions`, so dragging didn't work. Extended the memo: any value classifying as `vector`/`idealPoint`/`{vx,vy}` is eligible. Resolved `drawPos.ref` against another node's tip in a two-pass loop (so ref chains converge). Hit-test, `findVectorItem`, and `findNearbySnapTarget` extended to match these. Tip drag stays restricted to explicit `vector` nodes — derived vectors expose only a tail anchor.
+
+63. **Reorder bug in expression panel** — `REORDER` reducer case was dropped during the algebra-refactor rewrite of `useGraph.js`; the action dispatched but fell through to `default`. Restored.
+
+64. **Position anchor for bivectors + tail-or-tip refs** — Both `SvgBivector` and `SvgWedgeParallelogram` now take `(px, py)` and render the anchor (loop centre or origin corner) at that world position with a draggable grab-handle. `vectorPositions` includes bivector-valued nodes; `drawPos.ref` extended with `anchor: 'tail' | 'tip'` (default `'tip'` for back-compat). `findNearbySnapTarget` returns `{id, anchor}` — picks tail vs. tip by distance, ties go to tip. Panel position sub-row accepts `Name.tail`, `Name.tip`, or `(x, y)`. The system is symmetric across vectors and bivectors in both algebras.
+
+65. **Dual + reverse undefined for vectors** — `nodeTypes.js` `dual.compute` and `reverse.compute` bailed out when `val` lacked `.length` ≥ arraySize, so `!V` for a `{vx, vy}` vector always returned null. Fix: a beefed-up `toMV` helper that promotes scalar numbers and `{vx, vy}` to algebra MVs before applying `dualOp` / `reverseOp`. `!V` now works in both algebras (PGA: vector → perpendicular line; VGA: vector → 90° rotated vector, the standard `V*e12` polar dual). Ganja's `Algebra(...).Dual` already gives the right convention for each — no override needed.
+
+66. **Options menu** — Added `src/SettingsContext.jsx` (settings + localStorage persistence at `ga-settings`) and a `⚙` popover in the header next to the theme toggle. Settings: `weightThickness` (default **off** per user request), `showMvExpression` (default **on** per user request), `showGrid`, `snapOnDrag`, `alwaysShowAnchors`, `decimals` (2/4/6 dropdown). Canvas consumes weight/grid/snap/anchor-visibility; `ExpressionPanel` consumes the MV-line toggle and threads `decimals` through `getDisplayValue` and `formatMV`.
+
+67. **Git status recap** — Reported branch `feat/vga-algebra`, 27 commits ahead of `main`, clean working tree, no PR opened. Summarised file groups: saved graphs, algebra adapters, graph factories, VGA renderers, anchor system, dual bugfix, options menu, docs.
+
+68. **Backfill prompts 59–67** — Appended this section to `PROMPT_HISTORY.md` to cover the work that happened on `feat/vga-algebra` after the recap doc was written. Branch is now fully documented before opening the PR.
+
 ---
