@@ -29,16 +29,32 @@ function svgPt(e, svg) {
 
 // ─── Hit testing ─────────────────────────────────────────────────────────────
 
-function findNearbyPoint(mx, my, nodes, values, vp, sqRadius, algebra) {
+// Find a draggable snap target near (mx, my) that the current drag should
+// link to. Returns the node id of a finite point (PGA) OR the tip of any
+// vector-like value (PGA ideal point / VGA vector / mvExpr result). Excludes
+// the node currently being dragged so a vector can't ref itself.
+function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadius, algebra, excludeId) {
   const { classifyMV, toEuclidean } = algebra;
-  if (!toEuclidean) return null;
   for (const [id] of Object.entries(nodes)) {
-    const cls = classifyMV(values[id]);
-    if (cls?.kind !== 'finitePoint') continue;
-    const eu = toEuclidean(values[id]);
-    if (!eu) continue;
-    const { cx, cy } = w2c(eu.x, eu.y, vp);
-    if ((mx - cx) ** 2 + (my - cy) ** 2 <= sqRadius) return id;
+    if (id === excludeId) continue;
+    const val = values[id];
+    const cls = classifyMV(val);
+    if (cls?.kind === 'finitePoint' && toEuclidean) {
+      const eu = toEuclidean(val);
+      if (!eu) continue;
+      const { cx, cy } = w2c(eu.x, eu.y, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= sqRadius) return id;
+    } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
+               (val && typeof val === 'object' && 'vx' in val)) {
+      // Snap to the tip of any vector-like node.
+      const tail = vectorPositions[id] ?? { x: 0, y: 0 };
+      let vx, vy;
+      if (typeof val === 'object' && 'vx' in val) { vx = val.vx; vy = val.vy; }
+      else if (cls?.kind === 'vector')             { vx = val[1] || 0; vy = val[2] || 0; }
+      else                                          { vx = -(val[5] || 0); vy = (val[4] || 0); } // PGA ideal
+      const { cx, cy } = w2c(tail.x + vx, tail.y + vy, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= sqRadius) return id;
+    }
   }
   return null;
 }
@@ -95,10 +111,13 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
           return { id, dragType: 'litMVPoint' };
       }
     }
-    // Value-driven: any node whose value is an idealPoint allows tail dragging
-    // (purely visual position via vectorPositions). Covers `D = !L`, derived
-    // ideal points from motors, anonymous `!L`, etc.
-    if (node.type !== 'vector' && valKind === 'idealPoint') {
+    // Value-driven: any node whose value is vector-like (idealPoint, vector,
+    // or {vx,vy}) allows tail dragging via vectorPositions. Covers derived
+    // vectors like `U = V + W` (mvExpr) and PGA `D = !L`, etc.
+    const val_ = values[id];
+    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' ||
+                            (val_ && typeof val_ === 'object' && 'vx' in val_);
+    if (node.type !== 'vector' && isVectorLikeVal) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
       const tail = w2c(pos.x, pos.y, vp);
       if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
@@ -589,7 +608,7 @@ export default function Canvas() {
       if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
-        const nearby = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2, algebra);
+        const nearby = findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, SNAP_RADIUS ** 2, algebra, id);
         if (nearby) snap.current.setDrawPosRef(id, nearby);
         else        setDrawPos(id, rx, ry);
       }
@@ -667,10 +686,13 @@ export default function Canvas() {
         break;
       case 'positionedVector': {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
+        // Only `vector`-type nodes have an editable tip — derived vectors
+        // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
+        const tipDraggable = (plan.tipDraggable ?? true) && node.type === 'vector';
         backLayer.push(
           <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
             label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked}
-            tipDraggable={plan.tipDraggable ?? true} opts={opts} />
+            tipDraggable={tipDraggable} opts={opts} />
         );
         if (hasIdealLine && plan.ringMarker !== false) {
           backLayer.push(

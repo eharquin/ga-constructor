@@ -250,25 +250,74 @@ export function useGraph(algebra) {
   }, [items, values, parseExpression, classifyMV, KIND_COLOR, TYPE_COLOR_FALLBACK]);
 
   // vectorPositions: nodeId → { x, y, linked } draw position.
-  // Applies to vector nodes and to PGA idealPoint values (covers !L, dual-derived
-  // ideal points, etc.). VGA bivectors and rotors render at the origin and don't
-  // participate here.
+  // Any node whose value is vector-like gets a tail position:
+  //   - explicit `vector` nodes
+  //   - PGA idealPoint values (!L, dual-derived ideal points)
+  //   - any value that classifies as `vector` (VGA grade-1, or PGA mvExpr
+  //     results that come out vector-shaped via {vx,vy})
+  // `drawPos.ref` may resolve to a PGA finite point (tail pinned to that point)
+  // or another vector (tail pinned to that vector's tip).
   const vectorPositions = useMemo(() => {
+    // Pass 1: collect eligible nodes + static / finite-point-ref positions.
+    const eligible = [];
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
-      const isVec = node.type === 'vector';
-      const cls   = classifyMV(values[node.id]);
-      const isIdealPGA = !isVec && cls?.kind === 'idealPoint';
-      if (!isVec && !isIdealPGA) continue;
+      const val = values[node.id];
+      const cls = classifyMV(val);
+      const isVecNode = node.type === 'vector';
+      const isVecVal  = cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
+                        (val && typeof val === 'object' && 'vx' in val);
+      if (!isVecNode && !isVecVal) continue;
+      eligible.push({ id: node.id, item });
       const dp = item.drawPos;
-      if (dp?.ref && toEuclidean) {
-        const eu = toEuclidean(values[dp.ref]);
-        map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true };
+      if (dp?.ref) {
+        const refVal = values[dp.ref];
+        const refCls = classifyMV(refVal);
+        if (refCls?.kind === 'finitePoint' && toEuclidean) {
+          const eu = toEuclidean(refVal);
+          map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true, refId: dp.ref };
+          continue;
+        }
+        // Defer vector-tip refs to pass 2.
+        map[node.id] = null;
       } else {
         map[node.id] = { ...(dp ?? { x: 0, y: 0 }), linked: false };
       }
+    }
+    // Pass 2: resolve vector-tip refs once pass-1 positions are available.
+    // Iterate up to N times so chained refs (A → B → C) converge.
+    const tipOf = (id) => {
+      const val = values[id];
+      const cls = classifyMV(val);
+      const tail = map[id] ?? { x: 0, y: 0 };
+      if (val && typeof val === 'object' && 'vx' in val) return { x: tail.x + val.vx, y: tail.y + val.vy };
+      if (cls?.kind === 'vector')      return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
+      if (cls?.kind === 'idealPoint') {
+        // PGA ideal point — use ideal direction
+        const vx = -(val[5] || 0), vy = (val[4] || 0);
+        return { x: tail.x + vx, y: tail.y + vy };
+      }
+      return null;
+    };
+    for (let pass = 0; pass < eligible.length; pass++) {
+      let progressed = false;
+      for (const { id, item } of eligible) {
+        if (map[id]) continue;
+        const dp = item.drawPos;
+        if (!dp?.ref) continue;
+        const tip = tipOf(dp.ref);
+        if (tip != null) {
+          map[id] = { x: tip.x, y: tip.y, linked: true, refId: dp.ref };
+          progressed = true;
+        }
+      }
+      if (!progressed) break;
+    }
+    // Any unresolved refs fall back to origin.
+    for (const { id } of eligible) {
+      if (!map[id]) map[id] = { x: 0, y: 0, linked: false };
     }
     return map;
   }, [items, values, parseExpression, classifyMV, toEuclidean]);
@@ -457,12 +506,18 @@ export function useGraph(algebra) {
     dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
   };
 
+  // Find the item whose node id has a tail position in vectorPositions.
+  // Covers explicit vector / meetPoint nodes plus any value classified as a
+  // vector or ideal point (e.g. mvExpr results like U = V + W).
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
       if (!n || n.id !== nodeId) return false;
       if (n.type === 'vector' || n.type === 'meetPoint') return true;
-      return classifyMV(values[n.id])?.kind === 'idealPoint';
+      const val = values[n.id];
+      const cls = classifyMV(val);
+      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector') return true;
+      return val && typeof val === 'object' && 'vx' in val;
     });
 
   const setDrawPos = (nodeId, x, y) => {
