@@ -19,9 +19,21 @@ export function createNodeTypes(algebra, evaluator) {
   const lineBaseAndDir = algebra.lineBaseAndDir ?? null;
   const { evalMVArith } = evaluator;
 
-  // Convert {vx,vy} to an algebra MV; pass-through otherwise.
+  // Promote any value to an algebra MV. Returns null for unconvertible inputs.
+  //   number   → grade-0 scalar MV with mv[0] = val
+  //   {vx,vy}  → algebra-specific vector promotion via geomToMV
+  //   MV array → pass through
+  //   anything else → null
   function toMV(val) {
-    return (val && typeof val === 'object' && 'vx' in val) ? geomToMV(val) : val;
+    if (val == null) return null;
+    if (typeof val === 'number') {
+      const mv = new Algebra(arraySize);
+      mv[0] = val;
+      return mv;
+    }
+    if (typeof val === 'object' && 'vx' in val) return geomToMV(val);
+    if (typeof val === 'object' && typeof val.length === 'number' && val.length >= arraySize) return val;
+    return null;
   }
 
   // Algebra-scoped scalar evaluator — knows about `.blade` accessors.
@@ -153,16 +165,16 @@ export function createNodeTypes(algebra, evaluator) {
     dual: {
       label: 'Dual',
       compute: ([val]) => {
-        if (!val || !val.length || val.length < arraySize) return null;
-        return dualOp(val);
+        const mv = toMV(val);
+        return mv ? dualOp(mv) : null;
       },
     },
 
     reverse: {
       label: 'Reverse',
       compute: ([val]) => {
-        if (!val || !val.length || val.length < arraySize) return null;
-        return reverseOp(val);
+        const mv = toMV(val);
+        return mv ? reverseOp(mv) : null;
       },
     },
   };
