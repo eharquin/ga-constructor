@@ -123,6 +123,19 @@ function reducer(items, action) {
       return items.filter((it) => it.id !== action.id);
     case 'CLEAR_ALL':
       return [];
+    case 'LOAD_ITEMS':
+      return action.items.map((it) => ({
+        id: it.id,
+        text: it.text ?? '',
+        color: it.color ?? null,
+        anim: it.anim ?? null,
+        drawPos: it.drawPos ?? null,
+        label: it.label ?? null,
+        labelOpts: it.labelOpts ?? null,
+        visible: it.visible ?? true,
+        movable: it.movable ?? true,
+        normalizeMode: it.normalizeMode ?? null,
+      }));
     case 'REORDER': {
       const from = items.findIndex((it) => it.id === action.dragId);
       const to   = items.findIndex((it) => it.id === action.targetId);
@@ -357,6 +370,20 @@ export function useGraph() {
 
   const clearAll = () => {
     dispatch({ type: 'CLEAR_ALL' });
+    setPlayingIds(new Set());
+  };
+
+  // Replace the entire item list (saved-graph load). Resets play state and bumps
+  // nextId past any expr_<N> ids in the incoming items so later inserts don't collide.
+  const loadItems = (newItems) => {
+    const arr = Array.isArray(newItems) ? newItems : [];
+    dispatch({ type: 'LOAD_ITEMS', items: arr });
+    let maxN = -1;
+    for (const it of arr) {
+      const m = String(it?.id ?? '').match(/^expr_(\d+)$/);
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+    }
+    if (maxN + 1 > nextId.current) nextId.current = maxN + 1;
     setPlayingIds(new Set());
   };
 
@@ -604,6 +631,7 @@ export function useGraph() {
     insertItemAfter,
     deleteItem,
     clearAll,
+    loadItems,
     updateFreePoint,
     updateDepPoint,
     updateDualDepPoint,
