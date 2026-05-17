@@ -354,12 +354,12 @@ function renderLabel(label, cx, cy, opts) {
   );
 }
 
-// VGA bivector: oriented loop at the origin. Radius scales with √|b| so area
-// is roughly proportional to |b|. Sign drives the curve direction (CCW positive).
-function SvgBivector({ value, label, color, vp, opts, weight = 1 }) {
+// VGA bivector: oriented loop at the origin. Fixed radius and stroke — only the
+// sign of the value drives the curve direction (CCW positive). Magnitude is
+// communicated by the panel label, not the canvas geometry.
+function SvgBivector({ value, label, color, vp, opts }) {
   const { cx, cy } = w2c(0, 0, vp);
-  const mag = Math.sqrt(Math.abs(value));
-  const r = Math.max(8, 18 * mag * weight);
+  const r = 22;
   const dir = value >= 0 ? 1 : -1;
   // CCW path: end at angle 0, sweep around back to angle 0 via -π. Use two arcs.
   const p1x = cx + r, p1y = cy;
@@ -379,7 +379,7 @@ function SvgBivector({ value, label, color, vp, opts, weight = 1 }) {
   const tail2y = tipY + arrowLen * Math.sin(baseAng + 0.3);
   return (
     <g>
-      <path d={d} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2 * weight} strokeLinecap="round" />
+      <path d={d} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} strokeLinecap="round" />
       <polygon points={`${tipX},${tipY} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
       {renderLabel(label, cx, cy - r - 4, opts)}
     </g>
@@ -652,7 +652,7 @@ export default function Canvas() {
         backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
       case 'bivector':
-        backLayer.push(<SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
+        backLayer.push(<SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts} />);
         break;
       case 'rotor':
         backLayer.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
