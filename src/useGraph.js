@@ -58,6 +58,17 @@ function reducer(items, action) {
       return items.filter((it) => it.id !== action.id);
     case 'CLEAR_ALL':
       return [];
+    case 'REORDER': {
+      const from = items.findIndex((it) => it.id === action.dragId);
+      const to   = items.findIndex((it) => it.id === action.targetId);
+      if (from === -1 || to === -1 || from === to) return items;
+      let insertAt = action.position === 'before' ? to : to + 1;
+      if (from < to) insertAt--;
+      const next = [...items];
+      const [moved] = next.splice(from, 1);
+      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, moved);
+      return next;
+    }
     case 'LOAD_ITEMS':
       return action.items.map((it) => ({
         id: it.id,
