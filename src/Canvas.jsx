@@ -354,9 +354,50 @@ function renderLabel(label, cx, cy, opts) {
   );
 }
 
-// VGA bivector: oriented loop at the origin. Fixed radius and stroke — only the
-// sign of the value drives the curve direction (CCW positive). Magnitude is
-// communicated by the panel label, not the canvas geometry.
+// VGA bivector B = V ^ W where both operands resolve to vectors: draw the
+// oriented parallelogram spanned by V and W. Area = |V ^ W|, orientation
+// (sign of value) indicated by a small curved arrow at the centroid showing
+// the traversal direction 0 → V → V+W → W → 0.
+function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts }) {
+  const o  = w2c(0, 0, vp);
+  const p1 = w2c(v1.vx, v1.vy, vp);
+  const p2 = w2c(v1.vx + v2.vx, v1.vy + v2.vy, vp);
+  const p3 = w2c(v2.vx, v2.vy, vp);
+  const pts = `${o.cx},${o.cy} ${p1.cx},${p1.cy} ${p2.cx},${p2.cy} ${p3.cx},${p3.cy}`;
+  const cx = (o.cx + p1.cx + p2.cx + p3.cx) / 4;
+  const cy = (o.cy + p1.cy + p2.cy + p3.cy) / 4;
+  const dir = value >= 0 ? 1 : -1;
+  // Centroid arc: small curved arrow indicating orientation.
+  const ar  = 10;
+  const a0  = dir > 0 ? -Math.PI / 2 :  Math.PI / 2;
+  const a1  = dir > 0 ?  Math.PI / 2 : -Math.PI / 2;
+  const sx  = cx + ar * Math.cos(a0);
+  const sy  = cy - ar * Math.sin(a0);
+  const ex  = cx + ar * Math.cos(a1);
+  const ey  = cy - ar * Math.sin(a1);
+  const sweep = dir > 0 ? 0 : 1;
+  const arc = `M ${sx} ${sy} A ${ar} ${ar} 0 0 ${sweep} ${ex} ${ey}`;
+  // Arrow tip at the end of the arc.
+  const tipAng    = a1 + (dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+  const arrowLen  = 6;
+  const tail1x = ex - arrowLen * Math.cos(tipAng - 0.4);
+  const tail1y = ey + arrowLen * Math.sin(tipAng - 0.4);
+  const tail2x = ex - arrowLen * Math.cos(tipAng + 0.4);
+  const tail2y = ey + arrowLen * Math.sin(tipAng + 0.4);
+  return (
+    <g>
+      <polygon points={pts} fill={color} fillOpacity={0.18}
+               stroke={color} strokeWidth={2} strokeLinejoin="round" />
+      <path d={arc} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+      <polygon points={`${ex},${ey} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
+      {renderLabel(label, cx, cy - ar - 4, opts)}
+    </g>
+  );
+}
+
+// VGA bivector fallback: literal `b*e12` or a wedge expression that isn't a
+// simple `V ^ W` of two vector deps. Fixed-radius loop at the origin —
+// only the sign of the value drives the curve direction.
 function SvgBivector({ value, label, color, vp, opts }) {
   const { cx, cy } = w2c(0, 0, vp);
   const r = 22;
@@ -651,9 +692,31 @@ export default function Canvas() {
       case 'idealLine':
         backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
-      case 'bivector':
-        backLayer.push(<SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts} />);
+      case 'bivector': {
+        // If the bivector is exactly `<v1> ^ <v2>` and both deps resolve to
+        // vectors, render the oriented parallelogram spanned by v1 and v2.
+        // Otherwise fall back to the generic loop.
+        let drewWedge = false;
+        if (node.type === 'mvExpr') {
+          const m = node.params?.exprStr?.match(/^\s*([A-Za-z_]\w*)\s*\^\s*([A-Za-z_]\w*)\s*$/);
+          if (m) {
+            const a = values[m[1]];
+            const b = values[m[2]];
+            if (a && typeof a === 'object' && 'vx' in a &&
+                b && typeof b === 'object' && 'vx' in b) {
+              backLayer.push(
+                <SvgWedgeParallelogram key={id} v1={a} v2={b} value={plan.value}
+                  label={label} color={color} vp={vp} opts={opts} />
+              );
+              drewWedge = true;
+            }
+          }
+        }
+        if (!drewWedge) {
+          backLayer.push(<SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts} />);
+        }
         break;
+      }
       case 'rotor':
         backLayer.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
         break;
