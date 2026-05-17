@@ -260,16 +260,18 @@ export function useGraph(algebra) {
     return map;
   }, [items, values, parseExpression, classifyMV, KIND_COLOR, TYPE_COLOR_FALLBACK]);
 
-  // vectorPositions: nodeId → { x, y, linked } draw position.
-  // Any node whose value is vector-like gets a tail position:
+  // vectorPositions: nodeId → { x, y, linked, refId?, anchor? } draw position.
+  // Any node whose value is anchorable gets an entry:
   //   - explicit `vector` nodes
   //   - PGA idealPoint values (!L, dual-derived ideal points)
-  //   - any value that classifies as `vector` (VGA grade-1, or PGA mvExpr
-  //     results that come out vector-shaped via {vx,vy})
-  // `drawPos.ref` may resolve to a PGA finite point (tail pinned to that point)
-  // or another vector (tail pinned to that vector's tip).
+  //   - any value classifying as `vector` (VGA grade-1, mvExpr {vx,vy} results)
+  //   - bivectors (anchored at the origin corner of the V^W parallelogram,
+  //     or the centre of the literal-bivector loop)
+  // `drawPos.ref` resolves against another node's tail or tip via `anchor`:
+  //   { ref: 'V', anchor: 'tip' }  → pins to the head of V (default)
+  //   { ref: 'V', anchor: 'tail' } → pins to the base of V
+  //   PGA finite-point refs use the point's position regardless of anchor.
   const vectorPositions = useMemo(() => {
-    // Pass 1: collect eligible nodes + static / finite-point-ref positions.
     const eligible = [];
     const map = {};
     for (const item of items) {
@@ -277,10 +279,11 @@ export function useGraph(algebra) {
       if (!node) continue;
       const val = values[node.id];
       const cls = classifyMV(val);
-      const isVecNode = node.type === 'vector';
-      const isVecVal  = cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
-                        (val && typeof val === 'object' && 'vx' in val);
-      if (!isVecNode && !isVecVal) continue;
+      const isVecNode  = node.type === 'vector';
+      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
+                         (val && typeof val === 'object' && 'vx' in val);
+      const isBivecVal = cls?.kind === 'bivector';
+      if (!isVecNode && !isVecVal && !isBivecVal) continue;
       eligible.push({ id: node.id, item });
       const dp = item.drawPos;
       if (dp?.ref) {
@@ -288,29 +291,34 @@ export function useGraph(algebra) {
         const refCls = classifyMV(refVal);
         if (refCls?.kind === 'finitePoint' && toEuclidean) {
           const eu = toEuclidean(refVal);
-          map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true, refId: dp.ref };
+          map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true, refId: dp.ref, anchor: dp.anchor ?? 'tip' };
           continue;
         }
-        // Defer vector-tip refs to pass 2.
-        map[node.id] = null;
+        map[node.id] = null; // defer to pass 2
       } else {
         map[node.id] = { ...(dp ?? { x: 0, y: 0 }), linked: false };
       }
     }
-    // Pass 2: resolve vector-tip refs once pass-1 positions are available.
-    // Iterate up to N times so chained refs (A → B → C) converge.
+
+    // Pass 2: resolve refs that point to other vector-like nodes (need their
+    // tail position from pass 1 to compute tail/tip).
     const tipOf = (id) => {
       const val = values[id];
       const cls = classifyMV(val);
       const tail = map[id] ?? { x: 0, y: 0 };
       if (val && typeof val === 'object' && 'vx' in val) return { x: tail.x + val.vx, y: tail.y + val.vy };
       if (cls?.kind === 'vector')      return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
-      if (cls?.kind === 'idealPoint') {
-        // PGA ideal point — use ideal direction
-        const vx = -(val[5] || 0), vy = (val[4] || 0);
-        return { x: tail.x + vx, y: tail.y + vy };
+      if (cls?.kind === 'idealPoint')  return { x: tail.x - (val[5] || 0), y: tail.y + (val[4] || 0) };
+      return tail;
+    };
+    const tailOf = (id) => {
+      const val = values[id];
+      const cls = classifyMV(val);
+      if (cls?.kind === 'finitePoint' && toEuclidean) {
+        const eu = toEuclidean(val);
+        return eu ? { x: eu.x, y: eu.y } : { x: 0, y: 0 };
       }
-      return null;
+      return map[id] ?? { x: 0, y: 0 };
     };
     for (let pass = 0; pass < eligible.length; pass++) {
       let progressed = false;
@@ -318,15 +326,15 @@ export function useGraph(algebra) {
         if (map[id]) continue;
         const dp = item.drawPos;
         if (!dp?.ref) continue;
-        const tip = tipOf(dp.ref);
-        if (tip != null) {
-          map[id] = { x: tip.x, y: tip.y, linked: true, refId: dp.ref };
+        const anchor = dp.anchor ?? 'tip';
+        const pos = anchor === 'tail' ? tailOf(dp.ref) : tipOf(dp.ref);
+        if (pos != null) {
+          map[id] = { x: pos.x, y: pos.y, linked: true, refId: dp.ref, anchor };
           progressed = true;
         }
       }
       if (!progressed) break;
     }
-    // Any unresolved refs fall back to origin.
     for (const { id } of eligible) {
       if (!map[id]) map[id] = { x: 0, y: 0, linked: false };
     }
@@ -517,9 +525,9 @@ export function useGraph(algebra) {
     dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
   };
 
-  // Find the item whose node id has a tail position in vectorPositions.
+  // Find the item whose node id is anchorable in vectorPositions.
   // Covers explicit vector / meetPoint nodes plus any value classified as a
-  // vector or ideal point (e.g. mvExpr results like U = V + W).
+  // vector, ideal point, or bivector.
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
@@ -527,7 +535,7 @@ export function useGraph(algebra) {
       if (n.type === 'vector' || n.type === 'meetPoint') return true;
       const val = values[n.id];
       const cls = classifyMV(val);
-      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector') return true;
+      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector' || cls?.kind === 'bivector') return true;
       return val && typeof val === 'object' && 'vx' in val;
     });
 
@@ -537,10 +545,11 @@ export function useGraph(algebra) {
     dispatch({ type: 'SET_DRAW_POS', id: item.id, drawPos: { x, y } });
   };
 
-  const setDrawPosRef = (nodeId, pointNodeId) => {
+  // anchor: 'tip' (default — pin to ref's head/position) or 'tail' (ref's base)
+  const setDrawPosRef = (nodeId, pointNodeId, anchor = 'tip') => {
     const item = findVectorItem(nodeId);
     if (!item) return;
-    dispatch({ type: 'SET_DRAW_POS', id: item.id, drawPos: { ref: pointNodeId } });
+    dispatch({ type: 'SET_DRAW_POS', id: item.id, drawPos: { ref: pointNodeId, anchor } });
   };
 
   const reorderItem = (dragId, targetId, position) => {

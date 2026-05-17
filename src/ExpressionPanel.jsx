@@ -142,7 +142,10 @@ function parseInterval(str) {
 
 function formatDrawPos(drawPos, fallbackPos) {
   if (drawPos) {
-    if ('ref' in drawPos) return drawPos.ref;
+    if ('ref' in drawPos) {
+      const anchor = drawPos.anchor && drawPos.anchor !== 'tip' ? `.${drawPos.anchor}` : '';
+      return `${drawPos.ref}${anchor}`;
+    }
     return `(${drawPos.x}, ${drawPos.y})`;
   }
   if (fallbackPos) return `(${fallbackPos.x}, ${fallbackPos.y})`;
@@ -157,7 +160,12 @@ function parsePos(str) {
   return { x, y };
 }
 
-const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// `Name` or `Name.tail` or `Name.tip` — returns { ref, anchor } or null.
+function parseRef(str) {
+  const m = str.trim().match(/^([A-Za-z_]\w*)(?:\.(tail|tip))?$/);
+  if (!m) return null;
+  return { ref: m[1], anchor: m[2] || 'tip' };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -225,11 +233,11 @@ export default function ExpressionPanel() {
   const commitPosText = (itemId, nodeId) => {
     const str = posTxts[itemId];
     if (str != null) {
-      const trimmed = str.trim();
-      if (ID_RE.test(trimmed)) {
-        setDrawPosRef(nodeId, trimmed);          // link to a point node
+      const ref = parseRef(str);
+      if (ref) {
+        setDrawPosRef(nodeId, ref.ref, ref.anchor);
       } else {
-        const parsed = parsePos(trimmed);
+        const parsed = parsePos(str);
         if (parsed) setDrawPos(nodeId, parsed.x, parsed.y);
       }
       setPosTxts((p) => { const n = { ...p }; delete n[itemId]; return n; });
@@ -243,10 +251,13 @@ export default function ExpressionPanel() {
           const node      = parseExpression(item.text);
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar    = node?.type === 'scalar';
-          // Position sub-row applies to vector nodes and to any node whose value
-          // classifies as an idealPoint (so duals/derived ideal points get one too).
+          // Position sub-row applies to vector nodes plus any anchorable value:
+          // ideal point (PGA dual etc.), grade-1 vector (VGA), or bivector.
+          const positionKind = node ? classifyMV(values[node.id])?.kind : null;
           const hasPosition = node?.type === 'vector' ||
-                              (node && classifyMV(values[node.id])?.kind === 'idealPoint');
+                              positionKind === 'idealPoint' || positionKind === 'vector' ||
+                              positionKind === 'bivector' ||
+                              (values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
           const isDraggable = (() => {
             if (!node) return false;
             if (node.type === 'freePoint' || node.type === 'vector') return true;

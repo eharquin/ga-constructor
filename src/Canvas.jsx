@@ -29,12 +29,16 @@ function svgPt(e, svg) {
 
 // ─── Hit testing ─────────────────────────────────────────────────────────────
 
-// Find a draggable snap target near (mx, my) that the current drag should
-// link to. Returns the node id of a finite point (PGA) OR the tip of any
-// vector-like value (PGA ideal point / VGA vector / mvExpr result). Excludes
-// the node currently being dragged so a vector can't ref itself.
+// Find a draggable snap target near (mx, my). Returns { id, anchor } —
+// anchor ∈ {'tip', 'tail'} — for whichever target is closest within sqRadius:
+//   - PGA finite point → { id, anchor: 'tip' } (only one position; anchor name is irrelevant)
+//   - vector-like (vector / idealPoint / {vx,vy}) → snaps to either the tail
+//     or the tip, whichever the cursor is nearest. Tie → tip wins.
+// Excludes the node currently being dragged so a vector can't ref itself.
 function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadius, algebra, excludeId) {
   const { classifyMV, toEuclidean } = algebra;
+  let best = null;
+  let bestDist = sqRadius;
   for (const [id] of Object.entries(nodes)) {
     if (id === excludeId) continue;
     const val = values[id];
@@ -43,20 +47,25 @@ function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadi
       const eu = toEuclidean(val);
       if (!eu) continue;
       const { cx, cy } = w2c(eu.x, eu.y, vp);
-      if ((mx - cx) ** 2 + (my - cy) ** 2 <= sqRadius) return id;
+      const d = (mx - cx) ** 2 + (my - cy) ** 2;
+      if (d <= bestDist) { bestDist = d; best = { id, anchor: 'tip' }; }
     } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
                (val && typeof val === 'object' && 'vx' in val)) {
-      // Snap to the tip of any vector-like node.
       const tail = vectorPositions[id] ?? { x: 0, y: 0 };
       let vx, vy;
       if (typeof val === 'object' && 'vx' in val) { vx = val.vx; vy = val.vy; }
       else if (cls?.kind === 'vector')             { vx = val[1] || 0; vy = val[2] || 0; }
-      else                                          { vx = -(val[5] || 0); vy = (val[4] || 0); } // PGA ideal
-      const { cx, cy } = w2c(tail.x + vx, tail.y + vy, vp);
-      if ((mx - cx) ** 2 + (my - cy) ** 2 <= sqRadius) return id;
+      else                                          { vx = -(val[5] || 0); vy = (val[4] || 0); }
+      const t   = w2c(tail.x, tail.y, vp);
+      const tip = w2c(tail.x + vx, tail.y + vy, vp);
+      const dT  = (mx - t.cx)   ** 2 + (my - t.cy)   ** 2;
+      const dP  = (mx - tip.cx) ** 2 + (my - tip.cy) ** 2;
+      // Prefer tip on ties (matches prior behavior).
+      if (dT < bestDist && dT < dP) { bestDist = dT; best = { id, anchor: 'tail' }; }
+      if (dP <= bestDist)           { bestDist = dP; best = { id, anchor: 'tip'  }; }
     }
   }
-  return null;
+  return best;
 }
 
 function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra) {
@@ -111,16 +120,17 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
           return { id, dragType: 'litMVPoint' };
       }
     }
-    // Value-driven: any node whose value is vector-like (idealPoint, vector,
-    // or {vx,vy}) allows tail dragging via vectorPositions. Covers derived
-    // vectors like `U = V + W` (mvExpr) and PGA `D = !L`, etc.
+    // Value-driven: any node whose value is anchorable (vector-like or
+    // bivector) allows anchor dragging via vectorPositions. Covers derived
+    // vectors (`U = V + W`), PGA `D = !L`, and bivectors (`B = V ^ W`, `B = 5*e12`).
     const val_ = values[id];
     const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' ||
                             (val_ && typeof val_ === 'object' && 'vx' in val_);
-    if (node.type !== 'vector' && isVectorLikeVal) {
+    const isAnchorableBivec = valKind === 'bivector';
+    if (node.type !== 'vector' && (isVectorLikeVal || isAnchorableBivec)) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
-      const tail = w2c(pos.x, pos.y, vp);
-      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+      const anc = w2c(pos.x, pos.y, vp);
+      if ((mx - anc.cx) ** 2 + (my - anc.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
     }
   }
@@ -376,12 +386,13 @@ function renderLabel(label, cx, cy, opts) {
 // VGA bivector B = V ^ W where both operands resolve to vectors: draw the
 // oriented parallelogram spanned by V and W. Area = |V ^ W|, orientation
 // (sign of value) indicated by a small curved arrow at the centroid showing
-// the traversal direction 0 → V → V+W → W → 0.
-function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts }) {
-  const o  = w2c(0, 0, vp);
-  const p1 = w2c(v1.vx, v1.vy, vp);
-  const p2 = w2c(v1.vx + v2.vx, v1.vy + v2.vy, vp);
-  const p3 = w2c(v2.vx, v2.vy, vp);
+// the traversal direction (px,py) → (px+V) → (px+V+W) → (px+W) → (px,py).
+// (px, py) is the anchor — the origin corner of the parallelogram.
+function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts, px = 0, py = 0, hovered = false, linked = false }) {
+  const o  = w2c(px, py, vp);
+  const p1 = w2c(px + v1.vx, py + v1.vy, vp);
+  const p2 = w2c(px + v1.vx + v2.vx, py + v1.vy + v2.vy, vp);
+  const p3 = w2c(px + v2.vx, py + v2.vy, vp);
   const pts = `${o.cx},${o.cy} ${p1.cx},${p1.cy} ${p2.cx},${p2.cy} ${p3.cx},${p3.cy}`;
   const cx = (o.cx + p1.cx + p2.cx + p3.cx) / 4;
   const cy = (o.cy + p1.cy + p2.cy + p3.cy) / 4;
@@ -403,22 +414,34 @@ function SvgWedgeParallelogram({ v1, v2, value, label, color, vp, opts }) {
   const tail1y = ey + arrowLen * Math.sin(tipAng - 0.4);
   const tail2x = ex - arrowLen * Math.cos(tipAng + 0.4);
   const tail2y = ey + arrowLen * Math.sin(tipAng + 0.4);
+  const anchorR = hovered ? 7 : 5;
   return (
     <g>
       <polygon points={pts} fill={color} fillOpacity={0.18}
                stroke={color} strokeWidth={2} strokeLinejoin="round" />
       <path d={arc} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
       <polygon points={`${ex},${ey} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
+      {/* Anchor handle at the origin corner so the user can grab and drag */}
+      {!linked ? (
+        <circle cx={o.cx} cy={o.cy} r={anchorR}
+                fill={color}
+                style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
+                strokeWidth={hovered ? 2 : 1.5} />
+      ) : hovered && (
+        <circle cx={o.cx} cy={o.cy} r={11}
+                fill="none" stroke={color + 'bb'}
+                strokeWidth={1.5} strokeDasharray="3 3" />
+      )}
       {renderLabel(label, cx, cy - ar - 4, opts)}
     </g>
   );
 }
 
 // VGA bivector fallback: literal `b*e12` or a wedge expression that isn't a
-// simple `V ^ W` of two vector deps. Fixed-radius loop at the origin —
+// simple `V ^ W` of two vector deps. Fixed-radius loop centred at (px, py) —
 // only the sign of the value drives the curve direction.
-function SvgBivector({ value, label, color, vp, opts }) {
-  const { cx, cy } = w2c(0, 0, vp);
+function SvgBivector({ value, label, color, vp, opts, px = 0, py = 0, hovered = false, linked = false }) {
+  const { cx, cy } = w2c(px, py, vp);
   const r = 22;
   const dir = value >= 0 ? 1 : -1;
   // CCW path: end at angle 0, sweep around back to angle 0 via -π. Use two arcs.
@@ -441,6 +464,17 @@ function SvgBivector({ value, label, color, vp, opts }) {
     <g>
       <path d={d} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} strokeLinecap="round" />
       <polygon points={`${tipX},${tipY} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
+      {/* Anchor handle at the loop centre */}
+      {!linked ? (
+        <circle cx={cx} cy={cy} r={hovered ? 7 : 5}
+                fill={color}
+                style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
+                strokeWidth={hovered ? 2 : 1.5} />
+      ) : hovered && (
+        <circle cx={cx} cy={cy} r={11}
+                fill="none" stroke={color + 'bb'}
+                strokeWidth={1.5} strokeDasharray="3 3" />
+      )}
       {renderLabel(label, cx, cy - r - 4, opts)}
     </g>
   );
@@ -609,7 +643,7 @@ export default function Canvas() {
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
         const nearby = findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, SNAP_RADIUS ** 2, algebra, id);
-        if (nearby) snap.current.setDrawPosRef(id, nearby);
+        if (nearby) snap.current.setDrawPosRef(id, nearby.id, nearby.anchor);
         else        setDrawPos(id, rx, ry);
       }
       if (dragType === 'vectorTip') {
@@ -715,9 +749,10 @@ export default function Canvas() {
         backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
       case 'bivector': {
+        const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // If the bivector is exactly `<v1> ^ <v2>` and both deps resolve to
         // vectors, render the oriented parallelogram spanned by v1 and v2.
-        // Otherwise fall back to the generic loop.
+        // Otherwise fall back to the generic loop. Both anchor at `pos`.
         let drewWedge = false;
         if (node.type === 'mvExpr') {
           const m = node.params?.exprStr?.match(/^\s*([A-Za-z_]\w*)\s*\^\s*([A-Za-z_]\w*)\s*$/);
@@ -728,14 +763,18 @@ export default function Canvas() {
                 b && typeof b === 'object' && 'vx' in b) {
               backLayer.push(
                 <SvgWedgeParallelogram key={id} v1={a} v2={b} value={plan.value}
-                  label={label} color={color} vp={vp} opts={opts} />
+                  label={label} color={color} vp={vp} opts={opts}
+                  px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked} />
               );
               drewWedge = true;
             }
           }
         }
         if (!drewWedge) {
-          backLayer.push(<SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts} />);
+          backLayer.push(
+            <SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts}
+              px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked} />
+          );
         }
         break;
       }
