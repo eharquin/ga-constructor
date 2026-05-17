@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { toEuclidean, lineBaseAndDir, toIdealVector, classifyMV, objectWeight } from './pga.js';
-import { parseExpression } from './graph/parseExpression.js';
+import { useAlgebra } from './AlgebraContext.jsx';
 
 const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
 const HIT_RADIUS  = 12;
@@ -30,7 +29,9 @@ function svgPt(e, svg) {
 
 // ─── Hit testing ─────────────────────────────────────────────────────────────
 
-function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
+function findNearbyPoint(mx, my, nodes, values, vp, sqRadius, algebra) {
+  const { classifyMV, toEuclidean } = algebra;
+  if (!toEuclidean) return null;
   for (const [id] of Object.entries(nodes)) {
     const cls = classifyMV(values[id]);
     if (cls?.kind !== 'finitePoint') continue;
@@ -42,13 +43,15 @@ function findNearbyPoint(mx, my, nodes, values, vp, sqRadius) {
   return null;
 }
 
-function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap) {
+function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra) {
+  const { classifyMV, toEuclidean } = algebra;
   for (const [id, node] of Object.entries(nodes)) {
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
     if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
     if (node.type === 'freePoint') {
+      if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
       if (!eu) continue;
       const { cx, cy } = w2c(eu.x, eu.y, vp);
@@ -70,7 +73,9 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (node.type === 'multivector') {
       const { coeffExprs, components, dual } = node.params ?? {};
       const hasVariablePos = coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined;
-      if (hasVariablePos) {
+      if (!toEuclidean) {
+        // VGA + others without a projective point map: skip multivector point hit-tests.
+      } else if (hasVariablePos) {
         const eu = toEuclidean(values[id]);
         if (!eu) continue;
         const { cx, cy } = w2c(eu.x, eu.y, vp);
@@ -238,8 +243,7 @@ function SvgIdealPointMarker({ vx, vy, color, W, H, hovered, weight = 1 }) {
   );
 }
 
-function SvgLine({ L, label, color, vp, W, H, opts, weight = 1 }) {
-  const bd = lineBaseAndDir(L);
+function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
   // FAR must be large enough to extend the line endpoints past all screen corners,
@@ -350,6 +354,73 @@ function renderLabel(label, cx, cy, opts) {
   );
 }
 
+// VGA bivector: oriented loop at the origin. Radius scales with √|b| so area
+// is roughly proportional to |b|. Sign drives the curve direction (CCW positive).
+function SvgBivector({ value, label, color, vp, opts, weight = 1 }) {
+  const { cx, cy } = w2c(0, 0, vp);
+  const mag = Math.sqrt(Math.abs(value));
+  const r = Math.max(8, 18 * mag * weight);
+  const dir = value >= 0 ? 1 : -1;
+  // CCW path: end at angle 0, sweep around back to angle 0 via -π. Use two arcs.
+  const p1x = cx + r, p1y = cy;
+  const p2x = cx - r, p2y = cy;
+  // Sweep flag controls direction; for CCW (dir = +1) we want sweep = 0 with our SVG y-flip.
+  const sweep = dir > 0 ? 0 : 1;
+  const d = `M ${p1x} ${p1y} A ${r} ${r} 0 0 ${sweep} ${p2x} ${p2y} A ${r} ${r} 0 0 ${sweep} ${p1x} ${p1y}`;
+  // Tiny arrow tip near the rightmost point indicating direction.
+  const arrowAng = dir > 0 ? -Math.PI / 6 : Math.PI / 6;
+  const tipX = cx + r * Math.cos(arrowAng);
+  const tipY = cy - r * Math.sin(arrowAng);
+  const arrowLen = 8;
+  const baseAng = arrowAng + (dir > 0 ? -Math.PI / 2 : Math.PI / 2);
+  const tail1x = tipX - arrowLen * Math.cos(baseAng - 0.3);
+  const tail1y = tipY + arrowLen * Math.sin(baseAng - 0.3);
+  const tail2x = tipX - arrowLen * Math.cos(baseAng + 0.3);
+  const tail2y = tipY + arrowLen * Math.sin(baseAng + 0.3);
+  return (
+    <g>
+      <path d={d} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2 * weight} strokeLinecap="round" />
+      <polygon points={`${tipX},${tipY} ${tail1x},${tail1y} ${tail2x},${tail2y}`} fill={color} />
+      {renderLabel(label, cx, cy - r - 4, opts)}
+    </g>
+  );
+}
+
+// VGA rotor: arc at the origin spanning the rotation angle θ = 2·atan2(b, a).
+// Rendered as a sector from +x axis through the angle, plus a label.
+function SvgRotor({ angle, label, color, vp, opts, weight = 1 }) {
+  const { cx, cy } = w2c(0, 0, vp);
+  const r = 36 * weight;
+  // Normalise to (-π, π]
+  let a = ((angle + Math.PI) % (2 * Math.PI)) - Math.PI;
+  const startX = cx + r;
+  const startY = cy;
+  // SVG y is flipped: rotating by `a` radians in world = -a in screen.
+  const endX = cx + r * Math.cos(a);
+  const endY = cy - r * Math.sin(a);
+  const largeArc = Math.abs(a) > Math.PI ? 1 : 0;
+  const sweep = a >= 0 ? 0 : 1; // CCW positive angle → sweep 0 with y-flip
+  const arcPath = `M ${startX} ${startY} A ${r} ${r} 0 ${largeArc} ${sweep} ${endX} ${endY}`;
+  const angleLabel = `${(a * 180 / Math.PI).toFixed(1)}°`;
+  const midA = a / 2;
+  const labelX = cx + (r + 14) * Math.cos(midA);
+  const labelY = cy - (r + 14) * Math.sin(midA);
+  return (
+    <g>
+      <line x1={cx} y1={cy} x2={startX} y2={startY} stroke={color} strokeWidth={1.5 * weight} strokeOpacity={0.4} strokeDasharray="3 3" />
+      <line x1={cx} y1={cy} x2={endX} y2={endY}     stroke={color} strokeWidth={1.5 * weight} strokeOpacity={0.6} />
+      <path d={arcPath} fill="none" stroke={color} strokeWidth={2.5 * weight} strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r={3 * weight} fill={color} />
+      <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
+            fontSize={11} fontFamily="monospace" fontWeight="600"
+            style={{ fill: 'var(--text-muted)' }} pointerEvents="none">
+        {angleLabel}
+      </text>
+      {renderLabel(label, cx + r + 4, cy - r - 4, opts)}
+    </g>
+  );
+}
+
 function SvgPolygon({ points, label, color, vp, opts }) {
   const pts = points.map(p => { const { cx, cy } = w2c(p.x, p.y, vp); return `${cx},${cy}`; }).join(' ');
   const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
@@ -368,6 +439,7 @@ function SvgPolygon({ points, label, color, vp, opts }) {
 export default function Canvas() {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
+  const { algebra } = useAlgebra();
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
@@ -375,13 +447,14 @@ export default function Canvas() {
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   } = useGraphContext();
+  const { parseExpression, classifyMV, objectWeight, getRenderPlan } = algebra;
 
   const hiddenIds = useMemo(
     () => new Set(items.filter((it) => it.visible === false).map((it) => {
       const n = nodes[parseExpression(it.text)?.id];
       return n?.id ?? null;
     }).filter(Boolean)),
-    [items, nodes]
+    [items, nodes, parseExpression]
   );
 
   const [vp,        setVp]        = useState(INITIAL_VP);
@@ -451,7 +524,7 @@ export default function Canvas() {
     svgRef.current.setPointerCapture(e.pointerId);
     const { mx, my } = svgPt(e, svgRef.current);
     const { nodes, values, vectorPositions, vp, hiddenIds, movableMap } = snap.current;
-    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap);
+    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra);
     if (hit) {
       ptDragRef.current = hit;
       setCursor('crosshair');
@@ -475,7 +548,7 @@ export default function Canvas() {
       if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
       if (dragType === 'vector') {
-        const nearby = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2);
+        const nearby = findNearbyPoint(mx, my, nodes, values, vp, SNAP_RADIUS ** 2, algebra);
         if (nearby) snap.current.setDrawPosRef(id, nearby);
         else        setDrawPos(id, rx, ry);
       }
@@ -491,7 +564,7 @@ export default function Canvas() {
       setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
     } else {
-      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap);
+      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap, algebra);
       const hitId = hit?.id ?? null;
       const newCursor = hitId ? 'pointer' : 'grab';
       if (newCursor !== cursor) setCursor(newCursor);
@@ -511,7 +584,7 @@ export default function Canvas() {
   function handleDoubleClick(e) {
     const { mx, my } = svgPt(e, svgRef.current);
     const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, addFreePoint } = snap.current;
-    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap)) return;
+    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra)) return;
     const { x, y } = c2w(mx, my, vp);
     addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
@@ -521,9 +594,8 @@ export default function Canvas() {
   const backLayer = [];
   const frontLayer = [];
 
-  // Ideal-point markers on the line-at-infinity ellipse are only drawn when
-  // some visible node *is* the ideal line — otherwise the ellipse isn't on
-  // screen, so a marker on it would have no anchor.
+  // Ideal-line ellipse + ideal-point markers are PGA-only (kind === 'idealLine'
+  // exists for that algebra). VGA never emits idealLine, so this stays false.
   const hasIdealLine = orderedNodeIds.some((id) =>
     !hiddenIds.has(id) && classifyMV(values[id])?.kind === 'idealLine'
   );
@@ -540,56 +612,50 @@ export default function Canvas() {
     const hovered = id === hoveredId;
     const weight  = objectWeight(val);
 
-    // Scalar-valued nodes (triangle, meetChain): no canvas render
+    // Scalar-valued nodes (triangle, meetChain) have no canvas presence.
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
 
-    // list node: polygon drawn from the pre-computed point list
-    if (val?.list) {
-      backLayer.push(<SvgPolygon key={id} points={val.points} label={label} color={color} vp={vp} opts={opts} />);
-      continue;
-    }
+    // Algebra decides what each value renders as. PGA + VGA both implement
+    // this; new algebras just have to return one of the supported kinds.
+    const plan = getRenderPlan(val);
+    if (!plan) continue;
 
-    // {vx, vy} ideal vector → back layer (arrow + optional marker on the ideal-line ellipse)
-    if (typeof val === 'object' && 'vx' in val) {
-      const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
-      backLayer.push(
-        <SvgVector key={id} vx={val.vx} vy={val.vy} px={pos.x} py={pos.y}
-          label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} opts={opts} />
-      );
-      if (hasIdealLine) {
-        backLayer.push(
-          <SvgIdealPointMarker key={`${id}-inf`} vx={val.vx} vy={val.vy}
-            color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />
-        );
-      }
-      continue;
-    }
-
-    const cls = classifyMV(val);
-    if (!cls) continue;
-
-    switch (cls.kind) {
-      case 'finitePoint': {
-        const eu = toEuclidean(val);
-        if (!eu) break;
-        frontLayer.push(<SvgPoint key={id} x={eu.x} y={eu.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} />);
+    switch (plan.kind) {
+      case 'polygon':
+        backLayer.push(<SvgPolygon key={id} points={plan.points} label={label} color={color} vp={vp} opts={opts} />);
         break;
-      }
-      case 'idealPoint': {
-        const iv = toIdealVector(val);
-        if (!iv) break;
+      case 'positionedVector': {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
-        backLayer.push(<SvgVector key={id} vx={iv.vx} vy={iv.vy} px={pos.x} py={pos.y} label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked} tipDraggable={false} opts={opts} />);
-        if (hasIdealLine) {
-          backLayer.push(<SvgIdealPointMarker key={`${id}-inf`} vx={iv.vx} vy={iv.vy} color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />);
+        backLayer.push(
+          <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
+            label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked}
+            tipDraggable={plan.tipDraggable ?? true} opts={opts} />
+        );
+        if (hasIdealLine && plan.ringMarker !== false) {
+          backLayer.push(
+            <SvgIdealPointMarker key={`${id}-inf`} vx={plan.vx} vy={plan.vy}
+              color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />
+          );
         }
         break;
       }
-      case 'line':
-        backLayer.push(<SvgLine key={id} L={val} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
+      case 'finitePoint':
+        frontLayer.push(<SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} />);
         break;
+      case 'line': {
+        // PGA-only — algebra.getRenderPlan returns the line MV; resolve its base+dir here.
+        const bd = algebra.lineBaseAndDir?.(plan.L);
+        backLayer.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        break;
+      }
       case 'idealLine':
         backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        break;
+      case 'bivector':
+        backLayer.push(<SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
+        break;
+      case 'rotor':
+        backLayer.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
         break;
       default:
         break;

@@ -1,12 +1,15 @@
 # Geometric Algebra Constructor
 
-Web-based geometric construction tool using Projective Geometric Algebra (PGA).
+Web-based geometric construction tool supporting multiple GAs. Default algebra is PGA(2,0,1) (2D projective). A second algebra VGA(2,0,0) (2D vectorial) is selectable from the header dropdown.
 
 ## Tech Stack
 - React + Vite
 - ganja.js for GA computations (sandwich, exp, log, dual, reverse, length, typed constructors)
-- PGA(2,0,1) algebra (2D projective)
+- Algebras: PGA(2,0,1) and VGA(2,0,0) — adapter modules in `src/algebras/<id>/index.js`
 - **SVG rendering** (native React JSX — no canvas 2D, no WebGL)
+
+## Algebra adapter system
+Each algebra ships a spec object (`src/algebras/<id>/index.js`) that exposes its ganja `Algebra` instance, basis `bladeIndex` + `bladeNames`, `parseBladeName` (permuted-blade aware), `classifyMV`, `objectWeight`, `normalize*`, `getRenderPlan(val) → {kind, data}`, `KIND_COLOR`, `INITIAL_ITEMS`, and `supportedNodeTypes`. The parser, evaluator, evalMVArith, and nodeTypes are *factory* functions (`createParseExpression`, `createEvalMVArith`, `createEvaluate`, `createNodeTypes`) that each adapter binds against its own spec. The active spec is exposed via `AlgebraContext`; `useGraph(algebra)` consumes it. Switching algebras (header dropdown) prompts a confirm-then-reset to the new algebra's `INITIAL_ITEMS`. Adding another algebra = one new file in `src/algebras/`.
 
 ## Key Principles
 - Any expression is valid — type detected from computed value via `classifyMV()`
@@ -39,7 +42,20 @@ Value-based type system: panel colors and canvas rendering driven by `classifyMV
 
 **Dark theme** — CSS custom properties at `:root` (light) and `[data-theme="dark"]` in `index.css`. Toggle button in app header writes to `localStorage` and adds a transient `theme-fade` class to `<html>` so the swap cross-fades over 300ms. SVG colors (grid, axis, labels, point strokes, canvas background) use `style={{ fill: 'var(--…)' }}` so they retheme too.
 
-**Base showcase** — 8-item motor-composition example: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(t*V)`, rotor `R = exp(a*e12)`, composed motor `M = R*T`, transformed point `Q = M >>> P`. `exp` is single-argument — the argument is exponentiated as a bivector via ganja's `V.Exp()`.
+**Base showcases** —
+- **PGA:** 8-item motor composition: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(t*V)`, rotor `R = exp(a*e12)`, composed motor `M = R*T`, transformed point `Q = M >>> P`.
+- **VGA:** 7-item vector/rotor demo: `V = 3*e1 + 2*e2`, `W = vector(-1, 2.5)`, scalar `S = V|W` (dot), bivector `B = V^W` (signed area, drawn as oriented loop), scalar `a`, rotor `R = exp((a/2)*e12)` (drawn as arc), rotated vector `V_rot = R >>> V`.
+
+`exp` is single-argument — the argument is exponentiated via ganja's `V.Exp()`, working uniformly for translators, rotors, and general motors.
+
+**VGA drawables** — `getRenderPlan` returns three new kinds rendered by Canvas:
+- `vector` → `SvgVector` (arrow from origin or `drawPos`)
+- `bivector` (b*e12) → `SvgBivector` (oriented loop at origin, radius ∝ √|b|, curved-arrow direction by sign)
+- `rotor` (a + b*e12) → `SvgRotor` (arc at origin spanning 2·atan2(b, a) with angle label)
+
+VGA has no points or projective lines — `point()`, `line()`, `&` (join), `^` (meet via PGA convention), `triangle`, and `meetChain` are gated out of the VGA parser via `supportedNodeTypes`.
+
+**Saved graphs** — `💾` Save / `📂` Open buttons in the header persist graphs to `saved_graphs/<name>.json` via a Vite dev plugin (`/api/graphs` CRUD). Each save tags `algebra: 'pga201'|'vga200'`; loading a graph saved under a different active algebra prompts the user to auto-switch first.
 
 **Git workflow** — GitHub Flow with PR-based feature branches. Auto-commit hook does `git push -u origin HEAD` so new branches publish on first commit. See `docs/git_workflow.md` for branch prefixes, hook gotchas, and recovery commands.
 

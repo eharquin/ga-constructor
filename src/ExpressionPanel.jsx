@@ -1,66 +1,44 @@
 import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
-import { parseExpression } from './graph/parseExpression.js';
-import { toEuclidean, toIdealVector, classifyMV } from './pga.js';
+import { useAlgebra } from './AlgebraContext.jsx';
 import './ExpressionPanel.css';
 
-const KIND_COLOR = {
-  scalar:      '#a6e3a1',
-  finitePoint: '#89b4fa',
-  idealPoint:  '#f9e2af',
-  line:        '#cba6f7',
-  idealLine:   '#cba6f7',
-  pseudoscalar:'#f38ba8',
-  rotor:       '#74c7ec',
-  translator:  '#74c7ec',
-  motor:       '#94e2d5',
-  reflector:   '#fab387',
-  triangle:    '#89dceb',
-  mixed:       '#b4befe',
-};
+const FALLBACK_COLOR = '#6c7086';
 
-// Fallback type color for nodes whose value is not yet computed.
-const TYPE_COLOR_FALLBACK = {
-  scalar:    '#a6e3a1',
-  freePoint: '#89b4fa',
-  vector:    '#f9e2af',
-  motorExp:  '#74c7ec',
-  triangle:  '#89dceb',
-};
-
-function resolveColor(item, values) {
+function resolveColor(item, values, algebra) {
   if (item.color) return item.color;
-  const node = parseExpression(item.text);
-  if (!node) return '#6c7086';
+  const node = algebra.parseExpression(item.text);
+  if (!node) return FALLBACK_COLOR;
   const val = values?.[node.id];
-  if (val?.list) return KIND_COLOR.triangle;
-  if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.idealPoint;
-  const cls = classifyMV(val);
-  return cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');
+  const KIND_COLOR = algebra.KIND_COLOR ?? {};
+  const TYPE_COLOR_FALLBACK = algebra.TYPE_COLOR_FALLBACK ?? {};
+  if (val?.list) return KIND_COLOR.triangle ?? KIND_COLOR.list ?? FALLBACK_COLOR;
+  if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.vector ?? KIND_COLOR.idealPoint ?? FALLBACK_COLOR;
+  const cls = algebra.classifyMV(val);
+  return cls ? (KIND_COLOR[cls.kind] ?? FALLBACK_COLOR) : (TYPE_COLOR_FALLBACK[node.type] ?? FALLBACK_COLOR);
 }
 
-function getDisplayValue(text, values) {
-  const node = parseExpression(text);
+function getDisplayValue(text, values, algebra) {
+  const node = algebra.parseExpression(text);
   if (!node) return null;
   const val = values[node.id];
   if (val == null) return null;
 
-  // Scalar number (includes triangle result which is 2× signed area)
   if (typeof val === 'number') return val.toFixed ? val.toFixed(4).replace(/\.?0+$/, '') : String(val);
-
-  // list: polygon special object
   if (val.list) return `Polygon (${val.points.length} pts)`;
+  if ('vx' in val) return `Vector (${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
 
-  // {vx, vy} ideal vector
-  if ('vx' in val) return `Ideal point (${val.vx.toFixed(2)}, ${val.vy.toFixed(2)})`;
-
-  const cls = classifyMV(val);
+  const cls = algebra.classifyMV(val);
   if (!cls) return '—';
 
+  const toE = algebra.toEuclidean;
+  const toI = algebra.toIdealVector;
   switch (cls.kind) {
     case 'scalar':      return val[0].toFixed(4).replace(/\.?0+$/, '');
-    case 'finitePoint': { const eu = toEuclidean(val); return eu ? `Point (${eu.x.toFixed(2)}, ${eu.y.toFixed(2)})` : '—'; }
-    case 'idealPoint':  { const iv = toIdealVector(val); return iv ? `Ideal point (${iv.vx.toFixed(2)}, ${iv.vy.toFixed(2)})` : '—'; }
+    case 'finitePoint': { const eu = toE?.(val); return eu ? `Point (${eu.x.toFixed(2)}, ${eu.y.toFixed(2)})` : '—'; }
+    case 'idealPoint':  { const iv = toI?.(val); return iv ? `Ideal point (${iv.vx.toFixed(2)}, ${iv.vy.toFixed(2)})` : '—'; }
+    case 'vector':      return `Vector (${(val[1] ?? 0).toFixed(2)}, ${(val[2] ?? 0).toFixed(2)})`;
+    case 'bivector':    return `Bivector (${(val[3] ?? val[val.length - 1]).toFixed(4).replace(/\.?0+$/, '')} e12)`;
     case 'line':        return 'Line';
     case 'idealLine':   return 'Ideal line';
     case 'pseudoscalar':return `${val[7].toFixed(4).replace(/\.?0+$/, '')} e012`;
@@ -74,8 +52,6 @@ function getDisplayValue(text, values) {
 
 // ── Multivector label ─────────────────────────────────────────────────────────
 
-const BLADE_NAMES = ['1', 'e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012'];
-
 function fmtCoeff(c) {
   const r = Math.round(c * 1e4) / 1e4;
   if (Number.isInteger(r)) return String(r);
@@ -87,56 +63,36 @@ function fmtCoeff(c) {
 // Compute the PGA norm used for unitization.
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
-function pgaNorm(arr) {
-  const g1 = Math.sqrt(arr[2] ** 2 + arr[3] ** 2);
-  if (g1 > 1e-10) return g1;
-  const g2w = Math.abs(arr[6]);
-  if (g2w > 1e-10) return g2w;
-  const g2i = Math.sqrt(arr[4] ** 2 + arr[5] ** 2);
-  if (g2i > 1e-10) return g2i;
-  const s = Math.abs(arr[0]);
-  if (s > 1e-10) return s;
-  return null;
-}
-
-function normalizeArr(arr) {
-  const norm = pgaNorm(arr);
-  if (!norm) return arr;
-  const result = arr.map(c => c / norm);
-  // Canonicalize sign: first non-zero coefficient positive.
-  const leading = result.find(c => Math.abs(c) > 1e-10);
-  return leading < 0 ? result.map(c => -c) : result;
-}
-
-function formatMV(val, normalize = false) {
+function formatMV(val, algebra) {
   if (val == null || typeof val === 'number') return null;
+  const bladeNames = algebra?.bladeNames;
+  const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
+  if (!bladeNames) return null;
 
   let arr;
   if ('vx' in val) {
-    // Use raw PGA coefficients when available (e.g. meet of parallel lines preserves magnitude).
-    // Fallback to reconstructing from vx/vy for plain { vx, vy } vectors.
-    let e01 = 'e01' in val ? val.e01 : val.vy;
-    let e02 = 'e02' in val ? val.e02 : -val.vx;
-    if (normalize) {
-      const len = Math.sqrt(e01 * e01 + e02 * e02);
-      if (len > 1e-10) {
-        e01 /= len; e02 /= len;
-        const leading = Math.abs(e01) > 1e-10 ? e01 : e02;
-        if (leading < 0) { e01 = -e01; e02 = -e02; }
-      }
+    // Reconstruct algebra-specific coefficients from {vx,vy}. PGA: ideal-point
+    // representation (e01 = vy, e02 = -vx). VGA: grade-1 (e1 = vx, e2 = vy).
+    const idx = algebra.bladeIndex ?? {};
+    arr = new Array(arraySize).fill(0);
+    if ('e01' in idx && 'e02' in idx) {
+      arr[idx.e01] = val.vy;
+      arr[idx.e02] = -val.vx;
+    } else if ('e1' in idx && 'e2' in idx) {
+      arr[idx.e1] = val.vx;
+      arr[idx.e2] = val.vy;
     }
-    arr = [0, 0, 0, 0, e01, e02, 0, 0];
-  } else if (val.length >= 8) {
-    arr = normalize ? normalizeArr(Array.from(val)) : Array.from(val);
+  } else if (val.length >= arraySize) {
+    arr = Array.from(val);
   } else {
     return null;
   }
 
   const terms = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < arraySize; i++) {
     const c = arr[i] || 0;
     if (Math.abs(c) < 5e-5) continue;
-    const blade = BLADE_NAMES[i];
+    const blade = bladeNames[i];
     const neg   = c < 0;
     const absC  = Math.abs(c);
     let termStr;
@@ -206,6 +162,8 @@ const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ExpressionPanel() {
+  const { algebra } = useAlgebra();
+  const { parseExpression, classifyMV } = algebra;
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
@@ -303,17 +261,17 @@ export default function ExpressionPanel() {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) ||
-                              cls_?.kind === 'finitePoint' || cls_?.kind === 'idealPoint' || cls_?.kind === 'line';
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
+          const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && !isList;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
-          const color      = resolveColor(item, values);
-          const displayVal = item.text.trim() ? getDisplayValue(item.text, values) : null;
-          const mvStr     = node ? formatMV(values[node.id], false) : null;
+          const color      = resolveColor(item, values, algebra);
+          const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra) : null;
+          const mvStr     = node ? formatMV(values[node.id], algebra) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense

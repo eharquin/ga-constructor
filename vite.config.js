@@ -55,7 +55,12 @@ function savedGraphsPlugin() {
             const body = await readBody(req)
             let parsed
             try { parsed = JSON.parse(body) } catch { return send(res, 400, { error: 'invalid json' }) }
-            const payload = { name, items: Array.isArray(parsed.items) ? parsed.items : [], savedAt: new Date().toISOString() }
+            const payload = {
+              name,
+              algebra: typeof parsed.algebra === 'string' ? parsed.algebra : null,
+              items: Array.isArray(parsed.items) ? parsed.items : [],
+              savedAt: new Date().toISOString(),
+            }
             await fs.writeFile(file, JSON.stringify(payload, null, 2))
             return send(res, 200, { name })
           }

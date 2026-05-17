@@ -1,61 +1,14 @@
 import { useReducer, useMemo, useRef, useState, useEffect } from 'react';
-import { parseExpression } from './graph/parseExpression.js';
-import { evaluate } from './graph/evaluate.js';
-import { toEuclidean, classifyMV } from './pga.js';
 
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
 
-// Colors keyed by geometric kind (matches ExpressionPanel KIND_COLOR)
-const KIND_COLOR = {
-  scalar:      '#a6e3a1',
-  finitePoint: '#89b4fa',
-  idealPoint:  '#f9e2af',
-  line:        '#cba6f7',
-  idealLine:   '#cba6f7',
-  pseudoscalar:'#f38ba8',
-  rotor:       '#74c7ec',
-  translator:  '#74c7ec',
-  motor:       '#94e2d5',
-  reflector:   '#fab387',
-  triangle:    '#89dceb',
-  mixed:       '#b4befe',
-};
-
-// Fallback when value is not yet computed — keyed by parser node type
-const TYPE_COLOR_FALLBACK = {
-  scalar:    '#a6e3a1',
-  freePoint: '#89b4fa',
-  vector:    '#f9e2af',
-  motorExp:  '#74c7ec',
-  triangle:  '#89dceb',
-  meetChain: '#89dceb',
-  list:      '#89dceb',
-};
+// Default fallback color when no kind/type matches.
+const FALLBACK_COLOR = '#6c7086';
 
 const ITEM = (id, text, extra = {}) => ({
   id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null, ...extra,
 });
-
-const INITIAL_ITEMS = [
-  // Draggable starting point
-  ITEM('expr_0', 'P = 5.2*e01 + 5.2*e02 + e12'),
-
-  // Translation direction
-  ITEM('expr_1', 'V = vector(-6.48, 0.92)'),
-
-  // Animatable scalars driving the motors
-  ITEM('expr_2', 't = 0', { anim: { min: 0, max: 1,    step: 0.02 } }),
-  ITEM('expr_3', 'a = 0', { anim: { min: 0, max: 3.14, step: 0.05 } }),
-
-  // Translator along V, rotor around the origin
-  ITEM('expr_4', 'T = exp(t*V)'),
-  ITEM('expr_5', 'R = exp(a*e12)'),
-
-  // Composed motor + transformed point
-  ITEM('expr_6', 'M = R * T'),
-  ITEM('expr_7', 'Q = M >>> P'),
-];
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
 
@@ -73,41 +26,23 @@ function reducer(items, action) {
     case 'ADD_ITEM':
       return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
     case 'SET_TEXT':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, text: action.text } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, text: action.text } : it);
     case 'SET_COLOR':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, color: action.color } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, color: action.color } : it);
     case 'SET_ANIM':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, anim: action.anim } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, anim: action.anim } : it);
     case 'SET_DRAW_POS':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, drawPos: action.drawPos } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, drawPos: action.drawPos } : it);
     case 'SET_LABEL':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, label: action.label } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, label: action.label } : it);
     case 'SET_LABEL_OPTS':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, labelOpts: action.opts } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, labelOpts: action.opts } : it);
     case 'SET_VISIBLE':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, visible: action.visible } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, visible: action.visible } : it);
     case 'SET_MOVABLE':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, movable: action.movable } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, movable: action.movable } : it);
     case 'SET_NORMALIZE_MODE':
-      return items.map((it) =>
-        it.id === action.id ? { ...it, normalizeMode: action.mode } : it
-      );
+      return items.map((it) => it.id === action.id ? { ...it, normalizeMode: action.mode } : it);
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
       const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null };
@@ -136,35 +71,27 @@ function reducer(items, action) {
         movable: it.movable ?? true,
         normalizeMode: it.normalizeMode ?? null,
       }));
-    case 'REORDER': {
-      const from = items.findIndex((it) => it.id === action.dragId);
-      const to   = items.findIndex((it) => it.id === action.targetId);
-      if (from === -1 || to === -1 || from === to) return items;
-      let insertAt = action.position === 'before' ? to : to + 1;
-      if (from < to) insertAt--;
-      const next = [...items];
-      const [moved] = next.splice(from, 1);
-      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, moved);
-      return next;
-    }
     default:
       return items;
   }
 }
 
-export function useGraph() {
-  const [items, dispatch] = useReducer(reducer, INITIAL_ITEMS);
-  const nextId = useRef(8);
+export function useGraph(algebra) {
+  // Algebra-bound primitives — change when the active algebra changes.
+  const { parseExpression, evaluate, classifyMV, toEuclidean } = algebra;
+  const KIND_COLOR           = algebra.KIND_COLOR ?? {};
+  const TYPE_COLOR_FALLBACK  = algebra.TYPE_COLOR_FALLBACK ?? {};
 
-  // Animation state — kept separate from items so value updates don't re-trigger the effect
+  const [items, dispatch] = useReducer(reducer, algebra.INITIAL_ITEMS);
+  const nextId = useRef(algebra.INITIAL_ITEMS.length);
+
+  // Animation state
   const [playingIds,   setPlayingIds]   = useState(new Set());
-  // animSettings: { [itemId]: { mode, speed } } — also separate to allow mode/speed changes
-  // to restart intervals without looping on every scalar tick.
   const [animSettings, setAnimSettings] = useState({});
   const latestItemsRef = useRef(items);
   latestItemsRef.current = items;
   const intervalsRef = useRef({});
-  const pingDirRef   = useRef({}); // per-item direction for pingpong mode: +1 | -1
+  const pingDirRef   = useRef({});
 
   useEffect(() => {
     for (const iid of Object.values(intervalsRef.current)) clearInterval(iid);
@@ -198,11 +125,10 @@ export function useGraph() {
           if (val >= max) {
             val = max;
             dispatch({ type: 'SET_TEXT', id: itemId, text: `${node.id} = ${val}` });
-            setPlayingIds(prev => { const n = new Set(prev); n.delete(itemId); return n; });
+            setPlayingIds((prev) => { const n = new Set(prev); n.delete(itemId); return n; });
             return;
           }
         } else {
-          // 'repeat' or 'infinite'
           val = Math.round((val + absStep) * 1e10) / 1e10;
           if (step > 0 && val > max) val = min;
           if (step < 0 && val < min) val = max;
@@ -216,14 +142,13 @@ export function useGraph() {
       for (const iid of Object.values(intervalsRef.current)) clearInterval(iid);
       intervalsRef.current = {};
     };
-  }, [playingIds, animSettings]);
+  }, [playingIds, animSettings, parseExpression]);
 
   const togglePlay = (id) => {
     const conf = animSettings[id] ?? {};
     const mode = conf.mode ?? 'repeat';
-    // 'once' mode: if already at max, reset to min so the next play restarts from the beginning
     if (mode === 'once') {
-      const item = items.find(it => it.id === id);
+      const item = items.find((it) => it.id === id);
       const node = item && parseExpression(item.text);
       if (node?.type === 'scalar') {
         const { min = 0, max = 10 } = item.anim ?? {};
@@ -240,8 +165,8 @@ export function useGraph() {
     });
   };
 
-  const setAnimMode  = (id, mode)  => setAnimSettings(p => ({ ...p, [id]: { ...(p[id] ?? {}), mode  } }));
-  const setAnimSpeed = (id, speed) => setAnimSettings(p => ({ ...p, [id]: { ...(p[id] ?? {}), speed } }));
+  const setAnimMode  = (id, mode)  => setAnimSettings((p) => ({ ...p, [id]: { ...(p[id] ?? {}), mode  } }));
+  const setAnimSpeed = (id, speed) => setAnimSettings((p) => ({ ...p, [id]: { ...(p[id] ?? {}), speed } }));
 
   const nodes = useMemo(() => {
     const result = {};
@@ -250,12 +175,11 @@ export function useGraph() {
       if (node) result[node.id] = node;
     }
     return result;
-  }, [items]);
+  }, [items, parseExpression]);
 
-  // Ordered list of node IDs matching the item order — drives canvas draw order.
   const orderedNodeIds = useMemo(() =>
     items.map((item) => parseExpression(item.text)?.id).filter(Boolean),
-    [items]
+    [items, parseExpression]
   );
 
   const normalizeMap = useMemo(() => {
@@ -265,7 +189,7 @@ export function useGraph() {
       if (node) map[node.id] = item.normalizeMode ?? null;
     }
     return map;
-  }, [items]);
+  }, [items, parseExpression]);
 
   const movableMap = useMemo(() => {
     const map = {};
@@ -274,15 +198,13 @@ export function useGraph() {
       if (node) map[node.id] = item.movable !== false;
     }
     return map;
-  }, [items]);
+  }, [items, parseExpression]);
 
   const values = useMemo(() => {
     try { return evaluate(nodes, normalizeMap); }
     catch { return {}; }
-  }, [nodes, normalizeMap]);
+  }, [nodes, normalizeMap, evaluate]);
 
-  // labelMap: nodeId → resolved label string (or null when disabled).
-  // {varname} in the label text is substituted with the current scalar value of varname.
   const labelMap = useMemo(() => {
     const fmtVal = (val) => {
       if (val == null) return '?';
@@ -302,9 +224,8 @@ export function useGraph() {
       );
     }
     return map;
-  }, [items, values]);
+  }, [items, values, parseExpression, classifyMV]);
 
-  // labelOptsMap: nodeId → {fontSize, orientation, anchor} (null = defaults)
   const labelOptsMap = useMemo(() => {
     const map = {};
     for (const item of items) {
@@ -312,9 +233,8 @@ export function useGraph() {
       if (node) map[node.id] = item.labelOpts ?? null;
     }
     return map;
-  }, [items]);
+  }, [items, parseExpression]);
 
-  // colorMap: nodeId → resolved color based on computed geometric kind
   const colorMap = useMemo(() => {
     const map = {};
     for (const item of items) {
@@ -322,27 +242,28 @@ export function useGraph() {
       if (!node) continue;
       if (item.color) { map[node.id] = item.color; continue; }
       const val = values[node.id];
-      if (val && typeof val === 'object' && 'vx' in val) { map[node.id] = KIND_COLOR.idealPoint; continue; }
+      if (val && typeof val === 'object' && 'vx' in val) { map[node.id] = KIND_COLOR.vector ?? KIND_COLOR.idealPoint ?? FALLBACK_COLOR; continue; }
       const cls = classifyMV(val);
-      map[node.id] = cls ? (KIND_COLOR[cls.kind] ?? '#6c7086') : (TYPE_COLOR_FALLBACK[node.type] ?? '#6c7086');
+      map[node.id] = cls ? (KIND_COLOR[cls.kind] ?? FALLBACK_COLOR) : (TYPE_COLOR_FALLBACK[node.type] ?? FALLBACK_COLOR);
     }
     return map;
-  }, [items, values]);
+  }, [items, values, parseExpression, classifyMV, KIND_COLOR, TYPE_COLOR_FALLBACK]);
 
   // vectorPositions: nodeId → { x, y, linked } draw position.
-  // Applies to vector nodes and to any node whose value classifies as idealPoint
-  // (so dual/derived ideal points get a movable tail too, just like raw vectors).
-  // drawPos can be { x, y } (static) or { ref: nodeId } (follows a point).
+  // Applies to vector nodes and to PGA idealPoint values (covers !L, dual-derived
+  // ideal points, etc.). VGA bivectors and rotors render at the origin and don't
+  // participate here.
   const vectorPositions = useMemo(() => {
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
       const isVec = node.type === 'vector';
-      const isIdeal = !isVec && classifyMV(values[node.id])?.kind === 'idealPoint';
-      if (!isVec && !isIdeal) continue;
+      const cls   = classifyMV(values[node.id]);
+      const isIdealPGA = !isVec && cls?.kind === 'idealPoint';
+      if (!isVec && !isIdealPGA) continue;
       const dp = item.drawPos;
-      if (dp?.ref) {
+      if (dp?.ref && toEuclidean) {
         const eu = toEuclidean(values[dp.ref]);
         map[node.id] = { ...(eu ?? { x: 0, y: 0 }), linked: true };
       } else {
@@ -350,7 +271,7 @@ export function useGraph() {
       }
     }
     return map;
-  }, [items, values]);
+  }, [items, values, parseExpression, classifyMV, toEuclidean]);
 
   const insertItemAfter = (afterId) => {
     const newId = `expr_${nextId.current++}`;
@@ -373,8 +294,6 @@ export function useGraph() {
     setPlayingIds(new Set());
   };
 
-  // Replace the entire item list (saved-graph load). Resets play state and bumps
-  // nextId past any expr_<N> ids in the incoming items so later inserts don't collide.
   const loadItems = (newItems) => {
     const arr = Array.isArray(newItems) ? newItems : [];
     dispatch({ type: 'LOAD_ITEMS', items: arr });
@@ -387,18 +306,23 @@ export function useGraph() {
     setPlayingIds(new Set());
   };
 
-  // If expr is a pure identifier that resolves to a scalar item, update that scalar.
-  // Returns true if handled.
+  // Reset to the active algebra's INITIAL_ITEMS whenever the algebra changes.
+  // Skip the very first render (useReducer already seeded with the initial showcase).
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    loadItems(algebra.INITIAL_ITEMS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [algebra.id]);
+
   const tryUpdateScalar = (expr, value) => {
     const trimmed = expr.trim();
-    // Plain identifier → update directly
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) {
       const si = items.find((it) => parseExpression(it.text)?.id === trimmed);
       if (!si) return false;
       dispatch({ type: 'SET_TEXT', id: si.id, text: `${trimmed} = ${fmtNum(value)}` });
       return true;
     }
-    // Negated identifier (-varName) → update with negated value
     const neg = trimmed.match(/^-([A-Za-z_][A-Za-z0-9_]*)$/);
     if (neg) {
       const si = items.find((it) => parseExpression(it.text)?.id === neg[1]);
@@ -409,8 +333,6 @@ export function useGraph() {
     return false;
   };
 
-  // Move a freePoint node. If coordinate expressions are scalar identifiers,
-  // update those scalars; otherwise overwrite literals in the expression text.
   const updateFreePoint = (nodeId, x, y) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -432,8 +354,6 @@ export function useGraph() {
     }
   };
 
-  // Update vector components by dragging the tip.
-  // If coordinate expressions are scalar identifiers, update those scalars.
   const updateVector = (nodeId, vx, vy) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -445,9 +365,6 @@ export function useGraph() {
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
     const isZeroLit = (s) => isLiteral(s) && +s === 0;
     const isVarRef  = (s) => /^-?[A-Za-z_][A-Za-z0-9_]*$/.test(s.trim());
-    // Constrain to zero only when the other axis is a scalar variable —
-    // preserves forms like V = x*e01 (drag updates x without leaking into e02).
-    // For all-literal forms like V = e01, allow free drag in any direction.
     const cvx = (isZeroLit(xExpr) && isVarRef(yExpr)) ? 0 : vx;
     const cvy = (isZeroLit(yExpr) && isVarRef(xExpr)) ? 0 : vy;
     const xHandled = tryUpdateScalar(xExpr, cvx);
@@ -455,8 +372,6 @@ export function useGraph() {
     if (!xHandled || !yHandled) {
       const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(cvx) : xExpr);
       const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(cvy) : yExpr);
-      // Skip text dispatch when the only unhandled parts are zero literals staying at 0
-      // (preserves original expression format, e.g. x*e01 remains x*e01).
       const needsText =
         (!xHandled && !(isZeroLit(xExpr) && Math.abs(cvx) < 1e-9)) ||
         (!yHandled && !(isZeroLit(yExpr) && Math.abs(cvy) < 1e-9));
@@ -468,17 +383,12 @@ export function useGraph() {
     }
   };
 
-  // Drag a parametric grade-2 multivector point: update its e01/e02 coefficient scalars.
-  // coeffExprs[4] (e01) encodes the y-coordinate; coeffExprs[5] (e02) encodes -x.
   const updateDepPoint = (nodeId, x, y) => {
     const node = nodes[nodeId];
     if (!node || node.type !== 'multivector') return;
     const { coeffExprs } = node.params;
     if (!coeffExprs) return;
-
     const w = values[nodeId]?.[6] ?? 1;
-
-    // expr is 'varName' or '-varName'; update the named scalar to targetCoeff.
     const applyCoeff = (expr, targetCoeff) => {
       if (!expr) return;
       const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
@@ -488,46 +398,33 @@ export function useGraph() {
       if (!si) return;
       dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
     };
-
-    if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);   // e01 → y·w
-    if (coeffExprs[5] !== undefined) applyCoeff(coeffExprs[5], -x * w);  // e02 → -x·w
+    if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);
+    if (coeffExprs[5] !== undefined) applyCoeff(coeffExprs[5], -x * w);
   };
 
-  // Insert scalar items (name = 0, or name = 1 for the e12 weight) before itemId.
   const createScalarsFor = (itemId, varNames) => {
     const item = items.find((it) => it.id === itemId);
     if (!item) return;
-
-    // Detect which var names are the e12 (weight) coefficient → default 1
     const node = parseExpression(item.text);
     const e12Vars = new Set();
     if (node?.params?.coeffExprs?.[6]) {
       const m = node.params.coeffExprs[6].match(/^-?([A-Za-z_][A-Za-z0-9_]*)$/);
       if (m) e12Vars.add(m[1]);
     }
-
     const newItems = varNames.map((name) => ({
       id: `expr_${nextId.current++}`,
       text: `${name} = ${e12Vars.has(name) ? 1 : 0}`,
-      color: null,
-      anim: null,
-      drawPos: null,
-      label: null,
+      color: null, anim: null, drawPos: null, label: null,
     }));
-
     dispatch({ type: 'INSERT_MANY_BEFORE', beforeId: itemId, newItems });
   };
 
-  // Drag a dual multivector point !(…): update the pre-dual scalar coefficients.
-  // Dual index mapping: e2 (idx 3) → e01 → y·w;  e1 (idx 2) → e02 → -x·w
   const updateDualDepPoint = (nodeId, x, y) => {
     const node = nodes[nodeId];
     if (!node || node.type !== 'multivector' || !node.params?.dual) return;
     const { coeffExprs } = node.params;
     if (!coeffExprs) return;
-
     const w = values[nodeId]?.[6] ?? 1;
-
     const applyCoeff = (expr, targetCoeff) => {
       if (!expr) return;
       const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
@@ -537,23 +434,18 @@ export function useGraph() {
       if (!si) return;
       dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
     };
-
-    if (coeffExprs[3] !== undefined) applyCoeff(coeffExprs[3], y * w);   // e2 → e01 → y·w
-    if (coeffExprs[2] !== undefined) applyCoeff(coeffExprs[2], -x * w);  // e1 → e02 → -x·w
+    if (coeffExprs[3] !== undefined) applyCoeff(coeffExprs[3], y * w);
+    if (coeffExprs[2] !== undefined) applyCoeff(coeffExprs[2], -x * w);
   };
 
-  // Rebuild a literal grade-2 multivector expression so the point is at (x, y).
-  // Normalises to w=1: e01 = round(y), e02 = round(-x), e12 = 1.
   const updateLiteralMVPoint = (nodeId, x, y) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
       return n?.id === nodeId && n?.type === 'multivector' && !n.params?.dual;
     });
     if (!item) return;
-
     const e01 = fmtNum(y);
     const e02 = fmtNum(-x);
-
     const term = (c, blade) => {
       if (c === 0) return null;
       if (c === 1) return blade;
@@ -565,8 +457,6 @@ export function useGraph() {
     dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
   };
 
-  // Matches items whose drawn position lives in vectorPositions: vector nodes,
-  // meetPoints, and anything whose value classifies as an idealPoint (duals etc.).
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
@@ -575,14 +465,12 @@ export function useGraph() {
       return classifyMV(values[n.id])?.kind === 'idealPoint';
     });
 
-  // Set static draw position for a vector.
   const setDrawPos = (nodeId, x, y) => {
     const item = findVectorItem(nodeId);
     if (!item) return;
     dispatch({ type: 'SET_DRAW_POS', id: item.id, drawPos: { x, y } });
   };
 
-  // Link a vector's draw position to a point node (follows it dynamically).
   const setDrawPosRef = (nodeId, pointNodeId) => {
     const item = findVectorItem(nodeId);
     if (!item) return;
@@ -597,7 +485,12 @@ export function useGraph() {
     const usedIds = new Set(items.map((it) => parseExpression(it.text)?.id).filter(Boolean));
     const name  = pickPointName(usedIds);
     const newId = `expr_${nextId.current++}`;
-    dispatch({ type: 'ADD_ITEM', id: newId, text: `${name} = point(${fmtNum(x)}, ${fmtNum(y)})` });
+    // PGA: emit `point(...)`; VGA (no freePoint support): emit `vector(...)` so double-click adds a vector.
+    const supportsPoint = algebra.supportedNodeTypes?.has('freePoint');
+    const text = supportsPoint
+      ? `${name} = point(${fmtNum(x)}, ${fmtNum(y)})`
+      : `${name} = vector(${fmtNum(x)}, ${fmtNum(y)})`;
+    dispatch({ type: 'ADD_ITEM', id: newId, text });
   };
 
   return {
@@ -624,7 +517,7 @@ export function useGraph() {
     labelOptsMap,
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemMovable:    (id, movable)    => dispatch({ type: 'SET_MOVABLE',    id, movable }),
-    setItemNormalizeMode: (id, mode) => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
+    setItemNormalizeMode: (id, mode)    => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
     normalizeMap,
     movableMap,
     reorderItem,
@@ -638,5 +531,6 @@ export function useGraph() {
     updateLiteralMVPoint,
     createScalarsFor,
     addFreePoint,
+    algebra,
   };
 }

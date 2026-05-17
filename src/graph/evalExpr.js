@@ -3,8 +3,6 @@
 // Rejects anything that isn't [A-Za-z0-9 +\-*/(). ,] — blocks strings, property
 // access, semicolons, etc. so user input cannot reach browser globals.
 
-import { evalMVArith, parseBladeName } from './evalMVArith.js';
-
 const MATH = {
   sin: Math.sin, cos: Math.cos, tan: Math.tan,
   asin: Math.asin, acos: Math.acos, atan: Math.atan, atan2: Math.atan2,
@@ -18,12 +16,13 @@ const MATH = {
 export const MATH_NAMES = new Set(Object.keys(MATH));
 
 // Extract non-math, non-blade identifier names from an expression string.
-// Blade names (e01, e21 …) are reserved tokens, not deps.
-export function extractVarNames(expr) {
+// parseBladeName is algebra-specific — pass it in so blade tokens from any
+// algebra get filtered out of the dep list.
+export function extractVarNames(expr, parseBladeName) {
   const names = new Set();
   for (const [, name] of expr.matchAll(/\b([A-Za-z_]\w*)\b/g)) {
     if (MATH_NAMES.has(name)) continue;
-    if (parseBladeName(name)) continue;
+    if (parseBladeName && parseBladeName(name)) continue;
     names.add(name);
   }
   return [...names];
@@ -32,9 +31,7 @@ export function extractVarNames(expr) {
 // Evaluate expr with the given scalar variable bindings.
 // Returns NaN on any error (unknown var, syntax error, division by zero, etc.).
 export function evalExpr(expr, scalars = {}) {
-  // Character-level safety: only allow chars needed for arithmetic
   if (!/^[\w\s+\-*/(). ,[\]]*$/.test(expr)) return NaN;
-
   const ctx = { ...MATH, ...scalars };
   try {
     // eslint-disable-next-line no-new-func
@@ -50,8 +47,9 @@ export function evalExpr(expr, scalars = {}) {
 // Routes through evalMVArith when the expression contains a property-access
 // pattern (which evalExpr can't resolve since deps may be MVs); otherwise
 // falls back to evalExpr to preserve math constants like PI/E.
-export function evalScalar(expr, scalars = {}) {
-  if (/\.[A-Za-z_]/.test(expr)) {
+// evalMVArith is algebra-bound — pass it in.
+export function evalScalar(expr, scalars = {}, evalMVArith = null) {
+  if (evalMVArith && /\.[A-Za-z_]/.test(expr)) {
     const result = evalMVArith(expr, scalars);
     return typeof result === 'number' && isFinite(result) ? result : NaN;
   }

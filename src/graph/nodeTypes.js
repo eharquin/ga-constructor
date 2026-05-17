@@ -1,245 +1,250 @@
-import { PGA, point2D, line2D, idealPoint, toEuclidean, lineBaseAndDir, dualOp, reverseOp } from '../pga.js';
+// Algebra-aware node-type registry factory.
+//
+// createNodeTypes(algebra, evaluator) returns { [type]: { label, compute } }.
+// PGA exposes the full registry (point, line, meet, join, triangle, …);
+// VGA exposes only the algebra-agnostic subset (scalar, vector, motorExp,
+// motorApply, dual, reverse, multivector, mvExpr, list).
+//
+// `compute` reads from algebra-bound primitives so the same node types work
+// across algebras when their semantics carry over (mvExpr, motorExp, etc.).
+
 import { evalScalar } from './evalExpr.js';
-import { evalMVArith } from './evalMVArith.js';
 
-// Convert a value to a PGA element (ideal point for vectors, pass-through otherwise).
-function toPGA(val) {
-  return (val && 'vx' in val) ? idealPoint(val.vx, val.vy) : val;
-}
+export function createNodeTypes(algebra, evaluator) {
+  const { Algebra, arraySize, dualOp, reverseOp, geomToMV } = algebra;
+  // PGA-only helpers (null on VGA) — used to guard the PGA-specific nodes.
+  const point2D        = algebra.point2D        ?? null;
+  const line2D         = algebra.line2D         ?? null;
+  const toEuclidean    = algebra.toEuclidean    ?? null;
+  const lineBaseAndDir = algebra.lineBaseAndDir ?? null;
+  const { evalMVArith } = evaluator;
 
-// Resolve an inline geometric argument to its PGA value.
-// geom comes from parseInlineGeom (kind, deps, depOffset, …).
-// depValues is the full depValues array passed to the node's compute function.
-function resolveInlineGeom(geom, depValues) {
-  const local = depValues.slice(geom.depOffset, geom.depOffset + geom.deps.length);
-  if (geom.kind === 'ref') return local[0];
-  if (geom.kind === 'vector') {
-    const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
-    const vx = evalScalar(geom.xExpr, s), vy = evalScalar(geom.yExpr, s);
-    return isNaN(vx) || isNaN(vy) ? null : { vx, vy };
+  // Convert {vx,vy} to an algebra MV; pass-through otherwise.
+  function toMV(val) {
+    return (val && typeof val === 'object' && 'vx' in val) ? geomToMV(val) : val;
   }
-  if (geom.kind === 'point') {
-    const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
-    const x = evalScalar(geom.xExpr, s), y = evalScalar(geom.yExpr, s);
-    return isNaN(x) || isNaN(y) ? null : point2D(x, y);
-  }
-  if (geom.kind === 'mv') {
-    const mv = new PGA(8);
-    for (let i = 0; i < 8; i++) mv[i] = geom.components[i] || 0;
-    if (geom.deps.length && geom.coeffExprs) {
+
+  // Algebra-scoped scalar evaluator — knows about `.blade` accessors.
+  function scalar(expr, scalars) { return evalScalar(expr, scalars, evalMVArith); }
+
+  // Resolve an inline geometric argument to its MV value.
+  function resolveInlineGeom(geom, depValues) {
+    const local = depValues.slice(geom.depOffset, geom.depOffset + geom.deps.length);
+    if (geom.kind === 'ref') return local[0];
+    if (geom.kind === 'vector') {
       const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
-      for (const [idx, expr] of Object.entries(geom.coeffExprs)) mv[+idx] = evalScalar(expr, s);
+      const vx = scalar(geom.xExpr, s), vy = scalar(geom.yExpr, s);
+      return isNaN(vx) || isNaN(vy) ? null : { vx, vy };
     }
-    return mv;
+    if (geom.kind === 'point') {
+      if (!point2D) return null;
+      const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
+      const x = scalar(geom.xExpr, s), y = scalar(geom.yExpr, s);
+      return isNaN(x) || isNaN(y) ? null : point2D(x, y);
+    }
+    if (geom.kind === 'mv') {
+      const mv = new Algebra(arraySize);
+      for (let i = 0; i < arraySize; i++) mv[i] = geom.components[i] || 0;
+      if (geom.deps.length && geom.coeffExprs) {
+        const s = Object.fromEntries(geom.deps.map((d, i) => [d, local[i]]));
+        for (const [idx, expr] of Object.entries(geom.coeffExprs)) mv[+idx] = scalar(expr, s);
+      }
+      return mv;
+    }
+    return null;
   }
-  return null;
-}
 
-function join(A, B) {
-  return PGA.Vee(toPGA(A), toPGA(B));
-}
+  function evalCoords(depValues, { xExpr, yExpr, deps }) {
+    const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
+    return { vx: scalar(xExpr, scalars), vy: scalar(yExpr, scalars) };
+  }
 
-function meet(A, B) {
-  return PGA.Wedge(toPGA(A), toPGA(B));
-}
+  // ── Algebra-agnostic node types ────────────────────────────────────────
+  const types = {
+    scalar: {
+      label: 'Scalar',
+      compute: (_, { value }) => value,
+    },
 
-function pointOnLine(L, t) {
-  const bd = lineBaseAndDir(L);
-  if (!bd) return null;
-  return point2D(bd.bx + t * bd.ux, bd.by + t * bd.uy);
-}
+    vector: {
+      label: 'Vector',
+      compute: (depValues, params) => {
+        const { vx, vy } = evalCoords(depValues, params);
+        if (isNaN(vx) || isNaN(vy)) return null;
+        return { vx, vy };
+      },
+    },
 
-// Evaluate both coordinate expressions with the dep-scalar environment.
-// Uses evalScalar so `.blade` accessors (P.e01, etc.) work in coord exprs.
-function evalCoords(depValues, { xExpr, yExpr, deps }) {
-  const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
-  return { vx: evalScalar(xExpr, scalars), vy: evalScalar(yExpr, scalars) };
-}
+    motorExp: {
+      label: 'Motor',
+      compute: (depValues, { exprStr, deps: paramDeps }) => {
+        const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
+        const raw = evalMVArith(exprStr, env);
+        if (raw == null) return null;
+        const V = (typeof raw === 'object' && 'vx' in raw) ? geomToMV(raw) : raw;
+        if (typeof V === 'number') {
+          const T = new Algebra(arraySize); T[0] = Math.exp(V); return T;
+        }
+        if (!V.length || V.length < arraySize) return null;
+        return V.Exp();
+      },
+    },
 
-// Each type defines: label (display name), compute(depValues[], params) → value.
-export const NODE_TYPES = {
-  scalar: {
-    label: 'Scalar',
-    compute: (_, { value }) => value,
-  },
-  freePoint: {
-    label: 'Free Point',
-    compute: (depValues, params) => {
-      const { vx: cx, vy: cy } = evalCoords(depValues, params);
-      if (isNaN(cx) || isNaN(cy)) return null;
-      return point2D(cx, cy);
+    motorApply: {
+      label: 'Transform',
+      compute: (depValues, { geom }) => {
+        const T = depValues[0];
+        if (!T) return null;
+        const raw = geom ? resolveInlineGeom(geom, depValues) : depValues[1];
+        const A = raw && typeof raw === 'object' && 'vx' in raw ? geomToMV(raw) : raw;
+        if (!A) return null;
+        return Algebra.sw(T, A);
+      },
     },
-  },
-  freeLine: {
-    label: 'Free Line',
-    compute: (depValues, { aExpr, bExpr, cExpr, deps }) => {
-      const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
-      const a = evalScalar(aExpr, scalars);
-      const b = evalScalar(bExpr, scalars);
-      const c = evalScalar(cExpr, scalars);
-      if (isNaN(a) || isNaN(b) || isNaN(c)) return null;
-      return line2D(a, b, c);
-    },
-  },
-  vector: {
-    label: 'Vector',
-    // Returns a plain { vx, vy } object — not a PGA element.
-    compute: (depValues, params) => {
-      const { vx, vy } = evalCoords(depValues, params);
-      if (isNaN(vx) || isNaN(vy)) return null;
-      return { vx, vy };
-    },
-  },
-  // exp(V): motor exponential of a bivector expression V.
-  // Delegates to ganja's V.Exp() — handles nilpotent V (V² = 0 → 1 + V),
-  // rotational V (V² = -c² → cos(c) + (sin(c)/c)·V), and the mixed case
-  // (V with both e0 and e12 components) uniformly via the Taylor expansion.
-  motorExp: {
-    label: 'Motor',
-    compute: (depValues, { exprStr, deps: paramDeps }) => {
-      const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
-      const raw = evalMVArith(exprStr, env);
-      if (raw == null) return null;
-      const V = (typeof raw === 'object' && 'vx' in raw) ? idealPoint(raw.vx, raw.vy) : raw;
-      if (typeof V === 'number') {
-        const T = new PGA(8); T[0] = Math.exp(V); return T;
-      }
-      if (!V.length || V.length < 8) return null;
-      return V.Exp();
-    },
-  },
 
-  // M >>> G: sandwich product M * G * ~M (rigid body transformation).
-  // M must be a named motor node; G can be any inline geom.
-  motorApply: {
-    label: 'Transform',
-    compute: (depValues, { geom }) => {
-      const T = depValues[0];
-      if (!T) return null;
-      const raw = geom ? resolveInlineGeom(geom, depValues) : depValues[1];
-      const pgaP = raw && 'vx' in raw ? idealPoint(raw.vx, raw.vy) : raw;
-      if (!pgaP) return null;
-      return PGA.sw(T, pgaP);
+    list: {
+      label: 'Polygon',
+      compute: (depValues, { geoms }) => {
+        if (!toEuclidean) return null;
+        const points = geoms.map((g) => {
+          const val = resolveInlineGeom(g, depValues);
+          return val ? toEuclidean(toMV(val)) : null;
+        });
+        if (points.some((p) => !p)) return null;
+        return { list: true, points };
+      },
     },
-  },
 
-  triangle: {
-    label: 'Triangle',
-    compute: (depValues, { geom1, geom2, geom3 }) => {
-      const P1 = resolveInlineGeom(geom1, depValues);
-      const P2 = resolveInlineGeom(geom2, depValues);
-      const P3 = resolveInlineGeom(geom3, depValues);
-      if (!P1 || !P2 || !P3) return null;
-      const eu1 = toEuclidean(toPGA(P1));
-      const eu2 = toEuclidean(toPGA(P2));
-      const eu3 = toEuclidean(toPGA(P3));
-      if (!eu1 || !eu2 || !eu3) return null;
-      // 2× signed area (positive = CCW) — propagated as a plain scalar
-      return (eu2.x - eu1.x) * (eu3.y - eu1.y) - (eu3.x - eu1.x) * (eu2.y - eu1.y);
-    },
-  },
-
-  list: {
-    label: 'Polygon',
-    compute: (depValues, { geoms }) => {
-      const points = geoms.map(g => {
-        const val = resolveInlineGeom(g, depValues);
-        return val ? toEuclidean(toPGA(val)) : null;
-      });
-      if (points.some(p => !p)) return null;
-      return { list: true, points };
-    },
-  },
-
-  joinLine: {
-    label: 'Line A ∧ B',
-    compute: (depValues, { geom1, geom2 }) => {
-      const P1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
-      const P2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
-      return join(P1, P2);
-    },
-  },
-  meetPoint: {
-    label: 'Meet L₁ ∧ L₂',
-    compute: (depValues, { geom1, geom2 }) => {
-      const L1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
-      const L2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
-      return meet(L1, L2);
-    },
-  },
-  meetChain: {
-    label: 'Meet L₁ ∧ … ∧ Lₙ',
-    compute: (depValues, { geoms }) => {
-      let result = toPGA(resolveInlineGeom(geoms[0], depValues));
-      for (let i = 1; i < geoms.length; i++) {
-        const next = resolveInlineGeom(geoms[i], depValues);
-        if (!next) return null;
-        result = PGA.Wedge(result, toPGA(next));
-      }
-      return result;
-    },
-  },
-  pointOnLine: {
-    label: 'Point on Line',
-    compute: ([L], { t }) => pointOnLine(L, t),
-  },
-
-  // Multivector: build a PGA element from a base component array plus optional variable coefficients.
-  // params.coeffExprs: { [idx]: exprString } — evaluated using deps as scalar environment.
-  // If a coefficient is a single var (optionally negated) that resolves to a non-scalar value
-  // (vector or MV), the term is interpreted as the algebraic product `dep × blade` instead of
-  // a scalar coefficient — so `V * e12` returns the orthogonal vector, not garbage in slot 6.
-  multivector: {
-    label: 'Multivector',
-    compute: (depValues, { components, dual, deps: paramDeps, coeffExprs }) => {
-      const mv = new PGA(8);
-      for (let i = 0; i < 8; i++) mv[i] = components[i] || 0;
-      if (paramDeps?.length && coeffExprs) {
-        const scalars = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
-        for (const [idxStr, expr] of Object.entries(coeffExprs)) {
-          const idx = +idxStr;
-          const varRef = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
-          const depVal = varRef ? scalars[varRef[2]] : null;
-          if (depVal != null && typeof depVal !== 'number') {
-            const sign = varRef[1] === '-' ? -1 : 1;
-            const left = ('vx' in depVal) ? idealPoint(depVal.vx, depVal.vy) : depVal;
-            const blade = new PGA(8); blade[idx] = sign;
-            const prod = PGA.Mul(left, blade);
-            for (let i = 0; i < 8; i++) mv[i] = (mv[i] || 0) + (prod[i] || 0);
-          } else {
-            mv[idx] = evalScalar(expr, scalars);
+    multivector: {
+      label: 'Multivector',
+      compute: (depValues, { components, dual, deps: paramDeps, coeffExprs }) => {
+        const mv = new Algebra(arraySize);
+        for (let i = 0; i < arraySize; i++) mv[i] = components[i] || 0;
+        if (paramDeps?.length && coeffExprs) {
+          const scalars = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
+          for (const [idxStr, expr] of Object.entries(coeffExprs)) {
+            const idx = +idxStr;
+            const varRef = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
+            const depVal = varRef ? scalars[varRef[2]] : null;
+            if (depVal != null && typeof depVal !== 'number') {
+              const sign = varRef[1] === '-' ? -1 : 1;
+              const left = (typeof depVal === 'object' && 'vx' in depVal) ? geomToMV(depVal) : depVal;
+              const blade = new Algebra(arraySize); blade[idx] = sign;
+              const prod = Algebra.Mul(left, blade);
+              for (let i = 0; i < arraySize; i++) mv[i] = (mv[i] || 0) + (prod[i] || 0);
+            } else {
+              mv[idx] = scalar(expr, scalars);
+            }
           }
         }
-      }
-      return dual ? dualOp(mv) : mv;
+        return dual ? dualOp(mv) : mv;
+      },
     },
-  },
 
-  // General multivector arithmetic expression: A + B, 2*A, A*B, (A+B)/2, etc.
-  mvExpr: {
-    label: 'MV Expression',
-    compute: (depValues, { exprStr, deps: paramDeps }) => {
-      if (!paramDeps) return null;
-      const env = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
-      return evalMVArith(exprStr, env);
+    mvExpr: {
+      label: 'MV Expression',
+      compute: (depValues, { exprStr, deps: paramDeps }) => {
+        if (!paramDeps) return null;
+        const env = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
+        return evalMVArith(exprStr, env);
+      },
     },
-  },
 
-  // 2D PGA dual of a dependent element (!A).
-  dual: {
-    label: 'Dual',
-    compute: ([val]) => {
-      if (!val || !val.length || val.length < 8) return null;
-      return dualOp(val);
+    dual: {
+      label: 'Dual',
+      compute: ([val]) => {
+        if (!val || !val.length || val.length < arraySize) return null;
+        return dualOp(val);
+      },
     },
-  },
 
-  // Reverse of a dependent element (~A).
-  reverse: {
-    label: 'Reverse',
-    compute: ([val]) => {
-      if (!val || !val.length || val.length < 8) return null;
-      return reverseOp(val);
+    reverse: {
+      label: 'Reverse',
+      compute: ([val]) => {
+        if (!val || !val.length || val.length < arraySize) return null;
+        return reverseOp(val);
+      },
     },
-  },
-};
+  };
+
+  // ── PGA-only node types (require point2D / line2D / projective Vee) ────
+  if (point2D) {
+    types.freePoint = {
+      label: 'Free Point',
+      compute: (depValues, params) => {
+        const { vx: cx, vy: cy } = evalCoords(depValues, params);
+        if (isNaN(cx) || isNaN(cy)) return null;
+        return point2D(cx, cy);
+      },
+    };
+  }
+  if (line2D) {
+    types.freeLine = {
+      label: 'Free Line',
+      compute: (depValues, { aExpr, bExpr, cExpr, deps }) => {
+        const scalars = Object.fromEntries((deps ?? []).map((d, i) => [d, depValues[i]]));
+        const a = scalar(aExpr, scalars);
+        const b = scalar(bExpr, scalars);
+        const c = scalar(cExpr, scalars);
+        if (isNaN(a) || isNaN(b) || isNaN(c)) return null;
+        return line2D(a, b, c);
+      },
+    };
+  }
+  if (typeof Algebra.Vee === 'function') {
+    types.joinLine = {
+      label: 'Line A ∧ B',
+      compute: (depValues, { geom1, geom2 }) => {
+        const P1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
+        const P2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
+        return P1 && P2 ? Algebra.Vee(toMV(P1), toMV(P2)) : null;
+      },
+    };
+    types.meetPoint = {
+      label: 'Meet L₁ ∧ L₂',
+      compute: (depValues, { geom1, geom2 }) => {
+        const L1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
+        const L2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
+        return L1 && L2 ? Algebra.Wedge(toMV(L1), toMV(L2)) : null;
+      },
+    };
+    types.meetChain = {
+      label: 'Meet L₁ ∧ … ∧ Lₙ',
+      compute: (depValues, { geoms }) => {
+        let result = toMV(resolveInlineGeom(geoms[0], depValues));
+        for (let i = 1; i < geoms.length; i++) {
+          const next = resolveInlineGeom(geoms[i], depValues);
+          if (!next) return null;
+          result = Algebra.Wedge(result, toMV(next));
+        }
+        return result;
+      },
+    };
+  }
+  if (toEuclidean) {
+    types.triangle = {
+      label: 'Triangle',
+      compute: (depValues, { geom1, geom2, geom3 }) => {
+        const P1 = resolveInlineGeom(geom1, depValues);
+        const P2 = resolveInlineGeom(geom2, depValues);
+        const P3 = resolveInlineGeom(geom3, depValues);
+        if (!P1 || !P2 || !P3) return null;
+        const eu1 = toEuclidean(toMV(P1));
+        const eu2 = toEuclidean(toMV(P2));
+        const eu3 = toEuclidean(toMV(P3));
+        if (!eu1 || !eu2 || !eu3) return null;
+        return (eu2.x - eu1.x) * (eu3.y - eu1.y) - (eu3.x - eu1.x) * (eu2.y - eu1.y);
+      },
+    };
+    types.pointOnLine = {
+      label: 'Point on Line',
+      compute: ([L], { t }) => {
+        if (!lineBaseAndDir) return null;
+        const bd = lineBaseAndDir(L);
+        return bd ? point2D(bd.bx + t * bd.ux, bd.by + t * bd.uy) : null;
+      },
+    };
+  }
+
+  return types;
+}
