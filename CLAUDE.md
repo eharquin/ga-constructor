@@ -4,7 +4,7 @@ Web-based geometric construction tool using Projective Geometric Algebra (PGA).
 
 ## Tech Stack
 - React + Vite
-- ganja.js for GA computations
+- ganja.js for GA computations (sandwich, exp, log, dual, reverse, length, typed constructors)
 - PGA(2,0,1) algebra (2D projective)
 - **SVG rendering** (native React JSX — no canvas 2D, no WebGL)
 
@@ -13,7 +13,8 @@ Web-based geometric construction tool using Projective Geometric Algebra (PGA).
 - Operations: `^` (wedge/meet), `&` (Vee/join), `|` (inner product), `§` (commutator), `>>>` (sandwich), `!` (dual), `~` (reverse)
 - Normalization: `norm` (finite ‖A‖) and `inorm` (ideal ‖A‖∞) buttons, propagated to dependents
 - Interactive: drag points, auto-update dependent objects
-- Rendering: declarative SVG — `SvgPoint`, `SvgLine`, `SvgVector`, `SvgPolygon`, `SvgGrid`; points always above lines (z-layered)
+- Rendering: declarative SVG — `SvgPoint`, `SvgLine`, `SvgVector`, `SvgIdealLine`, `SvgIdealPointMarker`, `SvgPolygon`, `SvgGrid`; points always above lines (z-layered); stroke widths / radii scale with `objectWeight(val)` so `5*e12` renders 5× thicker than `e12`
+- Ideal line (pure e0) drawn as a screen-space dashed ellipse — the line at infinity. Ideal points sit on its boundary when that ellipse is visible.
 
 ## Expression Language
 - `A.e12`, `A.e21` — blade coefficient extraction (permuted blades supported)
@@ -25,12 +26,22 @@ Web-based geometric construction tool using Projective Geometric Algebra (PGA).
 ## Current Focus
 Value-based type system: panel colors and canvas rendering driven by `classifyMV(val).kind`, not parser node type. Full operator set in `evalMVArith`. Polygon list notation `[P1,P2,…]`. Label templates `{a}`.
 
+**Ganja delegation** — most GA primitives now go through ganja's built-ins (one sign convention, no parallel implementations to drift):
+- `dualOp` → `PGA.Dual`; `reverseOp` → `PGA.Reverse`
+- `motorApply` (sandwich) → `PGA.sw(T, A)` (general case — works for composed motors, not just pure rotations)
+- `motorExp` → `V.Exp()` instance method (single-argument `exp(<mv_expr>)`; closed-form branches removed)
+- `evalMVArith` `>>>` → `PGA.sw`; `sqrt(motor)` → `M.Log()` → halve → `.Exp()`
+- `point2D` / `idealPoint` / `line2D` → `PGA.Bivector` / `PGA.Vector` typed constructors
+- Norms (`normalizeMVFinit/Ideal/MV`, `objectWeight`) → `PGA.Length` (with `PGA.Dual` for the ideal-norm path)
+
 **Per-item interactivity controls** (top of each row, next to the visibility checkbox):
 - 🔓/🔒 lock toggle — disables drag without hiding the object (drag-eligible items only)
 
 **Dark theme** — CSS custom properties at `:root` (light) and `[data-theme="dark"]` in `index.css`. Toggle button in app header writes to `localStorage` and adds a transient `theme-fade` class to `<html>` so the swap cross-fades over 300ms. SVG colors (grid, axis, labels, point strokes, canvas background) use `style={{ fill: 'var(--…)' }}` so they retheme too.
 
-**Base showcase** — 8-item motor-composition example: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(t*V)`, rotor `R = exp(a*e12)`, composed motor `M = R*T`, transformed point `Q = M >>> P`.
+**Base showcase** — 8-item motor-composition example: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(t*V)`, rotor `R = exp(a*e12)`, composed motor `M = R*T`, transformed point `Q = M >>> P`. `exp` is single-argument — the argument is exponentiated as a bivector via ganja's `V.Exp()`.
+
+**Git workflow** — GitHub Flow with PR-based feature branches. Auto-commit hook does `git push -u origin HEAD` so new branches publish on first commit. See `docs/git_workflow.md` for branch prefixes, hook gotchas, and recovery commands.
 
 Expression Reference in help modal covers all features.
 

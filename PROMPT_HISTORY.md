@@ -77,11 +77,11 @@ A chronological log of all prompts given to Claude in this project.
     - **Blade names appearing as graph deps**: `extractVarNames` picked up `e01`, `e02`, ... as identifiers, polluting freePoint/vector/freeLine deps. The graph engine then short-circuits because `values["e01"]` is undefined. Filtered blade names via the now-exported `parseBladeName` from `evalMVArith.js`.
     - **`!e01` / `~e12`** parsed as "dual/reverse of named node e01/e12" since the `!ID`/`~ID` regex didn't exclude blade names. Skipped those forms when `parseBladeName(id)` returns truthy, letting them fall through to `mvExpr` where the unary ops handle blades correctly. Also exported `parseBladeName` from `evalMVArith.js` for reuse.
     
-    Known limitations left as-is: (a) `exp(V)` with V having both e0 and e12 components uses the cos+(sin/c)·V form, exact only when V² is a pure scalar; (b) `M >>> [P1, P2, ...]` doesn't transform polygons as a unit; (c) operator precedence is flat (single parseTerm level) — `A * B ^ C` is `(A*B) ^ C` not the GA-conventional `A * (B ^ C)`.
+    Known limitations left as-is: (a) ~~`exp(V)` with V having both e0 and e12 components uses the cos+(sin/c)·V form, exact only when V² is a pure scalar~~ (fixed in #54 by delegating to ganja's `V.Exp()`); (b) `M >>> [P1, P2, ...]` doesn't transform polygons as a unit; (c) operator precedence is flat (single parseTerm level) — `A * B ^ C` is `(A*B) ^ C` not the GA-conventional `A * (B ^ C)`.
 
 53. **Removed trail/trajectory feature** — Stripped the `∿` trace toggle, `trace` per-item flag, `SET_TRACE` reducer case, `setItemTrace` API, `trails` state, trail-accumulation useEffect, `trajectoriesMap` memo, `SvgTrajectory` component (Canvas.jsx), trace-toggle wiring in ExpressionPanel.jsx, `.trace-toggle*` CSS rules, `TRAIL_MAX_POINTS` constant, and `{ trace: true }` on the showcase Q item. Also updated CLAUDE.md to drop the trace/trajectory sections.
 
-54. **Delegated more operations to ganja** — Replaced hand-rolled GA primitives with ganja's built-ins so we share a single sign convention and shed dead/buggy code:
+54. **Delegated more operations to ganja** — Replaced hand-rolled GA primitives with ganja's built-ins so we share a single sign convention and shed dead/buggy code (full notes in `docs/recap_2026-05-16.md`):
     - `dualOp` → `PGA.Dual` (right-complement convention; fixes the e1↔e02 sign that diverged from ganja).
     - `reverseOp` → `PGA.Reverse`.
     - `motorApply.compute` → `PGA.sw(T, A)`. Drops a ~25-line "optimized 2D point sandwich" path that was *incorrect* for composed motors (it treated T[4]/T[5] as the rotation center, valid only for pure rotations — composed translation+rotation motors gave wrong results).
@@ -90,5 +90,9 @@ A chronological log of all prompts given to Claude in this project.
     - `evalMVArith` `sqrt(motor)` → `M.Log()` → halve → `.Exp()`. The old code called `PGA.Sqrt` which **doesn't exist on the static class**; the call was silently swallowed by `evaluate.js`'s try/catch, so `sqrt(M)` had been broken since it was written.
     - `point2D`, `idealPoint`, `line2D` → use `PGA.Bivector`/`PGA.Vector` typed constructors.
     - `finitNormSq` removed; `normalizeMVFinit`, `normalizeMVIdeal`, `normalizeMV` now call `PGA.Length` (and `PGA.Length(PGA.Dual(val))` for the ideal-norm path).
+
+## 2026-05-17
+
+55. **CLAUDE.md / docs / PROMPT_HISTORY refresh** — Updated `CLAUDE.md` Current Focus to call out the ganja delegation, single-argument `exp`, weight-driven render thickness, ideal-line ellipse + ideal-point markers, and the git workflow doc. Created `docs/recap_2026-05-16.md` covering prompts 48–54 in detail (algebra cleanup, feature audit, trail removal, ganja delegation, visual weight, ideal-point rendering). Marked the `exp(V) with mixed e0/e12` limitation in #52 as resolved by #54.
 
 ---
