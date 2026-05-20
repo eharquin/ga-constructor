@@ -290,10 +290,37 @@ export function createEvalMVArith(algebra) {
     return null;
   }
 
+  const mapList = (lst, fn) => ({ list: true, items: lst.items.map(fn).filter((v) => v != null) });
+
   function applyOp(left, op, right) {
     if (left === null || right === null) return null;
     const lNum = typeof left  === 'number';
     const rNum = typeof right === 'number';
+
+    // List operations: elementwise +/-, scalar broadcast *, sandwich >>>.
+    if (left?.list || right?.list) {
+      if (op === '>>>') {
+        if (!right?.list) return null;
+        const M = toMV(left);
+        if (!M) return null;
+        return mapList(right, (item) => {
+          const A = item && typeof item === 'object' && 'vx' in item ? geomToMV(item) : item;
+          return A ? Algebra.sw(M, A) : null;
+        });
+      }
+      if (op === '*') {
+        if (lNum && right?.list) return mapList(right, (item) => scaleMV(toMV(item), left));
+        if (rNum && left?.list)  return mapList(left,  (item) => scaleMV(toMV(item), right));
+        return null;
+      }
+      if ((op === '+' || op === '-') && left?.list && right?.list && left.items.length === right.items.length) {
+        return {
+          list: true,
+          items: left.items.map((lv, i) => applyOp(lv, op, right.items[i])).filter((v) => v != null),
+        };
+      }
+      return null;
+    }
 
     if (lNum && rNum) {
       if (op === '+') return left + right;
@@ -429,12 +456,14 @@ export function createEvalMVArith(algebra) {
         eat();
         const v = parseFactor();
         if (v === null) return null;
+        if (v?.list) return mapList(v, (item) => { const mv = toMV(item); return mv ? dualOp(mv) : null; });
         const mv = toMV(v); return mv ? dualOp(mv) : null;
       }
       if (t.type === 'op' && t.val === '~') {
         eat();
         const v = parseFactor();
         if (v === null) return null;
+        if (v?.list) return mapList(v, (item) => { const mv = toMV(item); return mv ? reverseOp(mv) : null; });
         const mv = toMV(v); return mv ? reverseOp(mv) : null;
       }
 

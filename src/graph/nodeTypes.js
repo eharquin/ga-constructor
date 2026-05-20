@@ -108,6 +108,15 @@ export function createNodeTypes(algebra, evaluator) {
         const T = depValues[0];
         if (!T) return null;
         const raw = geom ? resolveInlineGeom(geom, depValues) : depValues[1];
+        if (raw?.list) {
+          return {
+            list: true,
+            items: raw.items.map((item) => {
+              const A = item && typeof item === 'object' && 'vx' in item ? geomToMV(item) : item;
+              return A ? Algebra.sw(T, A) : null;
+            }).filter(Boolean),
+          };
+        }
         const A = raw && typeof raw === 'object' && 'vx' in raw ? geomToMV(raw) : raw;
         if (!A) return null;
         return Algebra.sw(T, A);
@@ -115,15 +124,11 @@ export function createNodeTypes(algebra, evaluator) {
     },
 
     list: {
-      label: 'Polygon',
+      label: 'List',
       compute: (depValues, { geoms }) => {
-        if (!toEuclidean) return null;
-        const points = geoms.map((g) => {
-          const val = resolveInlineGeom(g, depValues);
-          return val ? toEuclidean(toMV(val)) : null;
-        });
-        if (points.some((p) => !p)) return null;
-        return { list: true, points };
+        const items = geoms.map((g) => resolveInlineGeom(g, depValues));
+        if (items.some((v) => v == null)) return null;
+        return { list: true, items };
       },
     },
 
@@ -165,6 +170,7 @@ export function createNodeTypes(algebra, evaluator) {
     dual: {
       label: 'Dual',
       compute: ([val]) => {
+        if (val?.list) return { list: true, items: val.items.map((v) => { const mv = toMV(v); return mv ? dualOp(mv) : null; }).filter(Boolean) };
         const mv = toMV(val);
         return mv ? dualOp(mv) : null;
       },
@@ -173,6 +179,7 @@ export function createNodeTypes(algebra, evaluator) {
     reverse: {
       label: 'Reverse',
       compute: ([val]) => {
+        if (val?.list) return { list: true, items: val.items.map((v) => { const mv = toMV(v); return mv ? reverseOp(mv) : null; }).filter(Boolean) };
         const mv = toMV(val);
         return mv ? reverseOp(mv) : null;
       },
