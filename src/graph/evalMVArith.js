@@ -137,6 +137,10 @@ export function createEvalMVArith(algebra) {
       return true;
     }
 
+    // absDepth > 0 while parsing inside |…| — prevents the closing | from
+    // being consumed as a binary inner-product by grade().
+    let absDepth = 0;
+
     const GRADE_OPS = new Set(['^', '&', '|', '§']);
 
     function grade() {
@@ -144,6 +148,7 @@ export function createEvalMVArith(algebra) {
       while (pos < tokens.length) {
         const t = peek();
         if (t?.type !== 'op' || !GRADE_OPS.has(t.val)) break;
+        if (t.val === '|' && absDepth > 0) break; // closing | of |…| — stop here
         eat();
         if (!factor()) return false;
       }
@@ -180,7 +185,10 @@ export function createEvalMVArith(algebra) {
       }
       if (t.type === 'op' && t.val === '|') {
         eat();
-        if (!expr()) return false;
+        absDepth++;
+        const ok = expr();
+        absDepth--;
+        if (!ok) return false;
         if (!peek() || peek().type !== 'op' || peek().val !== '|') return false;
         eat();
         return true;
@@ -390,6 +398,7 @@ export function createEvalMVArith(algebra) {
     }
 
     const GRADE_OPS = new Set(['^', '&', '|', '§']);
+    let evalAbsDepth = 0;
 
     function parseGrade() {
       let left = parseFactor();
@@ -397,6 +406,7 @@ export function createEvalMVArith(algebra) {
       while (pos < tokens.length) {
         const t = peek();
         if (t?.type !== 'op' || !GRADE_OPS.has(t.val)) break;
+        if (t.val === '|' && evalAbsDepth > 0) break; // closing | of |…|
         const op = eat().val;
         const right = parseFactor();
         if (right === null) return null;
@@ -438,7 +448,9 @@ export function createEvalMVArith(algebra) {
       } else if (t.type === 'op' && t.val === '|') {
         // |expr| — smart norm (finite or ideal, auto-detected).
         eat();
+        evalAbsDepth++;
         val = parseExpr();
+        evalAbsDepth--;
         if (!peek() || peek().val !== '|') return null;
         eat();
         val = applyNorm(val);
