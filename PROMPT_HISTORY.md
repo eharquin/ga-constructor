@@ -121,4 +121,10 @@ A chronological log of all prompts given to Claude in this project.
 
 68. **Backfill prompts 59–67** — Appended this section to `PROMPT_HISTORY.md` to cover the work that happened on `feat/vga-algebra` after the recap doc was written. Branch is now fully documented before opening the PR.
 
+## 2026-05-20
+
+69. **Plan + branching strategy** — Asked for next steps. Agreed on three independent PRs in this order: undo/redo, operator precedence, list values. Each off `main` (not stacked), since they look related but aren't.
+
+70. **Undo / redo (branch `feat/undo-redo`)** — Wrapped `useGraph`'s reducer state in `{ items, past, future, lastChange }`. Refactored the existing pure transforms into `itemsReducer(items, action)` and added an outer `reducer` that handles `UNDO`/`REDO` plus push-and-clear-future semantics for every mutating action. High-frequency `SET_TEXT` / `SET_DRAW_POS` writes targeting the same id within 400 ms coalesce into a single history entry — covers drag bursts and animation ticks without polluting the stack. `loadItems` gained a `{ fromAlgebraSwitch }` flag so the algebra-change effect resets history without leaving an undoable jump between algebras (saved-graph loads still go through history so the user can revert). Stack capped at 100. Exposed `undo` / `redo` / `canUndo` / `canRedo` from the hook. Wired `Ctrl/Cmd+Z` and `Ctrl/Cmd+Shift+Z` (and `Ctrl/Cmd+Y`) in `App.jsx` with an editable-element guard, and added small ↶/↷ buttons in the header next to 💾/📂.
+
 ---
