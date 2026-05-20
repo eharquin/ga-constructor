@@ -32,9 +32,12 @@ const TRIG_FNS = {
 // ─── Factory ────────────────────────────────────────────────────────────────
 
 export function createEvalMVArith(algebra) {
-  const { Algebra, arraySize, bladeIndex, parseBladeName, dualOp, reverseOp, geomToMV } = algebra;
+  const { Algebra, arraySize, bladeIndex, parseBladeName, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
 
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
+
+  // Property names accepted after '.' that are not blade names.
+  const PROP_NAMES = new Set(['norm', 'inorm']);
 
   // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
   const BASIS_ENV = (() => {
@@ -147,10 +150,27 @@ export function createEvalMVArith(algebra) {
       return true;
     }
 
+    // Parse one primary (no postfix), then consume any trailing .prop chains.
     function factor() {
       const t = peek();
       if (!t) return false;
+      // Unary ops delegate entirely to a nested factor (postfix handled inside).
       if (t.type === 'op' && (t.val === '-' || t.val === '+' || t.val === '!' || t.val === '~')) { eat(); return factor(); }
+      if (!primary()) return false;
+      // Postfix: .norm / .inorm / .bladename (allow chains e.g. (A^B).norm)
+      while (peek()?.type === 'op' && peek()?.val === '.') {
+        eat();
+        const prop = peek();
+        if (!prop || prop.type !== 'id') return false;
+        if (!PROP_NAMES.has(prop.val) && !parseBladeName(prop.val)) return false;
+        eat();
+      }
+      return true;
+    }
+
+    function primary() {
+      const t = peek();
+      if (!t) return false;
       if (t.type === 'op' && t.val === '(') {
         eat();
         if (!expr()) return false;
@@ -174,11 +194,6 @@ export function createEvalMVArith(algebra) {
           if (!expr()) return false;
           if (!peek() || peek().type !== 'op' || peek().val !== ')') return false;
           eat();
-        } else if (peek()?.type === 'op' && peek()?.val === '.') {
-          eat();
-          const blade = peek();
-          if (!blade || blade.type !== 'id' || !parseBladeName(blade.val)) return false;
-          eat();
         }
         return true;
       }
@@ -194,8 +209,10 @@ export function createEvalMVArith(algebra) {
     if (!tokens || !validate(tokens)) return null;
     const seen = new Set();
     const deps = [];
-    for (const t of tokens) {
-      if (t.type === 'id' && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -232,6 +249,27 @@ export function createEvalMVArith(algebra) {
       const r = new Algebra(arraySize); r[0] = Math.abs(mv[0]); return r;
     }
     return null;
+  }
+  function lenToNumber(len) {
+    return Math.abs(typeof len === 'number' ? len : (len?.[0] ?? 0));
+  }
+  // Smart norm: auto-selects finite or ideal path based on classifyMV.
+  function applyNorm(val) {
+    if (val === null) return null;
+    if (typeof val === 'number') return Math.abs(val);
+    const mv = toMV(val);
+    if (!mv) return null;
+    const cls = classifyMV?.(mv);
+    const isIdeal = cls?.kind === 'idealPoint' || cls?.kind === 'idealLine';
+    return lenToNumber(isIdeal ? Algebra.Length(dualOp(mv)) : Algebra.Length(mv));
+  }
+  // Explicit ideal norm.
+  function applyINorm(val) {
+    if (val === null) return null;
+    if (typeof val === 'number') return Math.abs(val);
+    const mv = toMV(val);
+    if (!mv) return null;
+    return lenToNumber(Algebra.Length(dualOp(mv)));
   }
   function applyScalarFn(fn, val) {
     if (val === null) return null;
@@ -371,6 +409,7 @@ export function createEvalMVArith(algebra) {
     function parseFactor() {
       const t = peek();
       if (!t) return null;
+      // Unary ops: recurse so inner parseFactor handles any postfix.
       if (t.type === 'op' && (t.val === '-' || t.val === '+')) {
         const op = eat().val;
         const v = parseFactor();
@@ -388,22 +427,24 @@ export function createEvalMVArith(algebra) {
         if (v === null) return null;
         const mv = toMV(v); return mv ? reverseOp(mv) : null;
       }
+
+      // Primary expression.
+      let val;
       if (t.type === 'op' && t.val === '(') {
         eat();
-        const v = parseExpr();
+        val = parseExpr();
         if (!peek() || peek().val !== ')') return null;
         eat();
-        return v;
-      }
-      if (t.type === 'op' && t.val === '|') {
+      } else if (t.type === 'op' && t.val === '|') {
+        // |expr| — smart norm (finite or ideal, auto-detected).
         eat();
-        const v = parseExpr();
+        val = parseExpr();
         if (!peek() || peek().val !== '|') return null;
         eat();
-        return applyAbs(v);
-      }
-      if (t.type === 'num') { eat(); return t.val; }
-      if (t.type === 'id') {
+        val = applyNorm(val);
+      } else if (t.type === 'num') {
+        eat(); val = t.val;
+      } else if (t.type === 'id') {
         eat();
         if (BUILTIN_FN_NAMES.has(t.val)) {
           if (!peek() || peek().val !== '(') return null;
@@ -412,41 +453,55 @@ export function createEvalMVArith(algebra) {
           if (!peek() || peek().val !== ')') return null;
           eat();
           if (arg === null) return null;
-          if (t.val === 'abs') return applyAbs(arg);
-          if (TRIG_FNS[t.val]) return applyScalarFn(TRIG_FNS[t.val], arg);
-          if (t.val === 'sqrt') {
-            if (typeof arg === 'number') return Math.sqrt(arg);
-            const mv = toMV(arg);
-            if (!mv) return null;
-            if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
-              const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); return r;
+          if (t.val === 'abs') { val = applyAbs(arg); }
+          else if (TRIG_FNS[t.val]) { val = applyScalarFn(TRIG_FNS[t.val], arg); }
+          else if (t.val === 'sqrt') {
+            if (typeof arg === 'number') { val = Math.sqrt(arg); }
+            else {
+              const mv = toMV(arg);
+              if (!mv) { val = null; }
+              else if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
+                const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
+              } else {
+                const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
+                const log = normalised.Log();
+                const half = new Algebra(arraySize);
+                for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
+                val = half.Exp();
+              }
             }
-            // Motor sqrt via Log/half/Exp (sign-normalised).
-            const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
-            const log = normalised.Log();
-            const half = new Algebra(arraySize);
-            for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
-            return half.Exp();
-          }
-          return null;
+          } else { val = null; }
+        } else {
+          const v = fullEnv[t.val];
+          val = v !== undefined ? v : (() => {
+            const b = parseBladeName(t.val);
+            if (!b) return null;
+            const mv = new Algebra(arraySize); mv[b.index] = b.sign; return mv;
+          })();
         }
-        if (peek()?.type === 'op' && peek()?.val === '.') {
-          eat();
-          const blade = peek();
-          if (!blade || blade.type !== 'id') return null;
-          const b = parseBladeName(blade.val);
-          if (!b) return null;
-          eat();
-          const mv = toMV(fullEnv[t.val]);
-          return mv ? b.sign * (mv[b.index] ?? 0) : null;
-        }
-        const v = fullEnv[t.val];
-        if (v !== undefined) return v;
-        const b = parseBladeName(t.val);
-        if (b) { const mv = new Algebra(arraySize); mv[b.index] = b.sign; return mv; }
+      } else {
         return null;
       }
-      return null;
+
+      // Postfix property: .norm / .inorm / .bladename — works after any primary.
+      while (val !== null && peek()?.type === 'op' && peek()?.val === '.') {
+        eat();
+        const prop = peek();
+        if (!prop || prop.type !== 'id') return null;
+        eat();
+        if (prop.val === 'norm') {
+          val = applyNorm(val);
+        } else if (prop.val === 'inorm') {
+          val = applyINorm(val);
+        } else {
+          const b = parseBladeName(prop.val);
+          if (!b) return null;
+          const mv = toMV(val);
+          val = mv ? b.sign * (mv[b.index] ?? 0) : null;
+        }
+      }
+
+      return val;
     }
 
     return parseExpr();

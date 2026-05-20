@@ -127,6 +127,6 @@ A chronological log of all prompts given to Claude in this project.
 
 70. **Undo / redo (branch `feat/undo-redo`, PR #2)** — Wrapped `useGraph`'s reducer state in `{ items, past, future, lastChange }`. Refactored existing pure transforms into `itemsReducer`; outer `reducer` handles `UNDO`/`REDO`. High-frequency `SET_TEXT`/`SET_DRAW_POS` writes to the same id within 400 ms coalesce into one history entry. `loadItems` got `{ fromAlgebraSwitch }` to reset history on algebra change. Stack capped at 100. `↶`/`↷` header buttons + `Ctrl/Cmd+Z` / `Ctrl/Cmd+Shift+Z`.
 
-71. **Operator precedence + norm extraction (branch `feat/operator-precedence`, PR #3)** — Replaced flat `parseTerm` in `evalMVArith.js` with a 4-level precedence ladder: `^ & | §` (tightest) → `* /` → `>>>` → `+ -` (loosest). Mirrored in `validate()`. `A * B ^ C` now parses as `A * (B^C)`; `M * N >>> A ^ B` as `(M*N) >>> (A^B)`. Also added norm extraction: `|expr|` uses smart norm; `(expr).norm` / `(expr).inorm` explicit norms. Fixed `|…|`/`|` ambiguity with `absDepth` counter. Added 5 example saved graphs.
+71. **Operator precedence + norm extraction (branch `feat/operator-precedence`, PR #3)** — Replaced flat `parseTerm` in `evalMVArith.js` with a 4-level precedence ladder: `^ & | §` (tightest) → `* /` → `>>>` → `+ -` (loosest). Mirrored in `validate()`. Added norm extraction: `|expr|` smart norm; `(expr).norm` / `(expr).inorm` explicit norms; `absDepth` fixes `|…|`/`|` ambiguity. Added 5 example saved graphs.
 
 ---
