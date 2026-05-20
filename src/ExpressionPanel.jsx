@@ -69,8 +69,29 @@ function fmtCoeff(c, decimals = 4) {
 // Compute the PGA norm used for unitization.
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
+function formatListItem(item, algebra, decimals) {
+  if (item == null) return '?';
+  if (typeof item === 'number') return parseFloat(item.toFixed(decimals)).toString();
+  if ('vx' in item) {
+    const d = Math.max(0, Math.min(decimals, 2));
+    return `vec(${item.vx.toFixed(d)}, ${item.vy.toFixed(d)})`;
+  }
+  const cls = algebra.classifyMV?.(item);
+  if (!cls) return '?';
+  if (cls.kind === 'finitePoint') {
+    const eu = algebra.toEuclidean?.(item);
+    if (eu) { const d = Math.max(0, Math.min(decimals, 2)); return `pt(${eu.x.toFixed(d)}, ${eu.y.toFixed(d)})`; }
+  }
+  if (cls.kind === 'scalar') return parseFloat((item[0] || 0).toFixed(decimals)).toString();
+  return cls.kind;
+}
+
 function formatMV(val, algebra, decimals = 4) {
-  if (val == null || typeof val === 'number' || val?.list) return null;
+  if (val == null || typeof val === 'number') return null;
+  if (val?.list) {
+    const parts = val.items.map((item) => formatListItem(item, algebra, decimals));
+    return `[${parts.join(', ')}]`;
+  }
   const bladeNames = algebra?.bladeNames;
   const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
   if (!bladeNames) return null;
