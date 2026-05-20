@@ -30,7 +30,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
   const fmtC = (n) => n.toFixed(dc);
 
   if (typeof val === 'number') return fmtN(val);
-  if (val.list) return `Polygon (${val.points.length} pts)`;
+  if (val.list) return `List (${val.items.length} items)`;
   if ('vx' in val) return `Vector (${fmtC(val.vx)}, ${fmtC(val.vy)})`;
 
   const cls = algebra.classifyMV(val);
@@ -70,7 +70,7 @@ function fmtCoeff(c, decimals = 4) {
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
 function formatMV(val, algebra, decimals = 4) {
-  if (val == null || typeof val === 'number') return null;
+  if (val == null || typeof val === 'number' || val?.list) return null;
   const bladeNames = algebra?.bladeNames;
   const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
   if (!bladeNames) return null;
