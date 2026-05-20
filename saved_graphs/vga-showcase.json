@@ -1,0 +1,14 @@
+{
+  "algebra": "vga200",
+  "items": [
+    {"id":"expr_0","text":"V = vector(3, 4)","color":null,"anim":null,"drawPos":null,"label":"V","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_1","text":"W = vector(-2, 1)","color":null,"anim":null,"drawPos":null,"label":"W","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_2","text":"a = 0","color":null,"anim":{"min":0,"max":6.283185307179586,"step":0.05},"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_3","text":"R = exp((a/2)*e12)","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_4","text":"Vr = R >>> V","color":null,"anim":null,"drawPos":null,"label":"Vr","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_5","text":"S = V | W","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_6","text":"B = V ^ W","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_7","text":"v_mag = |V|","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_8","text":"w_mag = |W|","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null}
+  ]
+}

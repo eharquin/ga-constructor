@@ -1,0 +1,13 @@
+{
+  "algebra": "pga201",
+  "items": [
+    {"id":"expr_0","text":"A = point(-5, -3)","color":null,"anim":null,"drawPos":null,"label":"A","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_1","text":"B = point(4, -2)","color":null,"anim":null,"drawPos":null,"label":"B","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_2","text":"C = point(-3, 4)","color":null,"anim":null,"drawPos":null,"label":"C","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_3","text":"D = point(5, 3)","color":null,"anim":null,"drawPos":null,"label":"D","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_4","text":"L1 = A & B","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_5","text":"L2 = C & D","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_6","text":"P = L1 ^ L2","color":null,"anim":null,"drawPos":null,"label":"P","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_7","text":"M = (A + B) / 2","color":null,"anim":null,"drawPos":null,"label":"mid","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null}
+  ]
+}
