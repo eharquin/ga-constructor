@@ -399,7 +399,7 @@ export function createParseExpression(algebra, evaluator) {
       const inner = expr.slice(1, -1).trim();
       if (inner) {
         const parts = splitAllTopLevelCommas(inner);
-        if (parts.length >= 2) {
+        if (parts.length >= 1) {
           const geoms = parts.map((s) => parseInlineGeom(s));
           if (geoms.every(Boolean)) {
             let offset = 0;
