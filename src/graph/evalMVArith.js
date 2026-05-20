@@ -90,29 +90,57 @@ export function createEvalMVArith(algebra) {
   }
 
   // ── Syntax validator ──────────────────────────────────────────────────
+  // Precedence (tight → loose):
+  //   factor  — unary ! ~ - +, atoms, abs |…|, parens, function calls
+  //   grade   — ^ & | §          (grade products)
+  //   prod    — * /               (geometric product / scalar div)
+  //   sandwich — >>>              (sandwich transform)
+  //   expr    — + -               (additive)
   function validate(tokens) {
     let pos = 0;
     const peek = () => tokens[pos];
     const eat  = () => tokens[pos++];
 
     function expr() {
-      if (!term()) return false;
+      if (!sandwich()) return false;
       while (pos < tokens.length) {
         const t = peek();
         if (t?.type !== 'op' || (t.val !== '+' && t.val !== '-')) break;
         eat();
-        if (!term()) return false;
+        if (!sandwich()) return false;
       }
       return true;
     }
 
-    const BINARY_OPS = new Set(['*', '/', '^', '&', '|', '§', '>>>']);
+    function sandwich() {
+      if (!prod()) return false;
+      while (pos < tokens.length) {
+        const t = peek();
+        if (t?.type !== 'op' || t.val !== '>>>') break;
+        eat();
+        if (!prod()) return false;
+      }
+      return true;
+    }
 
-    function term() {
+    function prod() {
+      if (!grade()) return false;
+      while (pos < tokens.length) {
+        const t = peek();
+        if (t?.type !== 'op' || (t.val !== '*' && t.val !== '/')) break;
+        eat();
+        if (!grade()) return false;
+      }
+      return true;
+    }
+
+    const GRADE_OPS = new Set(['^', '&', '|', '§']);
+
+    function grade() {
       if (!factor()) return false;
       while (pos < tokens.length) {
         const t = peek();
-        if (t?.type !== 'op' || !BINARY_OPS.has(t.val)) break;
+        if (t?.type !== 'op' || !GRADE_OPS.has(t.val)) break;
         eat();
         if (!factor()) return false;
       }
@@ -277,14 +305,15 @@ export function createEvalMVArith(algebra) {
     const peek = () => tokens[pos];
     const eat  = () => tokens[pos++];
 
+    // Precedence ladder (tight → loose): grade > prod > sandwich > expr
     function parseExpr() {
-      let left = parseTerm();
+      let left = parseSandwich();
       if (left === null) return null;
       while (pos < tokens.length) {
         const t = peek();
         if (t?.type !== 'op' || (t.val !== '+' && t.val !== '-')) break;
         const op = eat().val;
-        const right = parseTerm();
+        const right = parseSandwich();
         if (right === null) return null;
         left = applyOp(left, op, right);
         if (left === null) return null;
@@ -292,14 +321,44 @@ export function createEvalMVArith(algebra) {
       return left;
     }
 
-    const EVAL_BINARY_OPS = new Set(['*', '/', '^', '&', '|', '§', '>>>']);
+    function parseSandwich() {
+      let left = parseProd();
+      if (left === null) return null;
+      while (pos < tokens.length) {
+        const t = peek();
+        if (t?.type !== 'op' || t.val !== '>>>') break;
+        const op = eat().val;
+        const right = parseProd();
+        if (right === null) return null;
+        left = applyOp(left, op, right);
+        if (left === null) return null;
+      }
+      return left;
+    }
 
-    function parseTerm() {
+    function parseProd() {
+      let left = parseGrade();
+      if (left === null) return null;
+      while (pos < tokens.length) {
+        const t = peek();
+        if (t?.type !== 'op' || (t.val !== '*' && t.val !== '/')) break;
+        const op = eat().val;
+        const right = parseGrade();
+        if (right === null) return null;
+        left = applyOp(left, op, right);
+        if (left === null) return null;
+      }
+      return left;
+    }
+
+    const GRADE_OPS = new Set(['^', '&', '|', '§']);
+
+    function parseGrade() {
       let left = parseFactor();
       if (left === null) return null;
       while (pos < tokens.length) {
         const t = peek();
-        if (t?.type !== 'op' || !EVAL_BINARY_OPS.has(t.val)) break;
+        if (t?.type !== 'op' || !GRADE_OPS.has(t.val)) break;
         const op = eat().val;
         const right = parseFactor();
         if (right === null) return null;
