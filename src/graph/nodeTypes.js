@@ -108,16 +108,29 @@ export function createNodeTypes(algebra, evaluator) {
         const T = depValues[0];
         if (!T) return null;
         const raw = geom ? resolveInlineGeom(geom, depValues) : depValues[1];
+        const toA = (item) => item && typeof item === 'object' && 'vx' in item ? geomToMV(item) : item;
+        // Pairwise: list of motors applied to list of objects (same length).
+        if (T?.list && raw?.list) {
+          if (T.items.length !== raw.items.length) return null;
+          return {
+            list: true,
+            items: T.items.map((t, i) => {
+              const A = toA(raw.items[i]);
+              return (t && A) ? Algebra.sw(t, A) : null;
+            }).filter(Boolean),
+          };
+        }
+        // Single motor broadcast over a list.
         if (raw?.list) {
           return {
             list: true,
             items: raw.items.map((item) => {
-              const A = item && typeof item === 'object' && 'vx' in item ? geomToMV(item) : item;
+              const A = toA(item);
               return A ? Algebra.sw(T, A) : null;
             }).filter(Boolean),
           };
         }
-        const A = raw && typeof raw === 'object' && 'vx' in raw ? geomToMV(raw) : raw;
+        const A = toA(raw);
         if (!A) return null;
         return Algebra.sw(T, A);
       },
