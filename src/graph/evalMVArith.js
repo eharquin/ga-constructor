@@ -236,6 +236,7 @@ export function createEvalMVArith(algebra) {
     return val;
   }
   function negateVal(val) {
+    if (val?.list) return mapList(val, negateVal);
     if (typeof val === 'number') return -val;
     if (typeof val === 'object' && 'vx' in val) return { vx: -val.vx, vy: -val.vy };
     const r = new Algebra(arraySize);
@@ -264,6 +265,7 @@ export function createEvalMVArith(algebra) {
   // Smart norm: auto-selects finite or ideal path based on classifyMV.
   function applyNorm(val) {
     if (val === null) return null;
+    if (val?.list) return mapList(val, applyNorm);
     if (typeof val === 'number') return Math.abs(val);
     const mv = toMV(val);
     if (!mv) return null;
@@ -274,6 +276,7 @@ export function createEvalMVArith(algebra) {
   // Explicit ideal norm.
   function applyINorm(val) {
     if (val === null) return null;
+    if (val?.list) return mapList(val, applyINorm);
     if (typeof val === 'number') return Math.abs(val);
     const mv = toMV(val);
     if (!mv) return null;
@@ -297,29 +300,16 @@ export function createEvalMVArith(algebra) {
     const lNum = typeof left  === 'number';
     const rNum = typeof right === 'number';
 
-    // List operations: elementwise +/-, scalar broadcast *, sandwich >>>.
+    // List operations — general rule:
+    //   both lists, same length → elementwise
+    //   one list, one non-list  → broadcast (apply op to each element)
     if (left?.list || right?.list) {
-      if (op === '>>>') {
-        if (!right?.list) return null;
-        const M = toMV(left);
-        if (!M) return null;
-        return mapList(right, (item) => {
-          const A = item && typeof item === 'object' && 'vx' in item ? geomToMV(item) : item;
-          return A ? Algebra.sw(M, A) : null;
-        });
+      if (left?.list && right?.list) {
+        if (left.items.length !== right.items.length) return null;
+        return { list: true, items: left.items.map((lv, i) => applyOp(lv, op, right.items[i])).filter((v) => v != null) };
       }
-      if (op === '*') {
-        if (lNum && right?.list) return mapList(right, (item) => scaleMV(toMV(item), left));
-        if (rNum && left?.list)  return mapList(left,  (item) => scaleMV(toMV(item), right));
-        return null;
-      }
-      if ((op === '+' || op === '-') && left?.list && right?.list && left.items.length === right.items.length) {
-        return {
-          list: true,
-          items: left.items.map((lv, i) => applyOp(lv, op, right.items[i])).filter((v) => v != null),
-        };
-      }
-      return null;
+      if (left?.list)  return mapList(left,  (item) => applyOp(item, op, right));
+      if (right?.list) return mapList(right, (item) => applyOp(left,  op, item));
     }
 
     if (lNum && rNum) {
