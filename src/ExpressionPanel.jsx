@@ -217,6 +217,7 @@ export default function ExpressionPanel() {
   // Local state for in-progress edits (keyed by item id)
   const [animTexts,  setAnimTexts]  = useState({});
   const [posTxts,    setPosTxts]    = useState({});
+  const [expandedLists, setExpandedLists] = useState(new Set());
   const [labelTexts, setLabelTexts] = useState({});
   const [animMenuIds,  setAnimMenuIds]  = useState(new Set());
   const [helpOpen,     setHelpOpen]     = useState(false);
@@ -453,8 +454,23 @@ export default function ExpressionPanel() {
                     onChange={(e) => setItemText(item.id, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, item, index)}
                   />
-                  {displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>}
-                  {mvStr      && <div className="expr-mv">{mvStr}</div>}
+                  {isList ? (
+                    <button
+                      className="list-toggle"
+                      style={{ color }}
+                      tabIndex={-1}
+                      onClick={() => setExpandedLists((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                        return next;
+                      })}
+                    >
+                      {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
+                    </button>
+                  ) : (
+                    displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                  )}
+                  {!isList && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
                 </div>
 
@@ -465,6 +481,18 @@ export default function ExpressionPanel() {
                   aria-label="Delete"
                 >×</button>
               </div>
+
+              {/* List items sub-section — expanded list */}
+              {isList && expandedLists.has(item.id) && val_?.items && (
+                <div className="list-items-sub">
+                  {val_.items.map((listItem, li) => (
+                    <div key={li} className="list-item-row">
+                      <span className="list-item-index">{li + 1}</span>
+                      <span className="list-item-value">{formatListItem(listItem, algebra, settings.decimals)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Interval sub-row — scalar only */}
               {isScalar && (
