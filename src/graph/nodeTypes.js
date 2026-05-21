@@ -93,12 +93,14 @@ export function createNodeTypes(algebra, evaluator) {
         const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
         const raw = evalMVArith(exprStr, env);
         if (raw == null) return null;
-        const V = (typeof raw === 'object' && 'vx' in raw) ? geomToMV(raw) : raw;
-        if (typeof V === 'number') {
-          const T = new Algebra(arraySize); T[0] = Math.exp(V); return T;
-        }
-        if (!V.length || V.length < arraySize) return null;
-        return V.Exp();
+        const expOne = (item) => {
+          const V = (typeof item === 'object' && item && 'vx' in item) ? geomToMV(item) : item;
+          if (typeof V === 'number') { const T = new Algebra(arraySize); T[0] = Math.exp(V); return T; }
+          if (!V?.length || V.length < arraySize) return null;
+          return V.Exp();
+        };
+        if (raw?.list) return { list: true, items: raw.items.map(expOne).filter(Boolean) };
+        return expOne(raw);
       },
     },
 

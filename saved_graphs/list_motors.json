@@ -1,0 +1,95 @@
+{
+  "name": "list_motors",
+  "algebra": "pga201",
+  "items": [
+    {
+      "id": "expr_9",
+      "text": "",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_10",
+      "text": "E = point(7.2, 10.8)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_11",
+      "text": "F = point(2.9, 2)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_12",
+      "text": "G = point(-16.7, 5.2)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_13",
+      "text": "L=[E,F,G]",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_14",
+      "text": "LL=-e12*L",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_16",
+      "text": "LL>>>L",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": {
+        "fontSize": 13,
+        "orientation": 0,
+        "anchor": "top-right"
+      },
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    }
+  ],
+  "savedAt": "2026-05-21T09:30:08.812Z"
+}
