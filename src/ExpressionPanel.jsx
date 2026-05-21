@@ -83,7 +83,7 @@ function formatListItem(item, algebra, decimals) {
     if (eu) { const d = Math.max(0, Math.min(decimals, 2)); return `pt(${eu.x.toFixed(d)}, ${eu.y.toFixed(d)})`; }
   }
   if (cls.kind === 'scalar') return parseFloat((item[0] || 0).toFixed(decimals)).toString();
-  return cls.kind;
+  return formatMV(item, algebra, decimals) ?? cls.kind;
 }
 
 function formatMV(val, algebra, decimals = 4) {
