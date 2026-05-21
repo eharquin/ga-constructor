@@ -705,8 +705,7 @@ export default function ExpressionPanel() {
                   <tbody>
                     <tr><td><code>L = A &amp; B</code></td><td>Join (regressive ∨): line through two points.</td></tr>
                     <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triple join → 2 × signed area as a plain scalar.</td></tr>
-                    <tr><td><code>X = L1 ^ L2</code></td><td>Meet (wedge ∧): intersection of two lines. Works for n-ary chains: <code>L1 ^ L2 ^ L3</code>.</td></tr>
-                    <tr><td><code>Poly = [A, B, C, D]</code></td><td>Polygon drawn through a list of points. Any number of named points.</td></tr>
+                    <tr><td><code>X = L1 ^ L2</code></td><td>Meet (wedge ∧): intersection of two lines. N-ary: <code>L1 ^ L2 ^ L3</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -715,34 +714,49 @@ export default function ExpressionPanel() {
                 <h3>Motors</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>R = exp(a*A)</code></td><td>Rotor: <code>cos(a) + (sin(a)/a)·(a·A)</code> — rotation around point A (sandwich angle = 2a). <code>exp(A)</code> is the unscaled form.</td></tr>
-                    <tr><td><code>T = exp(t*V)</code></td><td>Translator: <code>1 + t·V</code> — V is nilpotent so the series terminates. <code>exp(V)</code> is the unscaled form.</td></tr>
-                    <tr><td><code>B = R &gt;&gt;&gt; A</code></td><td>Sandwich product: apply motor R to object A.</td></tr>
+                    <tr><td><code>R = exp(a*e12)</code></td><td>Rotor — rotation by 2a around origin.</td></tr>
+                    <tr><td><code>T = exp(t*V)</code></td><td>Translator — <code>1 + t·V</code> (nilpotent series terminates).</td></tr>
+                    <tr><td><code>M = R * T</code></td><td>Composed motor (rotation + translation).</td></tr>
+                    <tr><td><code>Q = M &gt;&gt;&gt; P</code></td><td>Sandwich: apply motor M to object P. Works on any object type, including lists.</td></tr>
                   </tbody>
                 </table>
               </section>
 
               <section className="help-section">
-                <h3>MV arithmetic operators</h3>
+                <h3>Lists</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Multivector addition / subtraction.</td></tr>
-                    <tr><td><code>s * A</code>, <code>A / s</code></td><td>Scalar multiplication / division.</td></tr>
-                    <tr><td><code>A * B</code></td><td>Geometric product.</td></tr>
-                    <tr><td><code>A ^ B</code></td><td>Wedge / outer product (meet for lines).</td></tr>
-                    <tr><td><code>A &amp; B</code></td><td>Vee / regressive product (join for points).</td></tr>
-                    <tr><td><code>A | B</code></td><td>Left contraction (inner product). <code>L1 | L2</code> = cos θ for unit lines.</td></tr>
-                    <tr><td><code>A § B</code></td><td>Commutator product <code>(AB − BA) / 2</code>.</td></tr>
-                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich product <code>A · B · Ã</code>.</td></tr>
-                    <tr><td><code>!A</code></td><td>Hodge dual (points ↔ lines).</td></tr>
-                    <tr><td><code>~A</code></td><td>Reverse / reversion.</td></tr>
-                    <tr><td><code>sqrt(A)</code></td><td>Square root. Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
-                    <tr><td><code>abs(A)</code> or <code>|A|</code></td><td>Absolute value of a scalar.</td></tr>
-                    <tr><td><code>sin cos tan</code></td><td>Trigonometric functions (radians).</td></tr>
-                    <tr><td><code>csc sec cot</code></td><td>Reciprocal trig: 1/sin, 1/cos, cos/sin.</td></tr>
-                    <tr><td><code>asin acos atan</code></td><td>Arc (inverse) trig functions — return angle in radians.</td></tr>
-                    <tr><td><code>acsc asec acot</code></td><td>Arc reciprocal trig: asin(1/x), acos(1/x), π/2−atan(x).</td></tr>
-                    <tr><td><code>A.e12</code></td><td>Extract blade coefficient as scalar. Supports permuted names: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>[A, B, C]</code></td><td>List of any object types. If all finite points, draws a dashed polygon outline.</td></tr>
+                    <tr><td><code>L[i]</code></td><td>Element at 0-based index. Negative indices wrap: <code>L[-1]</code> = last.</td></tr>
+                    <tr><td><code>L[i:j]</code></td><td>Slice — sublist from index i (inclusive) to j (exclusive). Either bound optional: <code>L[:2]</code>, <code>L[1:]</code>.</td></tr>
+                    <tr><td><code>len(L)</code></td><td>Number of elements as a scalar.</td></tr>
+                    <tr><td><code>M &gt;&gt;&gt; L</code></td><td>Transform every element of L with motor M.</td></tr>
+                    <tr><td><code>LL &gt;&gt;&gt; L</code></td><td>Pairwise transform: LL and L must have the same length.</td></tr>
+                    <tr><td><code>exp(L)</code></td><td>Map <code>exp</code> over each element.</td></tr>
+                    <tr><td><code>!L</code>, <code>~L</code></td><td>Map dual / reverse over each element.</td></tr>
+                    <tr><td><code>2 * L</code>, <code>L / 2</code></td><td>Scalar broadcast to every element.</td></tr>
+                    <tr><td><code>expr * L</code></td><td>Geometric product broadcast: each element multiplied by expr.</td></tr>
+                    <tr><td><code>L1 + L2</code></td><td>Elementwise operation (same length). Works for all binary operators.</td></tr>
+                    <tr><td><code>|L|</code>, <code>L.norm</code></td><td>Map norm over each element — returns a list of scalars.</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Operators &amp; precedence</h3>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Additive (lowest precedence).</td></tr>
+                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich product.</td></tr>
+                    <tr><td><code>A * B</code>, <code>A / s</code></td><td>Geometric product / scalar division.</td></tr>
+                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A § B</code></td><td>Grade products (tightest binary). <code>A * B ^ C</code> = <code>A * (B^C)</code>.</td></tr>
+                    <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Unary — highest precedence.</td></tr>
+                    <tr><td><code>A.e12</code></td><td>Blade coefficient extraction. Permuted names: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>|A|</code></td><td>Smart norm: finite or ideal auto-detected. <code>abs(A)</code> for explicit scalar abs.</td></tr>
+                    <tr><td><code>A.norm</code></td><td>Explicit finite norm (<code>‖A‖</code>).</td></tr>
+                    <tr><td><code>A.inorm</code></td><td>Explicit ideal norm (<code>‖A‖∞</code>). Works after any primary: <code>(A&amp;B).inorm</code>.</td></tr>
+                    <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root via Log/Exp.</td></tr>
+                    <tr><td><code>sin cos tan</code> …</td><td>Trig functions (radians). Also: <code>csc sec cot asin acos atan acsc asec acot</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -753,7 +767,6 @@ export default function ExpressionPanel() {
                   <tbody>
                     <tr><td><b>norm</b> button</td><td>Divide by finite norm ‖A‖ = √(scalar_part(AÃ)). For finite objects.</td></tr>
                     <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
-                    <tr><td><b>area</b> button</td><td>Removed — use <code>[A, B, C]</code> list syntax to draw polygons.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -783,7 +796,7 @@ export default function ExpressionPanel() {
                     <tr><td><b style={{color:'#fab387'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
                     <tr><td><b style={{color:'#f38ba8'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
                     <tr><td><b style={{color:'#a6e3a1'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#89dceb'}}>●</b> Polygon / list</td><td><code>[P1, P2, …]</code> — drawn as a dashed filled polygon.</td></tr>
+                    <tr><td><b style={{color:'#89dceb'}}>●</b> List</td><td><code>[A, B, …]</code> — any object types. Polygon outline when all elements are finite points. Expand with ▸ in the panel.</td></tr>
                   </tbody>
                 </table>
               </section>
