@@ -736,7 +736,8 @@ export default function ExpressionPanel() {
                     <tr><td><code>!L</code>, <code>~L</code></td><td>Map dual / reverse over each element.</td></tr>
                     <tr><td><code>2 * L</code>, <code>L / 2</code></td><td>Scalar broadcast to every element.</td></tr>
                     <tr><td><code>expr * L</code></td><td>Geometric product broadcast: each element multiplied by expr.</td></tr>
-                    <tr><td><code>L1 + L2</code></td><td>Elementwise operation (same length). Works for all binary operators.</td></tr>
+                    <tr><td><code>L1 + L2</code></td><td>Elementwise for any operator (same length): <code>L1 ^ L2</code>, <code>L1 &amp; L2</code>, <code>L1 | L2</code>, etc.</td></tr>
+                    <tr><td><code>expr ^ L</code>, <code>expr &amp; L</code>, <code>expr | L</code></td><td>Broadcast any binary op: apply to each element with a fixed left or right operand.</td></tr>
                     <tr><td><code>|L|</code>, <code>L.norm</code></td><td>Map norm over each element — returns a list of scalars.</td></tr>
                   </tbody>
                 </table>

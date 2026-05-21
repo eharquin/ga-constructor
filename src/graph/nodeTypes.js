@@ -231,13 +231,25 @@ export function createNodeTypes(algebra, evaluator) {
       },
     };
   }
+  // Helper: apply a two-argument GA operation, broadcasting over any list operand.
+  const listBinOp = (a, b, fn) => {
+    if (!a || !b) return null;
+    if (a?.list && b?.list) {
+      if (a.items.length !== b.items.length) return null;
+      return { list: true, items: a.items.map((av, i) => fn(av, b.items[i])).filter(Boolean) };
+    }
+    if (a?.list) return { list: true, items: a.items.map((av) => fn(av, b)).filter(Boolean) };
+    if (b?.list) return { list: true, items: b.items.map((bv) => fn(a, bv)).filter(Boolean) };
+    return fn(a, b);
+  };
+
   if (typeof Algebra.Vee === 'function') {
     types.joinLine = {
       label: 'Line A ∧ B',
       compute: (depValues, { geom1, geom2 }) => {
         const P1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
         const P2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
-        return P1 && P2 ? Algebra.Vee(toMV(P1), toMV(P2)) : null;
+        return listBinOp(P1, P2, (a, b) => { const ma = toMV(a), mb = toMV(b); return ma && mb ? Algebra.Vee(ma, mb) : null; });
       },
     };
     types.meetPoint = {
@@ -245,7 +257,7 @@ export function createNodeTypes(algebra, evaluator) {
       compute: (depValues, { geom1, geom2 }) => {
         const L1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
         const L2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
-        return L1 && L2 ? Algebra.Wedge(toMV(L1), toMV(L2)) : null;
+        return listBinOp(L1, L2, (a, b) => { const ma = toMV(a), mb = toMV(b); return ma && mb ? Algebra.Wedge(ma, mb) : null; });
       },
     };
     types.meetChain = {
