@@ -93,11 +93,17 @@ export function createNodeTypes(algebra, evaluator) {
         const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
         const raw = evalMVArith(exprStr, env);
         if (raw == null) return null;
+        // Always copy into a fresh Algebra instance so .Exp() is available
+        // regardless of whether the source value is a typed constructor result.
         const expOne = (item) => {
-          const V = (typeof item === 'object' && item && 'vx' in item) ? geomToMV(item) : item;
-          if (typeof V === 'number') { const T = new Algebra(arraySize); T[0] = Math.exp(V); return T; }
-          if (!V?.length || V.length < arraySize) return null;
-          return V.Exp();
+          if (typeof item === 'number') {
+            const T = new Algebra(arraySize); T[0] = Math.exp(item); return T;
+          }
+          const src = (typeof item === 'object' && item && 'vx' in item) ? geomToMV(item) : item;
+          if (!src || typeof src.length !== 'number' || src.length < arraySize) return null;
+          const mv = new Algebra(arraySize);
+          for (let i = 0; i < arraySize; i++) mv[i] = src[i] || 0;
+          return mv.Exp();
         };
         if (raw?.list) return { list: true, items: raw.items.map(expOne).filter(Boolean) };
         return expOne(raw);
