@@ -438,7 +438,8 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 .list-item-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px 80px 1fr;
   align-items: baseline;
   gap: 6px;
   padding: 1px 0;
@@ -447,12 +448,18 @@
   color: var(--text-muted);
 }
 .list-item-index {
-  min-width: 16px;
   text-align: right;
   opacity: 0.5;
   flex-shrink: 0;
 }
-.list-item-value {
+.list-item-kind {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-item-mv {
+  opacity: 0.65;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

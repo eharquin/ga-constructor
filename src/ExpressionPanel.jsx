@@ -69,27 +69,33 @@ function fmtCoeff(c, decimals = 4) {
 // Compute the PGA norm used for unitization.
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
-function formatListItem(item, algebra, decimals) {
-  if (item == null) return '?';
-  if (typeof item === 'number') return parseFloat(item.toFixed(decimals)).toString();
+const KIND_LABELS = {
+  scalar: 'Scalar', finitePoint: 'Point', idealPoint: 'Ideal point',
+  line: 'Line', idealLine: 'Ideal line', pseudoscalar: 'Pseudoscalar',
+  rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
+  reflector: 'Reflector', mixed: 'Mixed',
+  vector: 'Vector', bivector: 'Bivector',
+};
+
+function describeListItem(item, algebra, decimals) {
+  if (item == null) return { kindLabel: '?', mvStr: null };
+  if (typeof item === 'number') {
+    return { kindLabel: 'Scalar', mvStr: parseFloat(item.toFixed(decimals)).toString() };
+  }
   if ('vx' in item) {
     const d = Math.max(0, Math.min(decimals, 2));
-    return `vec(${item.vx.toFixed(d)}, ${item.vy.toFixed(d)})`;
+    return { kindLabel: 'Vector', mvStr: `(${item.vx.toFixed(d)}, ${item.vy.toFixed(d)})` };
   }
   const cls = algebra.classifyMV?.(item);
-  if (!cls) return '?';
-  if (cls.kind === 'finitePoint') {
-    const eu = algebra.toEuclidean?.(item);
-    if (eu) { const d = Math.max(0, Math.min(decimals, 2)); return `pt(${eu.x.toFixed(d)}, ${eu.y.toFixed(d)})`; }
-  }
-  if (cls.kind === 'scalar') return parseFloat((item[0] || 0).toFixed(decimals)).toString();
-  return formatMV(item, algebra, decimals) ?? cls.kind;
+  const kindLabel = cls ? (KIND_LABELS[cls.kind] ?? cls.kind) : '?';
+  const mvStr = formatMV(item, algebra, decimals);
+  return { kindLabel, mvStr };
 }
 
 function formatMV(val, algebra, decimals = 4) {
   if (val == null || typeof val === 'number') return null;
   if (val?.list) {
-    const parts = val.items.map((item) => formatListItem(item, algebra, decimals));
+    const parts = val.items.map((item) => { const { kindLabel } = describeListItem(item, algebra, decimals); return kindLabel; });
     return `[${parts.join(', ')}]`;
   }
   const bladeNames = algebra?.bladeNames;
@@ -485,12 +491,16 @@ export default function ExpressionPanel() {
               {/* List items sub-section — expanded list */}
               {isList && expandedLists.has(item.id) && val_?.items && (
                 <div className="list-items-sub">
-                  {val_.items.map((listItem, li) => (
-                    <div key={li} className="list-item-row">
-                      <span className="list-item-index">{li + 1}</span>
-                      <span className="list-item-value">{formatListItem(listItem, algebra, settings.decimals)}</span>
-                    </div>
-                  ))}
+                  {val_.items.map((listItem, li) => {
+                    const { kindLabel, mvStr } = describeListItem(listItem, algebra, settings.decimals);
+                    return (
+                      <div key={li} className="list-item-row">
+                        <span className="list-item-index">{li + 1}</span>
+                        <span className="list-item-kind">{kindLabel}</span>
+                        {mvStr && <span className="list-item-mv">{mvStr}</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
