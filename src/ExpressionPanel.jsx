@@ -495,7 +495,7 @@ export default function ExpressionPanel() {
                     const { kindLabel, mvStr } = describeListItem(listItem, algebra, settings.decimals);
                     return (
                       <div key={li} className="list-item-row">
-                        <span className="list-item-index">{li + 1}</span>
+                        <span className="list-item-index">{li}</span>
                         <span className="list-item-kind">{kindLabel}</span>
                         {mvStr && <span className="list-item-mv">{mvStr}</span>}
                       </div>
