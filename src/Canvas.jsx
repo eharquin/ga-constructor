@@ -75,7 +75,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
     if (node.type === 'freePoint') {
       if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
@@ -83,6 +83,13 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       const { cx, cy } = w2c(eu.x, eu.y, vp);
       if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'freePoint' };
+    }
+    if (node.type === 'scalar' && valKind === 'finitePoint') {
+      const eu = toEuclidean?.(values[id]);
+      if (!eu) continue;
+      const { cx, cy } = w2c(eu.x, eu.y, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'scalarPoint' };
     }
     if (node.type === 'vector') {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
@@ -98,7 +105,9 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     }
     if (node.type === 'multivector') {
       const { coeffExprs, components, dual } = node.params ?? {};
-      const hasVariablePos = coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined;
+      const hasVariablePos = algebra.hasDepPointCoeffs
+        ? algebra.hasDepPointCoeffs(coeffExprs)
+        : (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined);
       if (!toEuclidean) {
         // VGA + others without a projective point map: skip multivector point hit-tests.
       } else if (hasVariablePos) {
@@ -113,7 +122,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
         const { cx, cy } = w2c(eu.x, eu.y, vp);
         if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
           return { id, dragType: 'dualDepPoint' };
-      } else if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) {
+      } else if (!dual && (algebra.isLitMVPoint ? algebra.isLitMVPoint(components, values[id]) : Math.abs(components?.[6] ?? 0) > 1e-10)) {
         const eu = toEuclidean(values[id]);
         if (!eu) continue;
         const { cx, cy } = w2c(eu.x, eu.y, vp);
@@ -642,6 +651,7 @@ export default function Canvas() {
       const rx = roundToScale(x, vp.scale);
       const ry = roundToScale(y, vp.scale);
       if (dragType === 'freePoint')    updateFreePoint(id, rx, ry);
+      if (dragType === 'scalarPoint')  snap.current.updateScalarAsComplexPoint?.(id, rx, ry);
       if (dragType === 'depPoint')     snap.current.updateDepPoint(id, rx, ry);
       if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
       if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
