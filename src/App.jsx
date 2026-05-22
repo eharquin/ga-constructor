@@ -38,7 +38,7 @@ function SavedGraphsControls() {
     if (!trimmed) return;
     setBusy(true);
     try {
-      await saveGraph(trimmed, { items, algebra: algebraId });
+      await saveGraph(trimmed, { items, algebra: algebraId, hash: encodeGraph(algebraId, items) });
       if (open) await refresh();
     } catch (e) { console.error(e); window.alert('Save failed: ' + e); }
     finally { setBusy(false); }
@@ -63,6 +63,19 @@ function SavedGraphsControls() {
       }
       setOpen(false);
     } catch (e) { console.error(e); window.alert('Load failed'); }
+    finally { setBusy(false); }
+  };
+
+  const handleCopyLink = async (name) => {
+    setBusy(true);
+    try {
+      const data = await loadGraph(name);
+      const hash = data.hash || encodeGraph(data.algebra, data.items);
+      const url = location.origin + location.pathname + location.search + hash;
+      try { await navigator.clipboard.writeText(url); }
+      catch { window.prompt('Copy this URL:', url); return; }
+      window.alert(`Link copied for "${name}"`);
+    } catch (e) { window.alert('Failed to get link: ' + e); }
     finally { setBusy(false); }
   };
 
@@ -94,6 +107,7 @@ function SavedGraphsControls() {
                       <span className="saved-graphs-name">{name}</span>
                       <span className="saved-graphs-actions">
                         <button className="modal-btn" onClick={() => handleLoad(name)} disabled={busy}>Load</button>
+                        <button className="modal-btn" onClick={() => handleCopyLink(name)} disabled={busy} title="Copy shareable link">🔗</button>
                         <button className="modal-btn modal-btn-danger" onClick={() => handleDelete(name)} disabled={busy} title="Delete">🗑</button>
                       </span>
                     </li>
