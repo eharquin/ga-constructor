@@ -79,6 +79,10 @@ A chronological log of all prompts given to Claude in this project.
     
     Known limitations left as-is: (a) ~~`exp(V)` with V having both e0 and e12 components uses the cos+(sin/c)·V form, exact only when V² is a pure scalar~~ (fixed in #54 by delegating to ganja's `V.Exp()`); (b) `M >>> [P1, P2, ...]` doesn't transform polygons as a unit; (c) operator precedence is flat (single parseTerm level) — `A * B ^ C` is `(A*B) ^ C` not the GA-conventional `A * (B ^ C)`.
 
+## 2026-05-22
+
+72. **Shareable URL** — Encode current graph (items + algebra) into the URL hash so a graph is one copy-paste away. No server needed. New `src/urlHash.js`: `encodeGraph` (JSON → base64url hash) and `decodeGraph`/`readHashGraph` (reverse). `AlgebraContext` and `useGraph` initializers check the hash first, so visiting a shared URL seeds the correct algebra and items before any localStorage restore. `AppShell` clears the hash after mount via `history.replaceState` so the URL stays clean for subsequent edits. New `ShareButton` in the header (`🔗`) encodes the current graph, writes the full URL to the clipboard, and shows a `✓` confirmation for 2 s (falls back to `window.prompt` if clipboard API is denied).
+
 53. **Removed trail/trajectory feature** — Stripped the `∿` trace toggle, `trace` per-item flag, `SET_TRACE` reducer case, `setItemTrace` API, `trails` state, trail-accumulation useEffect, `trajectoriesMap` memo, `SvgTrajectory` component (Canvas.jsx), trace-toggle wiring in ExpressionPanel.jsx, `.trace-toggle*` CSS rules, `TRAIL_MAX_POINTS` constant, and `{ trace: true }` on the showcase Q item. Also updated CLAUDE.md to drop the trace/trajectory sections.
 
 54. **Delegated more operations to ganja** — Replaced hand-rolled GA primitives with ganja's built-ins so we share a single sign convention and shed dead/buggy code (full notes in `docs/recap_2026-05-16.md`):

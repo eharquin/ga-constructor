@@ -1,4 +1,5 @@
 import { useReducer, useMemo, useRef, useState, useEffect } from 'react';
+import { readHashGraph } from './urlHash.js';
 
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
@@ -147,6 +148,10 @@ export function useGraph(algebra) {
   const TYPE_COLOR_FALLBACK  = algebra.TYPE_COLOR_FALLBACK ?? {};
 
   const [state, dispatch] = useReducer(reducer, null, () => {
+    const fromHash = readHashGraph();
+    if (fromHash?.algebra === algebra.id && fromHash.items?.length > 0) {
+      return initialState(fromHash.items);
+    }
     try {
       const saved = localStorage.getItem(`ga-items-${algebra.id}`);
       if (saved) {

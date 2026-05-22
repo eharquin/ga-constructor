@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { GraphProvider, useGraphContext } from './GraphContext.jsx';
 import { AlgebraProvider, useAlgebra } from './AlgebraContext.jsx';
 import { SettingsProvider, useSettings } from './SettingsContext.jsx';
+import { encodeGraph } from './urlHash.js';
 import ExpressionPanel from './ExpressionPanel.jsx';
 import Canvas from './Canvas.jsx';
 import './App.css';
@@ -107,6 +108,33 @@ function SavedGraphsControls() {
   );
 }
 
+function ShareButton() {
+  const { items } = useGraphContext();
+  const { algebraId } = useAlgebra();
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const hash = encodeGraph(algebraId, items);
+    const url = location.origin + location.pathname + location.search + hash;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt('Copy this URL:', url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      className="app-icon-btn"
+      onClick={handleShare}
+      title="Copy shareable link"
+    >{copied ? '✓' : '🔗'}</button>
+  );
+}
+
 function UndoRedoControls() {
   const { undo, redo, canUndo, canRedo } = useGraphContext();
   return (
@@ -207,6 +235,13 @@ function AppShell() {
   const { undo, redo, canUndo, canRedo } = useGraphContext();
   const dragRef = useRef(null);
 
+  // Clear the hash after loading so the URL stays clean for subsequent edits.
+  useEffect(() => {
+    if (window.location.hash) {
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('ga-theme', theme);
@@ -255,6 +290,7 @@ function AppShell() {
         <AlgebraSelect />
         <span className="app-header-spacer" />
         <UndoRedoControls />
+        <ShareButton />
         <SavedGraphsControls />
         <OptionsMenu />
         <button
