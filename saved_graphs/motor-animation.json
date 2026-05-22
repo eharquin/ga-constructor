@@ -1,0 +1,13 @@
+{
+  "algebra": "pga201",
+  "items": [
+    {"id":"expr_0","text":"P = point(5, 2)","color":null,"anim":null,"drawPos":null,"label":"P","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_1","text":"V = vector(-5, 1)","color":null,"anim":null,"drawPos":null,"label":"V","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_2","text":"t = 0","color":null,"anim":{"min":0,"max":1,"step":0.02},"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_3","text":"a = 0","color":null,"anim":{"min":0,"max":3.141592653589793,"step":0.05},"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_4","text":"T = exp(t*V)","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_5","text":"R = exp(a*e12)","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_6","text":"M = R*T","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_7","text":"Q = M >>> P","color":null,"anim":null,"drawPos":null,"label":"Q","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null}
+  ]
+}

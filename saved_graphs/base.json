@@ -1,0 +1,110 @@
+{
+  "name": "base",
+  "items": [
+    {
+      "id": "expr_0",
+      "text": "P = 5.2*e01 + 5.2*e02 + e12",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_1",
+      "text": "V = vector(-6.48, 0.92)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_2",
+      "text": "t = 0",
+      "color": null,
+      "anim": {
+        "min": 0,
+        "max": 1,
+        "step": 0.02
+      },
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_3",
+      "text": "a = 0",
+      "color": null,
+      "anim": {
+        "min": 0,
+        "max": 3.14,
+        "step": 0.05
+      },
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_4",
+      "text": "T = exp(t*V)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_5",
+      "text": "R = exp(a*e12)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_6",
+      "text": "M = R * T",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_7",
+      "text": "Q = M >>> P",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    }
+  ],
+  "savedAt": "2026-05-17T08:15:37.075Z"
+}

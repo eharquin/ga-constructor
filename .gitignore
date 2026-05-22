@@ -12,8 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Dev-only saved graphs (filesystem store via /api/graphs)
-/saved_graphs/
 
 # Editor directories and files
 .vscode/*

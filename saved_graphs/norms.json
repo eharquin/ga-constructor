@@ -1,0 +1,14 @@
+{
+  "algebra": "pga201",
+  "items": [
+    {"id":"expr_0","text":"A = point(-4, 0)","color":null,"anim":null,"drawPos":null,"label":"A","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_1","text":"B = point(4, 3)","color":null,"anim":null,"drawPos":null,"label":"B","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_2","text":"V = vector(3, 4)","color":null,"anim":null,"drawPos":null,"label":"V","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_3","text":"L = A & B","color":null,"anim":null,"drawPos":null,"label":"L","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_4","text":"v_mag = |V|","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_5","text":"a_weight = A.norm","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_6","text":"l_norm = |L|","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_7","text":"l_inorm = L.inorm","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_8","text":"same = (A & B).norm","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null}
+  ]
+}

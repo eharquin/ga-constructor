@@ -123,8 +123,10 @@ A chronological log of all prompts given to Claude in this project.
 
 ## 2026-05-20
 
-69. **Plan + branching strategy** — Asked for next steps. Agreed on three independent PRs in this order: undo/redo, operator precedence, list values. Each off `main` (not stacked), since they look related but aren't.
+69. **Plan + branching strategy** — Asked for next steps. Agreed on three independent PRs in this order: undo/redo, operator precedence, list values. Each off `main`, not stacked.
 
-70. **Undo / redo (branch `feat/undo-redo`)** — Wrapped `useGraph`'s reducer state in `{ items, past, future, lastChange }`. Refactored the existing pure transforms into `itemsReducer(items, action)` and added an outer `reducer` that handles `UNDO`/`REDO` plus push-and-clear-future semantics for every mutating action. High-frequency `SET_TEXT` / `SET_DRAW_POS` writes targeting the same id within 400 ms coalesce into a single history entry — covers drag bursts and animation ticks without polluting the stack. `loadItems` gained a `{ fromAlgebraSwitch }` flag so the algebra-change effect resets history without leaving an undoable jump between algebras (saved-graph loads still go through history so the user can revert). Stack capped at 100. Exposed `undo` / `redo` / `canUndo` / `canRedo` from the hook. Wired `Ctrl/Cmd+Z` and `Ctrl/Cmd+Shift+Z` (and `Ctrl/Cmd+Y`) in `App.jsx` with an editable-element guard, and added small ↶/↷ buttons in the header next to 💾/📂.
+70. **Undo / redo (branch `feat/undo-redo`, PR #2)** — Wrapped `useGraph`'s reducer state in `{ items, past, future, lastChange }`. Refactored existing pure transforms into `itemsReducer`; outer `reducer` handles `UNDO`/`REDO`. High-frequency `SET_TEXT`/`SET_DRAW_POS` writes to the same id within 400 ms coalesce into one history entry. `loadItems` got `{ fromAlgebraSwitch }` to reset history on algebra change. Stack capped at 100. `↶`/`↷` header buttons + `Ctrl/Cmd+Z` / `Ctrl/Cmd+Shift+Z`.
+
+71. **Operator precedence + norm extraction (branch `feat/operator-precedence`, PR #3)** — Replaced flat `parseTerm` in `evalMVArith.js` with a 4-level precedence ladder: `^ & | §` (tightest) → `* /` → `>>>` → `+ -` (loosest). Mirrored in `validate()`. Added norm extraction: `|expr|` smart norm; `(expr).norm` / `(expr).inorm` explicit norms; `absDepth` fixes `|…|`/`|` ambiguity. Added 5 example saved graphs.
 
 ---

@@ -1,0 +1,13 @@
+{
+  "algebra": "pga201",
+  "items": [
+    {"id":"expr_0","text":"A = point(-5, -4)","color":null,"anim":null,"drawPos":null,"label":"A","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_1","text":"B = point(5, -4)","color":null,"anim":null,"drawPos":null,"label":"B","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_2","text":"C = point(5, 4)","color":null,"anim":null,"drawPos":null,"label":"C","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_3","text":"D = point(-5, 4)","color":null,"anim":null,"drawPos":null,"label":"D","labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_4","text":"quad = [A, B, C, D]","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_5","text":"tri = [A, B, C]","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_6","text":"diag = A & C","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null},
+    {"id":"expr_7","text":"area2 = A & B & C","color":null,"anim":null,"drawPos":null,"label":null,"labelOpts":null,"visible":true,"movable":true,"normalizeMode":null}
+  ]
+}
