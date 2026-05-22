@@ -21,18 +21,22 @@ Each algebra ships a spec object (`src/algebras/<id>/index.js`) that exposes its
 
 ## Expression Language
 - `A.e12`, `A.e21` — blade coefficient extraction (permuted blades supported)
-- `[P1, P2, P3, …]` — polygon list (non-MV special type, draws dashed polygon)
-- `abs(A)` / `|A|` — absolute value; `A | B` — inner product; `A § B` — commutator
+- `[A, B, C, …]` — list of any object types; all-point lists draw a dashed polygon outline
+- `L[i]`, `L[i:j]`, `len(L)` — element access, slice, length
+- `A op L` / `L op A` — any binary op broadcasts over list elements; `L1 op L2` — elementwise (same length)
+- `f(L)` — any unary maps over elements: `!L`, `~L`, `-L`, `|L|`, `L.norm`, `exp(L)`
+- `|A|` — smart norm (auto finite/ideal); `A.norm` / `A.inorm` — explicit norms; `abs(A)` — scalar abs
+- Operator precedence (tight → loose): unary → `^ & | §` → `* /` → `>>>` → `+ -`. `A * B ^ C` = `A * (B^C)`.
 - Label `{varname}` templates — substituted with current scalar value at render time
-- `sqrt`, `abs` builtins; implicit multiplication `5(e1+e2+e0)`
+- `sqrt`, `abs`, `len`, trig builtins; implicit multiplication `5(e1+e2+e0)`
 
 ## Current Focus
-Value-based type system: panel colors and canvas rendering driven by `classifyMV(val).kind`, not parser node type. Full operator set in `evalMVArith`. Polygon list notation `[P1,P2,…]`. Label templates `{a}`.
+Lists are first-class values: `list.compute` stores raw MVs; `getRenderPlan` dispatches per-element; all binary ops broadcast or work elementwise; `motorApply`/`dual`/`reverse`/`exp` map over lists. Operator precedence ladder (`^ & | §` tightest, `>>>` loosest binary). Smart norm `|A|` + `.norm`/`.inorm` postfix. Browser autosave (`ga-items-<algebraId>` + `ga-algebra` localStorage keys). List expansion panel (▸ toggle, 0-based indices, type + MV blade repr per item).
 
 **Ganja delegation** — most GA primitives now go through ganja's built-ins (one sign convention, no parallel implementations to drift):
 - `dualOp` → `PGA.Dual`; `reverseOp` → `PGA.Reverse`
 - `motorApply` (sandwich) → `PGA.sw(T, A)` (general case — works for composed motors, not just pure rotations)
-- `motorExp` → `V.Exp()` instance method (single-argument `exp(<mv_expr>)`; closed-form branches removed)
+- `motorExp` → `V.Exp()` on a fresh `new Algebra(arraySize)` copy (ensures prototype methods present)
 - `evalMVArith` `>>>` → `PGA.sw`; `sqrt(motor)` → `M.Log()` → halve → `.Exp()`
 - `point2D` / `idealPoint` / `line2D` → `PGA.Bivector` / `PGA.Vector` typed constructors
 - Norms (`normalizeMVFinit/Ideal/MV`, `objectWeight`) → `PGA.Length` (with `PGA.Dual` for the ideal-norm path)
@@ -46,7 +50,7 @@ Value-based type system: panel colors and canvas rendering driven by `classifyMV
 - **PGA:** 8-item motor composition: `P` (point), `V` (vector), animatable scalars `t`/`a`, translator `T = exp(t*V)`, rotor `R = exp(a*e12)`, composed motor `M = R*T`, transformed point `Q = M >>> P`.
 - **VGA:** 7-item vector/rotor demo: `V = 3*e1 + 2*e2`, `W = vector(-1, 2.5)`, scalar `S = V|W` (dot), bivector `B = V^W` (signed area, drawn as oriented loop), scalar `a`, rotor `R = exp((a/2)*e12)` (drawn as arc), rotated vector `V_rot = R >>> V`.
 
-`exp` is single-argument — the argument is exponentiated via ganja's `V.Exp()`, working uniformly for translators, rotors, and general motors.
+`exp` is single-argument — the argument is exponentiated via ganja's `V.Exp()`, working uniformly for translators, rotors, and general motors. Also maps over lists.
 
 **VGA drawables** — `getRenderPlan` returns three new kinds rendered by Canvas:
 - `vector` → `SvgVector` (arrow from origin or `drawPos`)
@@ -55,7 +59,7 @@ Value-based type system: panel colors and canvas rendering driven by `classifyMV
 
 VGA has no points or projective lines — `point()`, `line()`, `&` (join), `^` (meet via PGA convention), `triangle`, and `meetChain` are gated out of the VGA parser via `supportedNodeTypes`.
 
-**Saved graphs** — `💾` Save / `📂` Open buttons in the header persist graphs to `saved_graphs/<name>.json` via a Vite dev plugin (`/api/graphs` CRUD). Each save tags `algebra: 'pga201'|'vga200'`; loading a graph saved under a different active algebra prompts the user to auto-switch first.
+**Saved graphs** — `💾` Save / `📂` Open buttons persist to `saved_graphs/<name>.json` via a Vite dev plugin. `ga-algebra` + `ga-items-<id>` localStorage keys auto-restore the last session per algebra on refresh.
 
 **Undo / redo** — `useGraph` reducer wraps state as `{ items, past, future, lastChange }`. Every mutating action pushes prior items onto `past` and clears `future`; `UNDO`/`REDO` swap between stacks. High-frequency writes (`SET_TEXT`, `SET_DRAW_POS`) targeting the same id within 400 ms coalesce into one history entry (covers drag bursts and animation ticks). Algebra-switch `LOAD_ITEMS` carries `fromAlgebraSwitch: true` and resets history. Stack capped at 100. `↶`/`↷` buttons in the header plus `Ctrl/Cmd+Z` / `Ctrl/Cmd+Shift+Z` (also `Ctrl/Cmd+Y`); keyboard handler ignored when focus is in an input.
 

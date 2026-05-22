@@ -30,7 +30,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
   const fmtC = (n) => n.toFixed(dc);
 
   if (typeof val === 'number') return fmtN(val);
-  if (val.list) return `Polygon (${val.points.length} pts)`;
+  if (val.list) return `List (${val.items.length} items)`;
   if ('vx' in val) return `Vector (${fmtC(val.vx)}, ${fmtC(val.vy)})`;
 
   const cls = algebra.classifyMV(val);
@@ -69,8 +69,35 @@ function fmtCoeff(c, decimals = 4) {
 // Compute the PGA norm used for unitization.
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
+const KIND_LABELS = {
+  scalar: 'Scalar', finitePoint: 'Point', idealPoint: 'Ideal point',
+  line: 'Line', idealLine: 'Ideal line', pseudoscalar: 'Pseudoscalar',
+  rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
+  reflector: 'Reflector', mixed: 'Mixed',
+  vector: 'Vector', bivector: 'Bivector',
+};
+
+function describeListItem(item, algebra, decimals) {
+  if (item == null) return { kindLabel: '?', mvStr: null };
+  if (typeof item === 'number') {
+    return { kindLabel: 'Scalar', mvStr: parseFloat(item.toFixed(decimals)).toString() };
+  }
+  if ('vx' in item) {
+    const d = Math.max(0, Math.min(decimals, 2));
+    return { kindLabel: 'Vector', mvStr: `(${item.vx.toFixed(d)}, ${item.vy.toFixed(d)})` };
+  }
+  const cls = algebra.classifyMV?.(item);
+  const kindLabel = cls ? (KIND_LABELS[cls.kind] ?? cls.kind) : '?';
+  const mvStr = formatMV(item, algebra, decimals);
+  return { kindLabel, mvStr };
+}
+
 function formatMV(val, algebra, decimals = 4) {
   if (val == null || typeof val === 'number') return null;
+  if (val?.list) {
+    const parts = val.items.map((item) => { const { kindLabel } = describeListItem(item, algebra, decimals); return kindLabel; });
+    return `[${parts.join(', ')}]`;
+  }
   const bladeNames = algebra?.bladeNames;
   const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
   if (!bladeNames) return null;
@@ -196,6 +223,7 @@ export default function ExpressionPanel() {
   // Local state for in-progress edits (keyed by item id)
   const [animTexts,  setAnimTexts]  = useState({});
   const [posTxts,    setPosTxts]    = useState({});
+  const [expandedLists, setExpandedLists] = useState(new Set());
   const [labelTexts, setLabelTexts] = useState({});
   const [animMenuIds,  setAnimMenuIds]  = useState(new Set());
   const [helpOpen,     setHelpOpen]     = useState(false);
@@ -432,8 +460,23 @@ export default function ExpressionPanel() {
                     onChange={(e) => setItemText(item.id, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, item, index)}
                   />
-                  {displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>}
-                  {mvStr      && <div className="expr-mv">{mvStr}</div>}
+                  {isList ? (
+                    <button
+                      className="list-toggle"
+                      style={{ color }}
+                      tabIndex={-1}
+                      onClick={() => setExpandedLists((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                        return next;
+                      })}
+                    >
+                      {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
+                    </button>
+                  ) : (
+                    displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                  )}
+                  {!isList && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
                 </div>
 
@@ -444,6 +487,22 @@ export default function ExpressionPanel() {
                   aria-label="Delete"
                 >×</button>
               </div>
+
+              {/* List items sub-section — expanded list */}
+              {isList && expandedLists.has(item.id) && val_?.items && (
+                <div className="list-items-sub">
+                  {val_.items.map((listItem, li) => {
+                    const { kindLabel, mvStr } = describeListItem(listItem, algebra, settings.decimals);
+                    return (
+                      <div key={li} className="list-item-row">
+                        <span className="list-item-index">{li}</span>
+                        <span className="list-item-kind">{kindLabel}</span>
+                        {mvStr && <span className="list-item-mv">{mvStr}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Interval sub-row — scalar only */}
               {isScalar && (
@@ -646,8 +705,7 @@ export default function ExpressionPanel() {
                   <tbody>
                     <tr><td><code>L = A &amp; B</code></td><td>Join (regressive ∨): line through two points.</td></tr>
                     <tr><td><code>T = A &amp; B &amp; C</code></td><td>Triple join → 2 × signed area as a plain scalar.</td></tr>
-                    <tr><td><code>X = L1 ^ L2</code></td><td>Meet (wedge ∧): intersection of two lines. Works for n-ary chains: <code>L1 ^ L2 ^ L3</code>.</td></tr>
-                    <tr><td><code>Poly = [A, B, C, D]</code></td><td>Polygon drawn through a list of points. Any number of named points.</td></tr>
+                    <tr><td><code>X = L1 ^ L2</code></td><td>Meet (wedge ∧): intersection of two lines. N-ary: <code>L1 ^ L2 ^ L3</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -656,34 +714,44 @@ export default function ExpressionPanel() {
                 <h3>Motors</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>R = exp(a*A)</code></td><td>Rotor: <code>cos(a) + (sin(a)/a)·(a·A)</code> — rotation around point A (sandwich angle = 2a). <code>exp(A)</code> is the unscaled form.</td></tr>
-                    <tr><td><code>T = exp(t*V)</code></td><td>Translator: <code>1 + t·V</code> — V is nilpotent so the series terminates. <code>exp(V)</code> is the unscaled form.</td></tr>
-                    <tr><td><code>B = R &gt;&gt;&gt; A</code></td><td>Sandwich product: apply motor R to object A.</td></tr>
+                    <tr><td><code>R = exp(a*e12)</code></td><td>Rotor — rotation by 2a around origin.</td></tr>
+                    <tr><td><code>T = exp(t*V)</code></td><td>Translator — <code>1 + t·V</code> (nilpotent series terminates).</td></tr>
+                    <tr><td><code>M = R * T</code></td><td>Composed motor (rotation + translation).</td></tr>
+                    <tr><td><code>Q = M &gt;&gt;&gt; P</code></td><td>Sandwich: apply motor M to object P. Works on any object type, including lists.</td></tr>
                   </tbody>
                 </table>
               </section>
 
               <section className="help-section">
-                <h3>MV arithmetic operators</h3>
+                <h3>Lists</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Multivector addition / subtraction.</td></tr>
-                    <tr><td><code>s * A</code>, <code>A / s</code></td><td>Scalar multiplication / division.</td></tr>
-                    <tr><td><code>A * B</code></td><td>Geometric product.</td></tr>
-                    <tr><td><code>A ^ B</code></td><td>Wedge / outer product (meet for lines).</td></tr>
-                    <tr><td><code>A &amp; B</code></td><td>Vee / regressive product (join for points).</td></tr>
-                    <tr><td><code>A | B</code></td><td>Left contraction (inner product). <code>L1 | L2</code> = cos θ for unit lines.</td></tr>
-                    <tr><td><code>A § B</code></td><td>Commutator product <code>(AB − BA) / 2</code>.</td></tr>
-                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich product <code>A · B · Ã</code>.</td></tr>
-                    <tr><td><code>!A</code></td><td>Hodge dual (points ↔ lines).</td></tr>
-                    <tr><td><code>~A</code></td><td>Reverse / reversion.</td></tr>
-                    <tr><td><code>sqrt(A)</code></td><td>Square root. Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
-                    <tr><td><code>abs(A)</code> or <code>|A|</code></td><td>Absolute value of a scalar.</td></tr>
-                    <tr><td><code>sin cos tan</code></td><td>Trigonometric functions (radians).</td></tr>
-                    <tr><td><code>csc sec cot</code></td><td>Reciprocal trig: 1/sin, 1/cos, cos/sin.</td></tr>
-                    <tr><td><code>asin acos atan</code></td><td>Arc (inverse) trig functions — return angle in radians.</td></tr>
-                    <tr><td><code>acsc asec acot</code></td><td>Arc reciprocal trig: asin(1/x), acos(1/x), π/2−atan(x).</td></tr>
-                    <tr><td><code>A.e12</code></td><td>Extract blade coefficient as scalar. Supports permuted names: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>[A, B, C, …]</code></td><td>List literal — any object types. All-point lists draw a dashed polygon outline.</td></tr>
+                    <tr><td><code>L[i]</code></td><td>Element at 0-based index. Negative wraps: <code>L[-1]</code> = last.</td></tr>
+                    <tr><td><code>L[i:j]</code></td><td>Slice i..j−1. Either bound optional: <code>L[:2]</code>, <code>L[1:]</code>.</td></tr>
+                    <tr><td><code>len(L)</code></td><td>Length as a scalar.</td></tr>
+                    <tr><td><code>A op L</code> / <code>L op A</code></td><td>Any binary op broadcasts over every element: <code>M &gt;&gt;&gt; L</code>, <code>2*L</code>, <code>e12^L</code>, <code>A|L</code> …</td></tr>
+                    <tr><td><code>L1 op L2</code></td><td>Any binary op applied elementwise (same length required).</td></tr>
+                    <tr><td><code>f(L)</code></td><td>Any unary maps over elements: <code>!L</code>, <code>~L</code>, <code>-L</code>, <code>|L|</code>, <code>L.norm</code>, <code>exp(L)</code> …</td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="help-section">
+                <h3>Operators &amp; precedence</h3>
+                <p className="help-note">Tight → loose: unary &gt; grade products &gt; geometric product &gt; sandwich &gt; additive.<br/>Example: <code>A * B ^ C</code> = <code>A * (B^C)</code>.</p>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Additive (loosest).</td></tr>
+                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich <code>A·B·Ã</code>.</td></tr>
+                    <tr><td><code>A * B</code>, <code>A / B</code></td><td>Geometric product / division.</td></tr>
+                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A § B</code></td><td>Outer, regressive, inner, commutator (tightest binary).</td></tr>
+                    <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Dual, reverse, negate (unary — tightest).</td></tr>
+                    <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
+                    <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
+                    <tr><td><code>A.e12</code></td><td>Blade coefficient. Permuted names supported: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
+                    <tr><td><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> …</td><td>Trig (radians). Also: <code>csc sec cot acsc asec acot abs</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -694,7 +762,6 @@ export default function ExpressionPanel() {
                   <tbody>
                     <tr><td><b>norm</b> button</td><td>Divide by finite norm ‖A‖ = √(scalar_part(AÃ)). For finite objects.</td></tr>
                     <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
-                    <tr><td><b>area</b> button</td><td>Removed — use <code>[A, B, C]</code> list syntax to draw polygons.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -724,7 +791,7 @@ export default function ExpressionPanel() {
                     <tr><td><b style={{color:'#fab387'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
                     <tr><td><b style={{color:'#f38ba8'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
                     <tr><td><b style={{color:'#a6e3a1'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#89dceb'}}>●</b> Polygon / list</td><td><code>[P1, P2, …]</code> — drawn as a dashed filled polygon.</td></tr>
+                    <tr><td><b style={{color:'#89dceb'}}>●</b> List</td><td><code>[A, B, …]</code> — any object types. Polygon outline when all elements are finite points. Expand with ▸ in the panel.</td></tr>
                   </tbody>
                 </table>
               </section>

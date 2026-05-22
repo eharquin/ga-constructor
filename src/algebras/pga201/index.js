@@ -111,7 +111,12 @@ export const TYPE_COLOR_FALLBACK = {
 
 export function getRenderPlan(val) {
   if (val == null) return null;
-  if (val?.list) return { kind: 'polygon', points: val.points };
+  if (val?.list) {
+    const elements = val.items.map(getRenderPlan).filter(Boolean);
+    const allPoints = elements.length > 0 && elements.every((e) => e.kind === 'finitePoint');
+    const outline = allPoints ? elements.map((e) => ({ x: e.x, y: e.y })) : null;
+    return { kind: 'list', elements, outline };
+  }
   if (typeof val === 'object' && 'vx' in val) return { kind: 'positionedVector', vx: val.vx, vy: val.vy };
   const cls = classifyMV(val);
   if (!cls) return null;

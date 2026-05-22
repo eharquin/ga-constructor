@@ -9,7 +9,7 @@
 // ─── Built-in scalar functions ───────────────────────────────────────────────
 
 const BUILTIN_FN_NAMES = new Set([
-  'sqrt', 'abs',
+  'sqrt', 'abs', 'len',
   'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
   'asin', 'acos', 'atan', 'acsc', 'asec', 'acot',
 ]);
@@ -71,7 +71,8 @@ export function createEvalMVArith(algebra) {
         continue;
       }
       if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
-      if ('+-*/()!~^&|.§'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+      if ('+-*/()!~^&|.§[]'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+      if (c === ':') { raw.push({ type: 'op', val: ':' }); i++; continue; }
       return null;
     }
 
@@ -162,13 +163,29 @@ export function createEvalMVArith(algebra) {
       // Unary ops delegate entirely to a nested factor (postfix handled inside).
       if (t.type === 'op' && (t.val === '-' || t.val === '+' || t.val === '!' || t.val === '~')) { eat(); return factor(); }
       if (!primary()) return false;
-      // Postfix: .norm / .inorm / .bladename (allow chains e.g. (A^B).norm)
-      while (peek()?.type === 'op' && peek()?.val === '.') {
-        eat();
-        const prop = peek();
-        if (!prop || prop.type !== 'id') return false;
-        if (!PROP_NAMES.has(prop.val) && !parseBladeName(prop.val)) return false;
-        eat();
+      // Postfix: .prop chains and [i] / [i:j] index/slice
+      while (true) {
+        if (peek()?.val === '.') {
+          eat();
+          const prop = peek();
+          if (!prop || prop.type !== 'id') return false;
+          if (!PROP_NAMES.has(prop.val) && !parseBladeName(prop.val)) return false;
+          eat();
+        } else if (peek()?.val === '[') {
+          eat();
+          if (peek()?.val === ':') {
+            eat();
+            if (peek()?.val !== ']') { if (!expr()) return false; }
+          } else {
+            if (!expr()) return false;
+            if (peek()?.val === ':') {
+              eat();
+              if (peek()?.val !== ']') { if (!expr()) return false; }
+            }
+          }
+          if (!peek() || peek().val !== ']') return false;
+          eat();
+        } else { break; }
       }
       return true;
     }
@@ -236,6 +253,7 @@ export function createEvalMVArith(algebra) {
     return val;
   }
   function negateVal(val) {
+    if (val?.list) return mapList(val, negateVal);
     if (typeof val === 'number') return -val;
     if (typeof val === 'object' && 'vx' in val) return { vx: -val.vx, vy: -val.vy };
     const r = new Algebra(arraySize);
@@ -264,6 +282,7 @@ export function createEvalMVArith(algebra) {
   // Smart norm: auto-selects finite or ideal path based on classifyMV.
   function applyNorm(val) {
     if (val === null) return null;
+    if (val?.list) return mapList(val, applyNorm);
     if (typeof val === 'number') return Math.abs(val);
     const mv = toMV(val);
     if (!mv) return null;
@@ -274,6 +293,7 @@ export function createEvalMVArith(algebra) {
   // Explicit ideal norm.
   function applyINorm(val) {
     if (val === null) return null;
+    if (val?.list) return mapList(val, applyINorm);
     if (typeof val === 'number') return Math.abs(val);
     const mv = toMV(val);
     if (!mv) return null;
@@ -290,10 +310,24 @@ export function createEvalMVArith(algebra) {
     return null;
   }
 
+  const mapList = (lst, fn) => ({ list: true, items: lst.items.map(fn).filter((v) => v != null) });
+
   function applyOp(left, op, right) {
     if (left === null || right === null) return null;
     const lNum = typeof left  === 'number';
     const rNum = typeof right === 'number';
+
+    // List operations — general rule:
+    //   both lists, same length → elementwise
+    //   one list, one non-list  → broadcast (apply op to each element)
+    if (left?.list || right?.list) {
+      if (left?.list && right?.list) {
+        if (left.items.length !== right.items.length) return null;
+        return { list: true, items: left.items.map((lv, i) => applyOp(lv, op, right.items[i])).filter((v) => v != null) };
+      }
+      if (left?.list)  return mapList(left,  (item) => applyOp(item, op, right));
+      if (right?.list) return mapList(right, (item) => applyOp(left,  op, item));
+    }
 
     if (lNum && rNum) {
       if (op === '+') return left + right;
@@ -429,12 +463,14 @@ export function createEvalMVArith(algebra) {
         eat();
         const v = parseFactor();
         if (v === null) return null;
+        if (v?.list) return mapList(v, (item) => { const mv = toMV(item); return mv ? dualOp(mv) : null; });
         const mv = toMV(v); return mv ? dualOp(mv) : null;
       }
       if (t.type === 'op' && t.val === '~') {
         eat();
         const v = parseFactor();
         if (v === null) return null;
+        if (v?.list) return mapList(v, (item) => { const mv = toMV(item); return mv ? reverseOp(mv) : null; });
         const mv = toMV(v); return mv ? reverseOp(mv) : null;
       }
 
@@ -465,7 +501,8 @@ export function createEvalMVArith(algebra) {
           if (!peek() || peek().val !== ')') return null;
           eat();
           if (arg === null) return null;
-          if (t.val === 'abs') { val = applyAbs(arg); }
+          if (t.val === 'len') { val = arg?.list ? arg.items.length : null; }
+          else if (t.val === 'abs') { val = applyAbs(arg); }
           else if (TRIG_FNS[t.val]) { val = applyScalarFn(TRIG_FNS[t.val], arg); }
           else if (t.val === 'sqrt') {
             if (typeof arg === 'number') { val = Math.sqrt(arg); }
@@ -495,22 +532,64 @@ export function createEvalMVArith(algebra) {
         return null;
       }
 
-      // Postfix property: .norm / .inorm / .bladename — works after any primary.
-      while (val !== null && peek()?.type === 'op' && peek()?.val === '.') {
-        eat();
-        const prop = peek();
-        if (!prop || prop.type !== 'id') return null;
-        eat();
-        if (prop.val === 'norm') {
-          val = applyNorm(val);
-        } else if (prop.val === 'inorm') {
-          val = applyINorm(val);
-        } else {
-          const b = parseBladeName(prop.val);
-          if (!b) return null;
-          const mv = toMV(val);
-          val = mv ? b.sign * (mv[b.index] ?? 0) : null;
-        }
+      // Postfix: .prop and [i] / [i:j]
+      while (val !== null) {
+        if (peek()?.val === '.') {
+          eat();
+          const prop = peek();
+          if (!prop || prop.type !== 'id') return null;
+          eat();
+          if (prop.val === 'norm') {
+            val = applyNorm(val);
+          } else if (prop.val === 'inorm') {
+            val = applyINorm(val);
+          } else {
+            const b = parseBladeName(prop.val);
+            if (!b) return null;
+            const mv = toMV(val);
+            val = mv ? b.sign * (mv[b.index] ?? 0) : null;
+          }
+        } else if (peek()?.val === '[') {
+          eat();
+          // Parse optional start index, optional colon, optional end index.
+          let iExpr = null, jExpr = null, isSlice = false;
+          if (peek()?.val === ':') {
+            isSlice = true; eat();
+            if (peek()?.val !== ']') jExpr = parseExpr();
+          } else {
+            iExpr = parseExpr();
+            if (peek()?.val === ':') {
+              isSlice = true; eat();
+              if (peek()?.val !== ']') jExpr = parseExpr();
+            }
+          }
+          if (!peek() || peek().val !== ']') return null;
+          eat();
+
+          const toIdx = (v) => {
+            if (typeof v === 'number') return Math.round(v);
+            if (v && typeof v === 'object' && typeof v.length === 'number') return Math.round(v[0] || 0);
+            return null;
+          };
+
+          if (val?.list) {
+            const n = val.items.length;
+            const norm = (i, dflt) => {
+              if (i === null) return dflt;
+              return i < 0 ? Math.max(0, n + i) : Math.min(n, i);
+            };
+            if (!isSlice) {
+              const i = norm(toIdx(iExpr), 0);
+              val = (i >= 0 && i < n) ? val.items[i] : null;
+            } else {
+              const i = norm(toIdx(iExpr), 0);
+              const j = norm(toIdx(jExpr), n);
+              val = { list: true, items: val.items.slice(i, j) };
+            }
+          } else {
+            val = null;
+          }
+        } else { break; }
       }
 
       return val;

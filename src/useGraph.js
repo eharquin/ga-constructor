@@ -146,9 +146,31 @@ export function useGraph(algebra) {
   const KIND_COLOR           = algebra.KIND_COLOR ?? {};
   const TYPE_COLOR_FALLBACK  = algebra.TYPE_COLOR_FALLBACK ?? {};
 
-  const [state, dispatch] = useReducer(reducer, algebra.INITIAL_ITEMS, initialState);
+  const [state, dispatch] = useReducer(reducer, null, () => {
+    try {
+      const saved = localStorage.getItem(`ga-items-${algebra.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return initialState(parsed);
+      }
+    } catch {}
+    return initialState(algebra.INITIAL_ITEMS);
+  });
   const { items, past, future } = state;
-  const nextId = useRef(algebra.INITIAL_ITEMS.length);
+
+  // Start nextId after the highest expr_N already in items.
+  const nextId = useRef(
+    Math.max(-1, ...state.items.map((it) => {
+      const m = String(it?.id ?? '').match(/^expr_(\d+)$/);
+      return m ? parseInt(m[1], 10) : -1;
+    })) + 1
+  );
+
+  // Persist items to localStorage whenever they change.
+  useEffect(() => {
+    try { localStorage.setItem(`ga-items-${algebra.id}`, JSON.stringify(items)); }
+    catch {}
+  }, [items, algebra.id]);
 
   // Animation state
   const [playingIds,   setPlayingIds]   = useState(new Set());
@@ -433,7 +455,15 @@ export function useGraph(algebra) {
   const firstRender = useRef(true);
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
-    loadItems(algebra.INITIAL_ITEMS, { fromAlgebraSwitch: true });
+    let toLoad = algebra.INITIAL_ITEMS;
+    try {
+      const saved = localStorage.getItem(`ga-items-${algebra.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) toLoad = parsed;
+      }
+    } catch {}
+    loadItems(toLoad, { fromAlgebraSwitch: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [algebra.id]);
 

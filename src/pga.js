@@ -97,8 +97,16 @@ export const classifyMV = (val) => {
     return { kind: 'motor' };
   }
 
-  // Odd-grade: grade-1 + grade-3 (reflector · motor = glide reflection)
-  if (!g0 && g1 && !g2 && g3) return { kind: 'reflector' };
+  // Odd-grade: grade-1 + grade-3 (reflector · motor = glide reflection).
+  // Use a relative threshold so floating-point noise in e012 from sandwich
+  // products doesn't misclassify a transformed line as a reflector.
+  if (!g0 && g1 && !g2 && g3) {
+    const mag1 = Math.sqrt((val[1] || 0) ** 2 + (val[2] || 0) ** 2 + (val[3] || 0) ** 2);
+    if (Math.abs(val[7]) < 1e-6 * (mag1 || 1)) {
+      return { kind: (Math.abs(val[2]) < eps && Math.abs(val[3]) < eps) ? 'idealLine' : 'line' };
+    }
+    return { kind: 'reflector' };
+  }
 
   return { kind: 'mixed' };
 };

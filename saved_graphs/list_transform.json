@@ -1,0 +1,155 @@
+{
+  "name": "list_transform",
+  "algebra": "pga201",
+  "items": [
+    {
+      "id": "expr_8",
+      "text": "E = point(-11, 16.3)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_9",
+      "text": "F = point(40.5, 28.6)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_10",
+      "text": "G = point(13.1, -14.5)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_11",
+      "text": "L1=E&F",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_12",
+      "text": "L2=F&G",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_13",
+      "text": "L3=G&E",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_14",
+      "text": "L=[E,F,G]",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": false,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_15",
+      "text": "LL=[L1,L2,L3]",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": false,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_17",
+      "text": "a = 3",
+      "color": null,
+      "anim": {
+        "min": 0.01,
+        "max": 3.14,
+        "step": 0.01
+      },
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_16",
+      "text": "R=exp(a*e12)",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_18",
+      "text": "R>>>L",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_19",
+      "text": "R>>>LL",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    }
+  ],
+  "savedAt": "2026-05-20T21:28:53.027Z"
+}

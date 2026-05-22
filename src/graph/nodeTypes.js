@@ -93,12 +93,20 @@ export function createNodeTypes(algebra, evaluator) {
         const env = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
         const raw = evalMVArith(exprStr, env);
         if (raw == null) return null;
-        const V = (typeof raw === 'object' && 'vx' in raw) ? geomToMV(raw) : raw;
-        if (typeof V === 'number') {
-          const T = new Algebra(arraySize); T[0] = Math.exp(V); return T;
-        }
-        if (!V.length || V.length < arraySize) return null;
-        return V.Exp();
+        // Always copy into a fresh Algebra instance so .Exp() is available
+        // regardless of whether the source value is a typed constructor result.
+        const expOne = (item) => {
+          if (typeof item === 'number') {
+            const T = new Algebra(arraySize); T[0] = Math.exp(item); return T;
+          }
+          const src = (typeof item === 'object' && item && 'vx' in item) ? geomToMV(item) : item;
+          if (!src || typeof src.length !== 'number' || src.length < arraySize) return null;
+          const mv = new Algebra(arraySize);
+          for (let i = 0; i < arraySize; i++) mv[i] = src[i] || 0;
+          return mv.Exp();
+        };
+        if (raw?.list) return { list: true, items: raw.items.map(expOne).filter(Boolean) };
+        return expOne(raw);
       },
     },
 
@@ -108,22 +116,40 @@ export function createNodeTypes(algebra, evaluator) {
         const T = depValues[0];
         if (!T) return null;
         const raw = geom ? resolveInlineGeom(geom, depValues) : depValues[1];
-        const A = raw && typeof raw === 'object' && 'vx' in raw ? geomToMV(raw) : raw;
+        const toA = (item) => item && typeof item === 'object' && 'vx' in item ? geomToMV(item) : item;
+        // Pairwise: list of motors applied to list of objects (same length).
+        if (T?.list && raw?.list) {
+          if (T.items.length !== raw.items.length) return null;
+          return {
+            list: true,
+            items: T.items.map((t, i) => {
+              const A = toA(raw.items[i]);
+              return (t && A) ? Algebra.sw(t, A) : null;
+            }).filter(Boolean),
+          };
+        }
+        // Single motor broadcast over a list.
+        if (raw?.list) {
+          return {
+            list: true,
+            items: raw.items.map((item) => {
+              const A = toA(item);
+              return A ? Algebra.sw(T, A) : null;
+            }).filter(Boolean),
+          };
+        }
+        const A = toA(raw);
         if (!A) return null;
         return Algebra.sw(T, A);
       },
     },
 
     list: {
-      label: 'Polygon',
+      label: 'List',
       compute: (depValues, { geoms }) => {
-        if (!toEuclidean) return null;
-        const points = geoms.map((g) => {
-          const val = resolveInlineGeom(g, depValues);
-          return val ? toEuclidean(toMV(val)) : null;
-        });
-        if (points.some((p) => !p)) return null;
-        return { list: true, points };
+        const items = geoms.map((g) => resolveInlineGeom(g, depValues));
+        if (items.some((v) => v == null)) return null;
+        return { list: true, items };
       },
     },
 
@@ -165,6 +191,7 @@ export function createNodeTypes(algebra, evaluator) {
     dual: {
       label: 'Dual',
       compute: ([val]) => {
+        if (val?.list) return { list: true, items: val.items.map((v) => { const mv = toMV(v); return mv ? dualOp(mv) : null; }).filter(Boolean) };
         const mv = toMV(val);
         return mv ? dualOp(mv) : null;
       },
@@ -173,6 +200,7 @@ export function createNodeTypes(algebra, evaluator) {
     reverse: {
       label: 'Reverse',
       compute: ([val]) => {
+        if (val?.list) return { list: true, items: val.items.map((v) => { const mv = toMV(v); return mv ? reverseOp(mv) : null; }).filter(Boolean) };
         const mv = toMV(val);
         return mv ? reverseOp(mv) : null;
       },
@@ -203,13 +231,25 @@ export function createNodeTypes(algebra, evaluator) {
       },
     };
   }
+  // Helper: apply a two-argument GA operation, broadcasting over any list operand.
+  const listBinOp = (a, b, fn) => {
+    if (!a || !b) return null;
+    if (a?.list && b?.list) {
+      if (a.items.length !== b.items.length) return null;
+      return { list: true, items: a.items.map((av, i) => fn(av, b.items[i])).filter(Boolean) };
+    }
+    if (a?.list) return { list: true, items: a.items.map((av) => fn(av, b)).filter(Boolean) };
+    if (b?.list) return { list: true, items: b.items.map((bv) => fn(a, bv)).filter(Boolean) };
+    return fn(a, b);
+  };
+
   if (typeof Algebra.Vee === 'function') {
     types.joinLine = {
       label: 'Line A ∧ B',
       compute: (depValues, { geom1, geom2 }) => {
         const P1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
         const P2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
-        return P1 && P2 ? Algebra.Vee(toMV(P1), toMV(P2)) : null;
+        return listBinOp(P1, P2, (a, b) => { const ma = toMV(a), mb = toMV(b); return ma && mb ? Algebra.Vee(ma, mb) : null; });
       },
     };
     types.meetPoint = {
@@ -217,7 +257,7 @@ export function createNodeTypes(algebra, evaluator) {
       compute: (depValues, { geom1, geom2 }) => {
         const L1 = geom1 ? resolveInlineGeom(geom1, depValues) : depValues[0];
         const L2 = geom2 ? resolveInlineGeom(geom2, depValues) : depValues[1];
-        return L1 && L2 ? Algebra.Wedge(toMV(L1), toMV(L2)) : null;
+        return listBinOp(L1, L2, (a, b) => { const ma = toMV(a), mb = toMV(b); return ma && mb ? Algebra.Wedge(ma, mb) : null; });
       },
     };
     types.meetChain = {
