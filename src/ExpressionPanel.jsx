@@ -726,38 +726,32 @@ export default function ExpressionPanel() {
                 <h3>Lists</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>[A, B, C]</code></td><td>List of any object types. If all finite points, draws a dashed polygon outline.</td></tr>
-                    <tr><td><code>L[i]</code></td><td>Element at 0-based index. Negative indices wrap: <code>L[-1]</code> = last.</td></tr>
-                    <tr><td><code>L[i:j]</code></td><td>Slice — sublist from index i (inclusive) to j (exclusive). Either bound optional: <code>L[:2]</code>, <code>L[1:]</code>.</td></tr>
-                    <tr><td><code>len(L)</code></td><td>Number of elements as a scalar.</td></tr>
-                    <tr><td><code>M &gt;&gt;&gt; L</code></td><td>Transform every element of L with motor M.</td></tr>
-                    <tr><td><code>LL &gt;&gt;&gt; L</code></td><td>Pairwise transform: LL and L must have the same length.</td></tr>
-                    <tr><td><code>exp(L)</code></td><td>Map <code>exp</code> over each element.</td></tr>
-                    <tr><td><code>!L</code>, <code>~L</code></td><td>Map dual / reverse over each element.</td></tr>
-                    <tr><td><code>2 * L</code>, <code>L / 2</code></td><td>Scalar broadcast to every element.</td></tr>
-                    <tr><td><code>expr * L</code></td><td>Geometric product broadcast: each element multiplied by expr.</td></tr>
-                    <tr><td><code>L1 + L2</code></td><td>Elementwise for any operator (same length): <code>L1 ^ L2</code>, <code>L1 &amp; L2</code>, <code>L1 | L2</code>, etc.</td></tr>
-                    <tr><td><code>expr ^ L</code>, <code>expr &amp; L</code>, <code>expr | L</code></td><td>Broadcast any binary op: apply to each element with a fixed left or right operand.</td></tr>
-                    <tr><td><code>|L|</code>, <code>L.norm</code></td><td>Map norm over each element — returns a list of scalars.</td></tr>
+                    <tr><td><code>[A, B, C, …]</code></td><td>List literal — any object types. All-point lists draw a dashed polygon outline.</td></tr>
+                    <tr><td><code>L[i]</code></td><td>Element at 0-based index. Negative wraps: <code>L[-1]</code> = last.</td></tr>
+                    <tr><td><code>L[i:j]</code></td><td>Slice i..j−1. Either bound optional: <code>L[:2]</code>, <code>L[1:]</code>.</td></tr>
+                    <tr><td><code>len(L)</code></td><td>Length as a scalar.</td></tr>
+                    <tr><td><code>A op L</code> / <code>L op A</code></td><td>Any binary op broadcasts over every element: <code>M &gt;&gt;&gt; L</code>, <code>2*L</code>, <code>e12^L</code>, <code>A|L</code> …</td></tr>
+                    <tr><td><code>L1 op L2</code></td><td>Any binary op applied elementwise (same length required).</td></tr>
+                    <tr><td><code>f(L)</code></td><td>Any unary maps over elements: <code>!L</code>, <code>~L</code>, <code>-L</code>, <code>|L|</code>, <code>L.norm</code>, <code>exp(L)</code> …</td></tr>
                   </tbody>
                 </table>
               </section>
 
               <section className="help-section">
                 <h3>Operators &amp; precedence</h3>
+                <p className="help-note">Tight → loose: unary &gt; grade products &gt; geometric product &gt; sandwich &gt; additive.<br/>Example: <code>A * B ^ C</code> = <code>A * (B^C)</code>.</p>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Additive (lowest precedence).</td></tr>
-                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich product.</td></tr>
-                    <tr><td><code>A * B</code>, <code>A / s</code></td><td>Geometric product / scalar division.</td></tr>
-                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A § B</code></td><td>Grade products (tightest binary). <code>A * B ^ C</code> = <code>A * (B^C)</code>.</td></tr>
-                    <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Unary — highest precedence.</td></tr>
-                    <tr><td><code>A.e12</code></td><td>Blade coefficient extraction. Permuted names: <code>A.e21 = −A.e12</code>.</td></tr>
-                    <tr><td><code>|A|</code></td><td>Smart norm: finite or ideal auto-detected. <code>abs(A)</code> for explicit scalar abs.</td></tr>
-                    <tr><td><code>A.norm</code></td><td>Explicit finite norm (<code>‖A‖</code>).</td></tr>
-                    <tr><td><code>A.inorm</code></td><td>Explicit ideal norm (<code>‖A‖∞</code>). Works after any primary: <code>(A&amp;B).inorm</code>.</td></tr>
-                    <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root via Log/Exp.</td></tr>
-                    <tr><td><code>sin cos tan</code> …</td><td>Trig functions (radians). Also: <code>csc sec cot asin acos atan acsc asec acot</code>.</td></tr>
+                    <tr><td><code>A + B</code>, <code>A - B</code></td><td>Additive (loosest).</td></tr>
+                    <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich <code>A·B·Ã</code>.</td></tr>
+                    <tr><td><code>A * B</code>, <code>A / B</code></td><td>Geometric product / division.</td></tr>
+                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A § B</code></td><td>Outer, regressive, inner, commutator (tightest binary).</td></tr>
+                    <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Dual, reverse, negate (unary — tightest).</td></tr>
+                    <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
+                    <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
+                    <tr><td><code>A.e12</code></td><td>Blade coefficient. Permuted names supported: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
+                    <tr><td><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> …</td><td>Trig (radians). Also: <code>csc sec cot acsc asec acot abs</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
