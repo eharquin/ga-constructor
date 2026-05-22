@@ -61,6 +61,8 @@ VGA has no points or projective lines — `point()`, `line()`, `&` (join), `^` (
 
 **Saved graphs** — `💾` Save / `📂` Open buttons persist to `saved_graphs/<name>.json` via a Vite dev plugin. `ga-algebra` + `ga-items-<id>` localStorage keys auto-restore the last session per algebra on refresh.
 
+**Undo / redo** — `useGraph` reducer wraps state as `{ items, past, future, lastChange }`. Every mutating action pushes prior items onto `past` and clears `future`; `UNDO`/`REDO` swap between stacks. High-frequency writes (`SET_TEXT`, `SET_DRAW_POS`) targeting the same id within 400 ms coalesce into one history entry (covers drag bursts and animation ticks). Algebra-switch `LOAD_ITEMS` carries `fromAlgebraSwitch: true` and resets history. Stack capped at 100. `↶`/`↷` buttons in the header plus `Ctrl/Cmd+Z` / `Ctrl/Cmd+Shift+Z` (also `Ctrl/Cmd+Y`); keyboard handler ignored when focus is in an input.
+
 **Git workflow** — GitHub Flow with PR-based feature branches. Auto-commit hook does `git push -u origin HEAD` so new branches publish on first commit. See `docs/git_workflow.md` for branch prefixes, hook gotchas, and recovery commands.
 
 Expression Reference in help modal covers all features.

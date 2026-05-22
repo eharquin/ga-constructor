@@ -21,7 +21,8 @@ function pickPointName(usedIds) {
   return `P${i}`;
 }
 
-function reducer(items, action) {
+// Pure transforms on the items array. Outer `reducer` handles history.
+function itemsReducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
       return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
@@ -87,26 +88,79 @@ function reducer(items, action) {
   }
 }
 
+// ─── Undo/redo wrapper ──────────────────────────────────────────────────────
+// Past/future stacks of `items` snapshots. Mutating actions push the prior
+// items onto `past` and clear `future`. Two exceptions:
+//  - High-frequency drag/anim writes (SET_TEXT, SET_DRAW_POS) targeting the
+//    same item within COALESCE_MS collapse into a single history entry.
+//  - LOAD_ITEMS-after-algebra-switch (action.fromAlgebraSwitch) skips history.
+
+const HISTORY_CAP    = 100;
+const COALESCE_MS    = 400;
+const COALESCING_ACTIONS = new Set(['SET_TEXT', 'SET_DRAW_POS']);
+
+function pushPast(past, items) {
+  const next = past.length >= HISTORY_CAP ? past.slice(past.length - HISTORY_CAP + 1) : past;
+  return [...next, items];
+}
+
+function reducer(state, action) {
+  if (action.type === 'UNDO') {
+    if (state.past.length === 0) return state;
+    const prev = state.past[state.past.length - 1];
+    return { items: prev, past: state.past.slice(0, -1), future: [...state.future, state.items], lastChange: null };
+  }
+  if (action.type === 'REDO') {
+    if (state.future.length === 0) return state;
+    const next = state.future[state.future.length - 1];
+    return { items: next, past: pushPast(state.past, state.items), future: state.future.slice(0, -1), lastChange: null };
+  }
+
+  const newItems = itemsReducer(state.items, action);
+  if (newItems === state.items) return state;
+
+  if (action.fromAlgebraSwitch) {
+    return { items: newItems, past: [], future: [], lastChange: null };
+  }
+
+  const now = Date.now();
+  const isCoalescing = COALESCING_ACTIONS.has(action.type)
+    && state.lastChange
+    && state.lastChange.type === action.type
+    && state.lastChange.id === action.id
+    && now - state.lastChange.ts < COALESCE_MS;
+
+  return {
+    items: newItems,
+    past: isCoalescing ? state.past : pushPast(state.past, state.items),
+    future: [],
+    lastChange: { type: action.type, id: action.id, ts: now },
+  };
+}
+
+const initialState = (items) => ({ items, past: [], future: [], lastChange: null });
+
 export function useGraph(algebra) {
   // Algebra-bound primitives — change when the active algebra changes.
   const { parseExpression, evaluate, classifyMV, toEuclidean } = algebra;
   const KIND_COLOR           = algebra.KIND_COLOR ?? {};
   const TYPE_COLOR_FALLBACK  = algebra.TYPE_COLOR_FALLBACK ?? {};
 
-  const [items, dispatch] = useReducer(reducer, null, () => {
+  const [state, dispatch] = useReducer(reducer, null, () => {
     try {
       const saved = localStorage.getItem(`ga-items-${algebra.id}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return initialState(parsed);
       }
     } catch {}
-    return algebra.INITIAL_ITEMS;
+    return initialState(algebra.INITIAL_ITEMS);
   });
+  const { items, past, future } = state;
 
   // Start nextId after the highest expr_N already in items.
   const nextId = useRef(
-    Math.max(-1, ...items.map((it) => {
+    Math.max(-1, ...state.items.map((it) => {
       const m = String(it?.id ?? '').match(/^expr_(\d+)$/);
       return m ? parseInt(m[1], 10) : -1;
     })) + 1
@@ -384,9 +438,9 @@ export function useGraph(algebra) {
     setPlayingIds(new Set());
   };
 
-  const loadItems = (newItems) => {
+  const loadItems = (newItems, opts = {}) => {
     const arr = Array.isArray(newItems) ? newItems : [];
-    dispatch({ type: 'LOAD_ITEMS', items: arr });
+    dispatch({ type: 'LOAD_ITEMS', items: arr, fromAlgebraSwitch: !!opts.fromAlgebraSwitch });
     let maxN = -1;
     for (const it of arr) {
       const m = String(it?.id ?? '').match(/^expr_(\d+)$/);
@@ -409,7 +463,7 @@ export function useGraph(algebra) {
         if (Array.isArray(parsed) && parsed.length > 0) toLoad = parsed;
       }
     } catch {}
-    loadItems(toLoad);
+    loadItems(toLoad, { fromAlgebraSwitch: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [algebra.id]);
 
@@ -637,5 +691,9 @@ export function useGraph(algebra) {
     createScalarsFor,
     addFreePoint,
     algebra,
+    undo: () => dispatch({ type: 'UNDO' }),
+    redo: () => dispatch({ type: 'REDO' }),
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
   };
 }

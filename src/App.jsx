@@ -107,6 +107,26 @@ function SavedGraphsControls() {
   );
 }
 
+function UndoRedoControls() {
+  const { undo, redo, canUndo, canRedo } = useGraphContext();
+  return (
+    <>
+      <button
+        className="app-icon-btn"
+        onClick={undo}
+        disabled={!canUndo}
+        title="Undo (Ctrl/Cmd+Z)"
+      >↶</button>
+      <button
+        className="app-icon-btn"
+        onClick={redo}
+        disabled={!canRedo}
+        title="Redo (Ctrl/Cmd+Shift+Z)"
+      >↷</button>
+    </>
+  );
+}
+
 function OptionsMenu() {
   const { settings, setSetting } = useSettings();
   const [open, setOpen] = useState(false);
@@ -184,12 +204,28 @@ function AlgebraSelect() {
 function AppShell() {
   const [panelWidth, setPanelWidth] = useState(300);
   const [theme, setTheme]           = useState(() => localStorage.getItem('ga-theme') || 'light');
+  const { undo, redo, canUndo, canRedo } = useGraphContext();
   const dragRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('ga-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const tag = e.target?.tagName;
+      const editable = tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable;
+      if (editable) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
 
   const toggleTheme = () => {
     document.documentElement.classList.add('theme-fade');
@@ -218,6 +254,7 @@ function AppShell() {
         <span className="app-title">GA Constructor</span>
         <AlgebraSelect />
         <span className="app-header-spacer" />
+        <UndoRedoControls />
         <SavedGraphsControls />
         <OptionsMenu />
         <button
