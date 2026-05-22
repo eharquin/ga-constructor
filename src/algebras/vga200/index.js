@@ -117,7 +117,10 @@ export const geomToMV = (val) => vector2D(val.vx, val.vy);
 //   { kind: 'rotor', angle, scalar, bivector } — arc at origin spanning 2·atan2
 export function getRenderPlan(val) {
   if (val == null) return null;
-  if (val?.list) return { kind: 'polygon', points: val.points };
+  if (val?.list) {
+    const elements = val.items.map(getRenderPlan).filter(Boolean);
+    return { kind: 'list', elements, outline: null };
+  }
   if (typeof val === 'object' && 'vx' in val) return { kind: 'positionedVector', vx: val.vx, vy: val.vy };
   const cls = classifyMV(val);
   if (!cls) return null;

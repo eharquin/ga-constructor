@@ -415,6 +415,56 @@
   font-family: monospace;
 }
 
+/* List toggle button */
+.list-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 12px;
+  opacity: 0.7;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-toggle:hover { opacity: 1; }
+
+/* Expanded list items */
+.list-items-sub {
+  padding: 2px 0 4px 44px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.list-item-row {
+  display: grid;
+  grid-template-columns: 16px 80px 1fr;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 0;
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.list-item-index {
+  text-align: right;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.list-item-kind {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.list-item-mv {
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Delete button — hidden until hover */
 .expr-delete {
   flex-shrink: 0;

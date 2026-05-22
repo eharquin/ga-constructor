@@ -721,9 +721,29 @@ export default function Canvas() {
     if (!plan) continue;
 
     switch (plan.kind) {
-      case 'polygon':
-        backLayer.push(<SvgPolygon key={id} points={plan.points} label={label} color={color} vp={vp} opts={opts} />);
+      case 'list': {
+        if (plan.outline) {
+          backLayer.push(<SvgPolygon key={`${id}-outline`} points={plan.outline} label={label} color={color} vp={vp} opts={opts} />);
+        }
+        plan.elements.forEach((elem, ei) => {
+          const ekey = `${id}-e${ei}`;
+          switch (elem.kind) {
+            case 'finitePoint':
+              frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} />);
+              break;
+            case 'line': {
+              const bd = algebra.lineBaseAndDir?.(elem.L);
+              backLayer.push(<SvgLine key={ekey} bd={bd} label={null} color={color} vp={vp} W={size.w} H={size.h} opts={null} weight={weight} />);
+              break;
+            }
+            case 'positionedVector':
+              backLayer.push(<SvgVector key={ekey} vx={elem.vx} vy={elem.vy} px={0} py={0} label={null} color={color} vp={vp} hovered={false} linked={false} tipDraggable={false} opts={null} />);
+              break;
+            default: break;
+          }
+        });
         break;
+      }
       case 'positionedVector': {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // Only `vector`-type nodes have an editable tip — derived vectors

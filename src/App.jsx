@@ -187,7 +187,7 @@ function AlgebraSelect() {
     if (next === algebraId) return;
     if (items.length > 0) {
       const labels = Object.fromEntries(ALGEBRAS.map((a) => [a.id, a.label]));
-      const ok = window.confirm(`Switch to ${labels[next]}? Current items will be replaced with the ${labels[next]} showcase.`);
+      const ok = window.confirm(`Switch to ${labels[next]}? Your current session will be replaced.`);
       if (!ok) return;
     }
     setAlgebraId(next);
