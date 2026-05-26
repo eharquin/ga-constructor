@@ -1,5 +1,5 @@
 // PGA(2,0,1) algebra adapter.
-// Thin re-export layer over src/pga.js + spec metadata (basis, blade names,
+// Thin layer over ./core.js + spec metadata (basis, blade names,
 // classifier kinds, color palette, showcase, render plan) consumed by the
 // algebra-aware parser, evaluator, and Canvas.
 
@@ -9,7 +9,9 @@ import {
   toEuclidean, toIdealVector, lineBaseAndDir,
   classifyMV, objectWeight,
   normalizeMV, normalizeMVFinit, normalizeMVIdeal,
-} from '../../pga.js';
+} from './core.js';
+import { makeItem as ITEM } from '../itemFactory.js';
+import { createParseBladeName } from '../bladeName.js';
 
 export const ID    = 'pga201';
 export const LABEL = 'PGA 2D';
@@ -26,19 +28,7 @@ export const BLADE_NAMES = ['1', 'e0', 'e1', 'e2', 'e01', 'e02', 'e12', 'e012'];
 export const BLADE_PATTERN = 'e012|e01|e02|e12|e0|e1|e2';
 
 // Parse any permutation of PGA basis indices (e21 = -e12, e102 = -e012, …).
-export function parseBladeName(name) {
-  if (!name || !name.startsWith('e')) return null;
-  const digits = name.slice(1).split('').map(Number);
-  if (digits.some((d) => isNaN(d) || d < 0 || d > 2)) return null;
-  if (new Set(digits).size !== digits.length) return null;
-  let inv = 0;
-  for (let i = 0; i < digits.length; i++)
-    for (let j = i + 1; j < digits.length; j++)
-      if (digits[i] > digits[j]) inv++;
-  const canonical = 'e' + [...digits].sort((a, b) => a - b).join('');
-  const index = BLADE_INDEX[canonical];
-  return index !== undefined ? { index, sign: inv % 2 === 0 ? 1 : -1 } : null;
-}
+export const parseBladeName = createParseBladeName(BLADE_INDEX, { minDigit: 0, maxDigit: 2 });
 
 // ─── Vector-from-MV detection ───────────────────────────────────────────────
 // Pure ideal direction (only e01/e02, literal or variable coefficients).
@@ -135,12 +125,64 @@ export function getRenderPlan(val) {
   }
 }
 
-// ─── Initial showcase (motor composition) ───────────────────────────────────
+// ─── Drag model ──────────────────────────────────────────────────────────────
+// Blade-index conventions for interaction live here, not in Canvas/useGraph, so
+// the renderer and graph layer stay algebra-agnostic.
 
-const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null,
-  visible: true, movable: true, normalizeMode: null, ...extra,
-});
+// Drawn (vx,vy) for a vector-like value: {vx,vy} passthrough, or an ideal point
+// (grade-2, e12 = 0) as its direction. Null for anything else.
+export const vectorXY = (val) => {
+  if (val && typeof val === 'object' && 'vx' in val) return { vx: val.vx, vy: val.vy };
+  return toIdealVector(val);
+};
+
+// Is this multivector node a draggable "parametric point" — i.e. dragging it on
+// the canvas maps screen (x,y) back to its coefficients? Three forms:
+//   x*e01 + y*e02 (+ e12)      — variable position coefficients
+//   !(y*e2 + x*e1 + e0)        — dual form with variable pre-dual coefficients
+//   e01 + e12 (literal)        — literal grade-2 point, dragged by rewriting text
+export function isParametricPoint(node) {
+  if (!node || node.type !== 'multivector') return false;
+  const { coeffExprs, components, dual } = node.params ?? {};
+  if (!dual && (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined)) return true;
+  if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) return true;
+  if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) return true;
+  return false;
+}
+
+// Edits to apply when a parametric point is dragged to world (x,y).
+// PGA point convention: e01 = y·w, e02 = −x·w, weight w = e12.
+// Returns edit instructions consumed generically by useGraph:
+//   { kind: 'scalar', name, value } — set scalar item `name`
+//   { kind: 'text',   rhs }         — rewrite the node's own expression RHS
+export function parametricPointEdits(node, val, x, y) {
+  const { coeffExprs, components, dual } = node.params ?? {};
+  const w = val?.[6] ?? 1;
+  const scalarEdit = (expr, target) => {
+    const m = expr?.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
+    return m ? { kind: 'scalar', name: m[2], value: m[1] === '-' ? -target : target } : null;
+  };
+  if (!dual && (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined))
+    return [scalarEdit(coeffExprs[4], y * w), scalarEdit(coeffExprs[5], -x * w)].filter(Boolean);
+  if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined))
+    return [scalarEdit(coeffExprs[3], y * w), scalarEdit(coeffExprs[2], -x * w)].filter(Boolean);
+  if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) {
+    const f = (n) => parseFloat(n.toFixed(6));
+    const term = (c, blade) => (c === 0 ? null : c === 1 ? blade : c === -1 ? `-${blade}` : `${c}*${blade}`);
+    const parts = [term(f(y), 'e01'), term(f(-x), 'e02'), 'e12'].filter(Boolean);
+    return [{ kind: 'text', rhs: parts.join(' + ').replace(/ \+ -/g, ' - ') }];
+  }
+  return [];
+}
+
+// Variable (if any) holding a point's e12 weight — the create-scalars banner
+// defaults it to 1 instead of 0.
+export function weightCoeffVar(node) {
+  const m = node?.params?.coeffExprs?.[6]?.match(/^-?([A-Za-z_][A-Za-z0-9_]*)$/);
+  return m ? m[1] : null;
+}
+
+// ─── Initial showcase (motor composition) ───────────────────────────────────
 
 export const INITIAL_ITEMS = [
   ITEM('expr_0', 'P = 5.2*e01 + 5.2*e02 + e12'),
@@ -152,16 +194,6 @@ export const INITIAL_ITEMS = [
   ITEM('expr_6', 'M = R * T'),
   ITEM('expr_7', 'Q = M >>> P'),
 ];
-
-// ─── Re-exports for back-compat with code that still imports from pga.js ────
-
-export {
-  PGA, point2D, line2D, idealPoint,
-  dualOp, reverseOp,
-  toEuclidean, toIdealVector, lineBaseAndDir,
-  classifyMV, objectWeight,
-  normalizeMV, normalizeMVFinit, normalizeMVIdeal,
-};
 
 // ─── Spec object — bundled for the algebra registry ─────────────────────────
 
@@ -186,6 +218,8 @@ export const spec = {
   // PGA-only constructors needed by some nodeTypes
   point2D, line2D, idealPoint,
   toEuclidean, toIdealVector, lineBaseAndDir,
+  // Drag model
+  vectorXY, isParametricPoint, parametricPointEdits, weightCoeffVar,
   getRenderPlan,
   supportedNodeTypes: SUPPORTED_NODE_TYPES,
   KIND_COLOR, TYPE_COLOR_FALLBACK,

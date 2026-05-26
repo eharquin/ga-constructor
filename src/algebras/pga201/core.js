@@ -5,6 +5,11 @@ import Algebra from 'ganja.js';
 //                        [0] [1] [2] [3]  [4]  [5]  [6]   [7]
 export const PGA = Algebra(2, 0, 1);
 
+// Grade-k presence, delegated to ganja: the (non-metric) length of the grade-k
+// part. Lets the classifier ask "is grade k present?" without naming blade
+// indices — the pattern that scales to higher-dimensional algebras (CGA).
+const gradeMag = (mv, k) => mv.Grade(k).VLength;
+
 // Euclidean 2D point at (x, y) as the grade-2 bivector  y·e01 − x·e02 + e12.
 export const point2D = (x, y) => PGA.Bivector(y, -x, 1);
 
@@ -72,10 +77,10 @@ export const classifyMV = (val) => {
   if (!val || typeof val.length !== 'number' || val.length < 8) return null;
 
   const eps = 1e-10;
-  const g0 = Math.abs(val[0]) > eps;
-  const g1 = Math.abs(val[1]) > eps || Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
-  const g2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps || Math.abs(val[6]) > eps;
-  const g3 = Math.abs(val[7]) > eps;
+  const g0 = gradeMag(val, 0) > eps;
+  const g1 = gradeMag(val, 1) > eps;
+  const g2 = gradeMag(val, 2) > eps;
+  const g3 = gradeMag(val, 3) > eps;
 
   if (g0 && !g1 && !g2 && !g3) return { kind: 'scalar' };
   if (!g0 && !g1 && !g2 && !g3) return { kind: 'scalar' }; // zero multivector → zero scalar
@@ -123,14 +128,12 @@ export const normalizeMVFinit = (val) => {
   const norm = PGA.Length(val);
   if (norm < 1e-10) return val;
   const eps = 1e-10;
-  const g0 = Math.abs(val[0]) > eps;
-  const g1 = Math.abs(val[1]) > eps || Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
-  const g3 = Math.abs(val[7]) > eps;
+  const g0 = gradeMag(val, 0) > eps;
+  const g1 = gradeMag(val, 1) > eps;
+  const g3 = gradeMag(val, 3) > eps;
   const isFinitePoint = !g0 && !g1 && !g3 && Math.abs(val[6]) > eps;
   const sign = (isFinitePoint && val[6] < 0) ? -1 : 1;
-  const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = (val[i] * sign) / norm;
-  return result;
+  return val.Scale(sign / norm);
 };
 
 // Normalize by the ideal norm: ||A||∞ = ||dual(A)||.
@@ -146,14 +149,12 @@ export const normalizeMVIdeal = (val) => {
   const norm = PGA.Length(PGA.Dual(val));
   if (norm < 1e-10) return val;
   const eps = 1e-10;
-  const g0 = Math.abs(val[0]) > eps;
-  const g2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps || Math.abs(val[6]) > eps;
-  const g3 = Math.abs(val[7]) > eps;
+  const g0 = gradeMag(val, 0) > eps;
+  const g2 = gradeMag(val, 2) > eps;
+  const g3 = gradeMag(val, 3) > eps;
   const isLineLike = !g0 && !g2 && !g3 && Math.abs(val[1]) > eps;
   const sign = (isLineLike && val[1] < 0) ? -1 : 1;
-  const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = (val[i] * sign) / norm;
-  return result;
+  return val.Scale(sign / norm);
 };
 
 // General norm: finite norm when non-zero, ideal norm otherwise.
@@ -162,9 +163,7 @@ export const normalizeMV = (val) => {
   let norm = PGA.Length(val);
   if (norm < 1e-10) norm = PGA.Length(PGA.Dual(val));
   if (norm < 1e-10) return val;
-  const result = new PGA(8);
-  for (let i = 0; i < 8; i++) result[i] = val[i] / norm;
-  return result;
+  return val.Scale(1 / norm);
 };
 
 // Weight of an object: the scalar factor relative to its "unit" representative.
@@ -183,12 +182,10 @@ export const objectWeight = (val) => {
     return Math.sqrt(val.vx ** 2 + val.vy ** 2);
   if (typeof val.length !== 'number' || val.length < 8) return 1;
   const eps = 1e-10;
-  const hasE0   = Math.abs(val[1]) > eps;
-  const hasFin1 = Math.abs(val[2]) > eps || Math.abs(val[3]) > eps;
-  const isGrade1 = hasE0 || hasFin1;
-  const hasIdeal2 = Math.abs(val[4]) > eps || Math.abs(val[5]) > eps;
-  const hasE12  = Math.abs(val[6]) > eps;
-  const isGrade2 = hasIdeal2 || hasE12;
+  const isGrade1 = gradeMag(val, 1) > eps;
+  const isGrade2 = gradeMag(val, 2) > eps;
+  const hasE0  = Math.abs(val[1]) > eps;  // ideal grade-1 → measure via dual
+  const hasE12 = Math.abs(val[6]) > eps;  // finite grade-2 → measure directly
   if (isGrade1 && !isGrade2)
     return hasE0 ? PGA.Length(PGA.Dual(val)) : PGA.Length(val);
   if (isGrade2 && !isGrade1)

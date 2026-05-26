@@ -43,6 +43,19 @@ export function evalExpr(expr, scalars = {}) {
   }
 }
 
+// Unwrap scalar bindings to plain numbers for the numeric `Function` evaluator.
+// Scalar node values are grade-0 MVs (everything algebraic is an MV); the numeric
+// evaluator needs their `mv[0]`. Non-scalar MVs keep their object form so they
+// surface as NaN (invalid in a coordinate expression), and {vx,vy} stays an object.
+function unwrapScalarBindings(scalars) {
+  const out = {};
+  for (const k in scalars) {
+    const v = scalars[k];
+    out[k] = (v != null && typeof v === 'object' && typeof v.length === 'number') ? v[0] : v;
+  }
+  return out;
+}
+
 // Scalar-valued evaluator that also accepts `.blade` accessors (e.g. P.e01).
 // Routes through evalMVArith when the expression contains a property-access
 // pattern (which evalExpr can't resolve since deps may be MVs); otherwise
@@ -53,5 +66,5 @@ export function evalScalar(expr, scalars = {}, evalMVArith = null) {
     const result = evalMVArith(expr, scalars);
     return typeof result === 'number' && isFinite(result) ? result : NaN;
   }
-  return evalExpr(expr, scalars);
+  return evalExpr(expr, unwrapScalarBindings(scalars));
 }

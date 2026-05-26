@@ -4,11 +4,16 @@
 // No points, no projective lines, no translators — VGA has no projective embedding.
 
 import Algebra from 'ganja.js';
+import { makeItem as ITEM } from '../itemFactory.js';
+import { createParseBladeName } from '../bladeName.js';
 
 export const ID    = 'vga200';
 export const LABEL = 'VGA 2D';
 
 export const VGA = Algebra(2, 0, 0);
+
+// Grade-k presence via ganja (non-metric length of the grade-k part).
+const gradeMag = (mv, k) => mv.Grade(k).VLength;
 
 // ─── Basis ──────────────────────────────────────────────────────────────────
 
@@ -18,19 +23,7 @@ export const BLADE_NAMES = ['1', 'e1', 'e2', 'e12'];
 export const BLADE_PATTERN = 'e12|e1|e2';
 
 // Permuted-blade aware (e21 = -e12).
-export function parseBladeName(name) {
-  if (!name || !name.startsWith('e')) return null;
-  const digits = name.slice(1).split('').map(Number);
-  if (digits.some((d) => isNaN(d) || d < 1 || d > 2)) return null;
-  if (new Set(digits).size !== digits.length) return null;
-  let inv = 0;
-  for (let i = 0; i < digits.length; i++)
-    for (let j = i + 1; j < digits.length; j++)
-      if (digits[i] > digits[j]) inv++;
-  const canonical = 'e' + [...digits].sort((a, b) => a - b).join('');
-  const index = BLADE_INDEX[canonical];
-  return index !== undefined ? { index, sign: inv % 2 === 0 ? 1 : -1 } : null;
-}
+export const parseBladeName = createParseBladeName(BLADE_INDEX, { minDigit: 1, maxDigit: 2 });
 
 // ─── VGA constructors ───────────────────────────────────────────────────────
 
@@ -54,9 +47,9 @@ export const reverseOp = (mv) => mv && typeof mv.length === 'number' && mv.lengt
 export function classifyMV(val) {
   if (!val || typeof val.length !== 'number' || val.length < ARRAY_SIZE) return null;
   const eps = 1e-10;
-  const g0 = Math.abs(val[0]) > eps;
-  const g1 = Math.abs(val[1]) > eps || Math.abs(val[2]) > eps;
-  const g2 = Math.abs(val[3]) > eps;
+  const g0 = gradeMag(val, 0) > eps;
+  const g1 = gradeMag(val, 1) > eps;
+  const g2 = gradeMag(val, 2) > eps;
 
   if (!g0 && !g1 && !g2) return { kind: 'scalar' };
   if (g0 && !g1 && !g2) return { kind: 'scalar' };
@@ -74,9 +67,7 @@ export function normalizeMVFinit(val) {
   if (!val || typeof val.length !== 'number' || val.length < ARRAY_SIZE) return val;
   const norm = VGA.Length(val);
   if (norm < 1e-10) return val;
-  const r = new VGA(ARRAY_SIZE);
-  for (let i = 0; i < ARRAY_SIZE; i++) r[i] = val[i] / norm;
-  return r;
+  return val.Scale(1 / norm);
 }
 export const normalizeMVIdeal = normalizeMVFinit;
 export const normalizeMV      = normalizeMVFinit;
@@ -109,6 +100,15 @@ export function tryVectorFromMV({ components, coeffExprs, deps }) {
 
 // Promote {vx,vy} to a grade-1 VGA vector.
 export const geomToMV = (val) => vector2D(val.vx, val.vy);
+
+// Drawn (vx,vy) for a vector-like value: {vx,vy} passthrough or grade-1 vector.
+// (VGA has no parametric points, so isParametricPoint/parametricPointEdits are
+// intentionally absent — the drag layer guards with `?.`.)
+export const vectorXY = (val) => {
+  if (val && typeof val === 'object' && 'vx' in val) return { vx: val.vx, vy: val.vy };
+  const cls = classifyMV(val);
+  return cls?.kind === 'vector' ? { vx: val[1] || 0, vy: val[2] || 0 } : null;
+};
 
 // ─── Render plan ────────────────────────────────────────────────────────────
 // Canvas switches on { kind, data }. VGA emits:
@@ -167,11 +167,6 @@ export const TYPE_COLOR_FALLBACK = {
 
 // ─── Initial showcase ───────────────────────────────────────────────────────
 
-const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null,
-  visible: true, movable: true, normalizeMode: null, ...extra,
-});
-
 export const INITIAL_ITEMS = [
   ITEM('expr_0', 'V = 3*e1 + 2*e2'),
   ITEM('expr_1', 'W = vector(-1, 2.5)'),
@@ -199,6 +194,7 @@ export const spec = {
   parseBladeName,
   tryVectorFromMV,
   geomToMV,
+  vectorXY,
   dualOp, reverseOp,
   classifyMV, objectWeight,
   normalizeMV, normalizeMVFinit, normalizeMVIdeal,

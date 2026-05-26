@@ -2,21 +2,14 @@ import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
 import { useSettings } from './SettingsContext.jsx';
+import { resolveKindColor, FALLBACK_COLOR } from './colors.js';
 import './ExpressionPanel.css';
-
-const FALLBACK_COLOR = '#6c7086';
 
 function resolveColor(item, values, algebra) {
   if (item.color) return item.color;
   const node = algebra.parseExpression(item.text);
   if (!node) return FALLBACK_COLOR;
-  const val = values?.[node.id];
-  const KIND_COLOR = algebra.KIND_COLOR ?? {};
-  const TYPE_COLOR_FALLBACK = algebra.TYPE_COLOR_FALLBACK ?? {};
-  if (val?.list) return KIND_COLOR.triangle ?? KIND_COLOR.list ?? FALLBACK_COLOR;
-  if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.vector ?? KIND_COLOR.idealPoint ?? FALLBACK_COLOR;
-  const cls = algebra.classifyMV(val);
-  return cls ? (KIND_COLOR[cls.kind] ?? FALLBACK_COLOR) : (TYPE_COLOR_FALLBACK[node.type] ?? FALLBACK_COLOR);
+  return resolveKindColor(values?.[node.id], algebra, node.type);
 }
 
 function getDisplayValue(text, values, algebra, decimals = 4) {

@@ -16,7 +16,6 @@ export function createNodeTypes(algebra, evaluator) {
   const point2D        = algebra.point2D        ?? null;
   const line2D         = algebra.line2D         ?? null;
   const toEuclidean    = algebra.toEuclidean    ?? null;
-  const lineBaseAndDir = algebra.lineBaseAndDir ?? null;
   const { evalMVArith } = evaluator;
 
   // Promote any value to an algebra MV. Returns null for unconvertible inputs.
@@ -75,7 +74,10 @@ export function createNodeTypes(algebra, evaluator) {
   const types = {
     scalar: {
       label: 'Scalar',
-      compute: (_, { value }) => value,
+      // Scalars are grade-0 multivectors, so every algebraic value is an MV (or
+      // a {vx,vy} vector / list). Consumers that need a JS number unwrap mv[0]
+      // at the boundary (evalScalar for coordinate exprs; display formatting).
+      compute: (_, { value }) => { const mv = new Algebra(arraySize); mv[0] = value; return mv; },
     },
 
     vector: {
@@ -156,7 +158,7 @@ export function createNodeTypes(algebra, evaluator) {
     multivector: {
       label: 'Multivector',
       compute: (depValues, { components, dual, deps: paramDeps, coeffExprs }) => {
-        const mv = new Algebra(arraySize);
+        let mv = new Algebra(arraySize);
         for (let i = 0; i < arraySize; i++) mv[i] = components[i] || 0;
         if (paramDeps?.length && coeffExprs) {
           const scalars = Object.fromEntries(paramDeps.map((d, i) => [d, depValues[i]]));
@@ -165,11 +167,11 @@ export function createNodeTypes(algebra, evaluator) {
             const varRef = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
             const depVal = varRef ? scalars[varRef[2]] : null;
             if (depVal != null && typeof depVal !== 'number') {
+              // depVal is an MV/vector (incl. grade-0 scalar): accumulate dep × blade.
               const sign = varRef[1] === '-' ? -1 : 1;
               const left = (typeof depVal === 'object' && 'vx' in depVal) ? geomToMV(depVal) : depVal;
               const blade = new Algebra(arraySize); blade[idx] = sign;
-              const prod = Algebra.Mul(left, blade);
-              for (let i = 0; i < arraySize; i++) mv[i] = (mv[i] || 0) + (prod[i] || 0);
+              mv = Algebra.Add(mv, Algebra.Mul(left, blade));
             } else {
               mv[idx] = scalar(expr, scalars);
             }
@@ -286,14 +288,6 @@ export function createNodeTypes(algebra, evaluator) {
         const eu3 = toEuclidean(toMV(P3));
         if (!eu1 || !eu2 || !eu3) return null;
         return (eu2.x - eu1.x) * (eu3.y - eu1.y) - (eu3.x - eu1.x) * (eu2.y - eu1.y);
-      },
-    };
-    types.pointOnLine = {
-      label: 'Point on Line',
-      compute: ([L], { t }) => {
-        if (!lineBaseAndDir) return null;
-        const bd = lineBaseAndDir(L);
-        return bd ? point2D(bd.bx + t * bd.ux, bd.by + t * bd.uy) : null;
       },
     };
   }

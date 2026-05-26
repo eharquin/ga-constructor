@@ -36,10 +36,16 @@ export function createEvalMVArith(algebra) {
 
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
+  // Named MV constants beyond the basis blades (e.g. CGA's null basis `ni`/`no`).
+  // Resolvable as bare ids and excluded from graph deps. Empty for PGA/VGA.
+  const CONSTANTS = algebra.constants ?? {};
+  const CONSTANT_NAMES = new Set(Object.keys(CONSTANTS));
+
   // Property names accepted after '.' that are not blade names.
   const PROP_NAMES = new Set(['norm', 'inorm']);
 
-  // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
+  // Pre-build a small env of basis-blade MVs (+ named constants) so they're
+  // resolvable as bare ids.
   const BASIS_ENV = (() => {
     const env = {};
     for (const [name, idx] of Object.entries(bladeIndex)) {
@@ -48,6 +54,7 @@ export function createEvalMVArith(algebra) {
       mv[idx] = 1;
       env[name] = mv;
     }
+    Object.assign(env, CONSTANTS);
     return env;
   })();
 
@@ -237,7 +244,7 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTANT_NAMES.has(t.val) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -256,15 +263,11 @@ export function createEvalMVArith(algebra) {
     if (val?.list) return mapList(val, negateVal);
     if (typeof val === 'number') return -val;
     if (typeof val === 'object' && 'vx' in val) return { vx: -val.vx, vy: -val.vy };
-    const r = new Algebra(arraySize);
-    for (let i = 0; i < arraySize; i++) r[i] = -(val[i] || 0);
-    return r;
+    return val.Negative;
   }
+  // mv is already an MV (callers pass toMV(...)); delegate scaling to ganja.
   function scaleMV(mv, s) {
-    if (!mv) return null;
-    const r = new Algebra(arraySize);
-    for (let i = 0; i < arraySize; i++) r[i] = (mv[i] || 0) * s;
-    return r;
+    return mv ? mv.Scale(s) : null;
   }
   function applyAbs(val) {
     if (val === null) return null;
@@ -339,10 +342,7 @@ export function createEvalMVArith(algebra) {
     if (op === '+' || op === '-') {
       const a = toMV(left), b = toMV(right);
       if (!a || !b) return null;
-      const r = new Algebra(arraySize);
-      for (let i = 0; i < arraySize; i++)
-        r[i] = op === '+' ? (a[i] || 0) + (b[i] || 0) : (a[i] || 0) - (b[i] || 0);
-      return r;
+      return op === '+' ? Algebra.Add(a, b) : Algebra.Sub(a, b);
     }
     if (op === '*') {
       if (lNum) return scaleMV(toMV(right), left);
@@ -362,10 +362,8 @@ export function createEvalMVArith(algebra) {
     if (op === '§') {
       const a = toMV(left), b = toMV(right);
       if (!a || !b) return null;
-      const ab = Algebra.Mul(a, b), ba = Algebra.Mul(b, a);
-      const r = new Algebra(arraySize);
-      for (let i = 0; i < arraySize; i++) r[i] = ((ab[i] || 0) - (ba[i] || 0)) / 2;
-      return r;
+      // Commutator (AB − BA)/2.
+      return Algebra.Sub(Algebra.Mul(a, b), Algebra.Mul(b, a)).Scale(0.5);
     }
     if (op === '>>>') {
       const M = toMV(left), A = toMV(right);

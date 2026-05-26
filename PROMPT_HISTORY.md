@@ -130,3 +130,15 @@ A chronological log of all prompts given to Claude in this project.
 71. **Operator precedence + norm extraction (branch `feat/operator-precedence`, PR #3)** — Replaced flat `parseTerm` in `evalMVArith.js` with a 4-level precedence ladder: `^ & | §` (tightest) → `* /` → `>>>` → `+ -` (loosest). Mirrored in `validate()`. `A * B ^ C` now parses as `A * (B^C)`; `M * N >>> A ^ B` as `(M*N) >>> (A^B)`. Also added norm extraction: `|expr|` uses smart norm (auto-detects finite vs ideal via `classifyMV`; plain `Math.abs` for scalars); `(expr).norm` forces finite norm (`Algebra.Length`); `(expr).inorm` forces ideal norm (`Algebra.Length(Dual(…))`). Fixed `|…|`/`|` ambiguity with `absDepth` counter. Added 5 example saved graphs.
 
 ---
+
+## 2026-05-26
+
+72. **Clarify/generalize the code + docs, toward CGA — planning** — Asked for a plan to clarify and generalize the codebase using GA, add complete documentation, with the end goal of integrating CGA as a new algebra. Clarified scope: phased delivery (cleanup+docs first, CGA second), 2D CGA Cl(3,1) with full objects (points/lines/circles/point-pairs), docs = adapter-authoring guide + architecture overview, deep cleanup. Also asked to (a) represent scalars as grade-0 MVs and (b) audit what else can be delegated to ganja. Pulled `main` mid-planning (lists/precedence/undo/autosave had landed) and re-synced.
+
+73. **PR 1 — generalize the adapter boundary + docs (branch `refactor/algebra-boundary`)** — Deep-cleanup phase:
+    - **Scalars → grade-0 MV.** `scalar` node returns an MV; `evalScalar` unwraps grade-0 deps to numbers at the coordinate-expression boundary. Scalars classify/color as `scalar` and feed GA ops uniformly.
+    - **Delegated arithmetic to ganja.** `+`/`-` → `Algebra.Add`/`Sub`; `scaleMV` → `.Scale`; negate → `.Negative`; commutator via `Sub`+`.Scale`; `multivector` accumulation via `Add`. Grade-presence tests in `classifyMV`/`objectWeight`/`normalize*` use `mv.Grade(k).VLength`; finite normalisation uses `.Scale(1/Length)`.
+    - **De-indexed Canvas + useGraph.** New adapter helpers `vectorXY`, `isParametricPoint`, `parametricPointEdits`, `weightCoeffVar`; the three `update{Dep,DualDep,LiteralMV}Point` fns collapsed into one `updateParametricPoint` driven by adapter edit-instructions. Zero literal blade indices remain in `Canvas.jsx`/`useGraph.js`.
+    - **De-duplication.** Shared `makeItem` (`itemFactory.js`), `createParseBladeName` (`bladeName.js`), `resolveKindColor`+`FALLBACK_COLOR` (`colors.js`).
+    - **Spec interface + constants hook.** `src/algebras/spec.js` (`@typedef AlgebraSpec` + `missingSpecFields` dev check wired into the registry). `createEvalMVArith` gains a `constants` hook (name→MV merged into the env, excluded from deps) — pre-wires CGA's `ni`/`no`.
+    - **Dead code / structure.** Removed unused `pointOnLine`; relocated `src/pga.js` → `src/algebras/pga201/core.js` and dropped its dead re-export block. Moved dated `recap_*.md` to `docs/history/`. Added `docs/architecture.md` and `docs/adding_an_algebra.md` (the CGA blueprint).
