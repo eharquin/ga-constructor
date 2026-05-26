@@ -50,15 +50,12 @@ function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadi
       const { cx, cy } = w2c(eu.x, eu.y, vp);
       const d = (mx - cx) ** 2 + (my - cy) ** 2;
       if (d <= bestDist) { bestDist = d; best = { id, anchor: 'tip' }; }
-    } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
-               (val && typeof val === 'object' && 'vx' in val)) {
+    } else {
+      const xy = algebra.vectorXY?.(val);
+      if (!xy) continue;
       const tail = vectorPositions[id] ?? { x: 0, y: 0 };
-      let vx, vy;
-      if (typeof val === 'object' && 'vx' in val) { vx = val.vx; vy = val.vy; }
-      else if (cls?.kind === 'vector')             { vx = val[1] || 0; vy = val[2] || 0; }
-      else                                          { vx = -(val[5] || 0); vy = (val[4] || 0); }
       const t   = w2c(tail.x, tail.y, vp);
-      const tip = w2c(tail.x + vx, tail.y + vy, vp);
+      const tip = w2c(tail.x + xy.vx, tail.y + xy.vy, vp);
       const dT  = (mx - t.cx)   ** 2 + (my - t.cy)   ** 2;
       const dP  = (mx - tip.cx) ** 2 + (my - tip.cy) ** 2;
       // Prefer tip on ties (matches prior behavior).
@@ -96,29 +93,15 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
           return { id, dragType: 'vectorTip' };
       }
     }
-    if (node.type === 'multivector') {
-      const { coeffExprs, components, dual } = node.params ?? {};
-      const hasVariablePos = coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined;
-      if (!toEuclidean) {
-        // VGA + others without a projective point map: skip multivector point hit-tests.
-      } else if (hasVariablePos) {
-        const eu = toEuclidean(values[id]);
-        if (!eu) continue;
+    // Parametric points (multivector nodes whose value is a finite point). The
+    // algebra decides whether the node is drag-eligible; the screen position is
+    // its Euclidean projection. No blade indices here.
+    if (node.type === 'multivector' && toEuclidean && algebra.isParametricPoint?.(node)) {
+      const eu = toEuclidean(values[id]);
+      if (eu) {
         const { cx, cy } = w2c(eu.x, eu.y, vp);
         if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'depPoint' };
-      } else if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) {
-        const eu = toEuclidean(values[id]);
-        if (!eu) continue;
-        const { cx, cy } = w2c(eu.x, eu.y, vp);
-        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'dualDepPoint' };
-      } else if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) {
-        const eu = toEuclidean(values[id]);
-        if (!eu) continue;
-        const { cx, cy } = w2c(eu.x, eu.y, vp);
-        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'litMVPoint' };
+          return { id, dragType: 'parametricPoint' };
       }
     }
     // Value-driven: any node whose value is anchorable (vector-like or
@@ -542,7 +525,7 @@ export default function Canvas() {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
-    updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
+    updateParametricPoint,
     addFreePoint,
   } = useGraphContext();
   const { parseExpression, classifyMV, objectWeight, getRenderPlan } = algebra;
@@ -569,7 +552,7 @@ export default function Canvas() {
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
-    updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
+    updateParametricPoint,
     addFreePoint,
   };
 
@@ -641,10 +624,8 @@ export default function Canvas() {
       const { id, dragType } = ptDragRef.current;
       const rx = roundToScale(x, vp.scale);
       const ry = roundToScale(y, vp.scale);
-      if (dragType === 'freePoint')    updateFreePoint(id, rx, ry);
-      if (dragType === 'depPoint')     snap.current.updateDepPoint(id, rx, ry);
-      if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
-      if (dragType === 'litMVPoint')   snap.current.updateLiteralMVPoint(id, rx, ry);
+      if (dragType === 'freePoint')       updateFreePoint(id, rx, ry);
+      if (dragType === 'parametricPoint') snap.current.updateParametricPoint(id, rx, ry);
       if (dragType === 'vector') {
         const nearby = settings.snapOnDrag
           ? findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, SNAP_RADIUS ** 2, algebra, id)

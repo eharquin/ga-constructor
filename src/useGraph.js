@@ -1,14 +1,9 @@
 import { useReducer, useMemo, useRef, useState, useEffect } from 'react';
+import { makeItem } from './algebras/itemFactory.js';
+import { resolveKindColor } from './colors.js';
 
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
-
-// Default fallback color when no kind/type matches.
-const FALLBACK_COLOR = '#6c7086';
-
-const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null, ...extra,
-});
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
 
@@ -25,7 +20,7 @@ function pickPointName(usedIds) {
 function itemsReducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
+      return [...items, makeItem(action.id, action.text)];
     case 'SET_TEXT':
       return items.map((it) => it.id === action.id ? { ...it, text: action.text } : it);
     case 'SET_COLOR':
@@ -46,7 +41,7 @@ function itemsReducer(items, action) {
       return items.map((it) => it.id === action.id ? { ...it, normalizeMode: action.mode } : it);
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null };
+      const newItem = makeItem(action.newId, '');
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -71,9 +66,7 @@ function itemsReducer(items, action) {
       return next;
     }
     case 'LOAD_ITEMS':
-      return action.items.map((it) => ({
-        id: it.id,
-        text: it.text ?? '',
+      return action.items.map((it) => makeItem(it.id, it.text ?? '', {
         color: it.color ?? null,
         anim: it.anim ?? null,
         drawPos: it.drawPos ?? null,
@@ -143,8 +136,6 @@ const initialState = (items) => ({ items, past: [], future: [], lastChange: null
 export function useGraph(algebra) {
   // Algebra-bound primitives — change when the active algebra changes.
   const { parseExpression, evaluate, classifyMV, toEuclidean } = algebra;
-  const KIND_COLOR           = algebra.KIND_COLOR ?? {};
-  const TYPE_COLOR_FALLBACK  = algebra.TYPE_COLOR_FALLBACK ?? {};
 
   const [state, dispatch] = useReducer(reducer, null, () => {
     try {
@@ -327,14 +318,10 @@ export function useGraph(algebra) {
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
-      if (item.color) { map[node.id] = item.color; continue; }
-      const val = values[node.id];
-      if (val && typeof val === 'object' && 'vx' in val) { map[node.id] = KIND_COLOR.vector ?? KIND_COLOR.idealPoint ?? FALLBACK_COLOR; continue; }
-      const cls = classifyMV(val);
-      map[node.id] = cls ? (KIND_COLOR[cls.kind] ?? FALLBACK_COLOR) : (TYPE_COLOR_FALLBACK[node.type] ?? FALLBACK_COLOR);
+      map[node.id] = item.color ?? resolveKindColor(values[node.id], algebra, node.type);
     }
     return map;
-  }, [items, values, parseExpression, classifyMV, KIND_COLOR, TYPE_COLOR_FALLBACK]);
+  }, [items, values, parseExpression, algebra]);
 
   // vectorPositions: nodeId → { x, y, linked, refId?, anchor? } draw position.
   // Any node whose value is anchorable gets an entry:
@@ -380,12 +367,9 @@ export function useGraph(algebra) {
     // tail position from pass 1 to compute tail/tip).
     const tipOf = (id) => {
       const val = values[id];
-      const cls = classifyMV(val);
       const tail = map[id] ?? { x: 0, y: 0 };
-      if (val && typeof val === 'object' && 'vx' in val) return { x: tail.x + val.vx, y: tail.y + val.vy };
-      if (cls?.kind === 'vector')      return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
-      if (cls?.kind === 'idealPoint')  return { x: tail.x - (val[5] || 0), y: tail.y + (val[4] || 0) };
-      return tail;
+      const xy = algebra.vectorXY?.(val);
+      return xy ? { x: tail.x + xy.vx, y: tail.y + xy.vy } : tail;
     };
     const tailOf = (id) => {
       const val = values[id];
@@ -535,78 +519,37 @@ export function useGraph(algebra) {
     }
   };
 
-  const updateDepPoint = (nodeId, x, y) => {
+  // Drag a "parametric point" (a multivector node whose value is a finite point).
+  // The algebra owns the blade conventions and returns edit instructions; this
+  // applies them generically. Algebras without parametric points (VGA, …) expose
+  // no parametricPointEdits, so this is a no-op there.
+  const updateParametricPoint = (nodeId, x, y) => {
     const node = nodes[nodeId];
-    if (!node || node.type !== 'multivector') return;
-    const { coeffExprs } = node.params;
-    if (!coeffExprs) return;
-    const w = values[nodeId]?.[6] ?? 1;
-    const applyCoeff = (expr, targetCoeff) => {
-      if (!expr) return;
-      const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
-      if (!m) return;
-      const scalarVal = m[1] === '-' ? -targetCoeff : targetCoeff;
-      const si = items.find((it) => parseExpression(it.text)?.id === m[2]);
-      if (!si) return;
-      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
-    };
-    if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);
-    if (coeffExprs[5] !== undefined) applyCoeff(coeffExprs[5], -x * w);
+    if (!node || !algebra.parametricPointEdits) return;
+    const edits = algebra.parametricPointEdits(node, values[nodeId], x, y) ?? [];
+    for (const e of edits) {
+      if (e.kind === 'scalar') {
+        const si = items.find((it) => parseExpression(it.text)?.id === e.name);
+        if (si) dispatch({ type: 'SET_TEXT', id: si.id, text: `${e.name} = ${fmtNum(e.value)}` });
+      } else if (e.kind === 'text') {
+        const item = items.find((it) => parseExpression(it.text)?.id === nodeId);
+        if (item) {
+          const text = node.label !== null ? `${nodeId} = ${e.rhs}` : e.rhs;
+          dispatch({ type: 'SET_TEXT', id: item.id, text });
+        }
+      }
+    }
   };
 
   const createScalarsFor = (itemId, varNames) => {
     const item = items.find((it) => it.id === itemId);
     if (!item) return;
     const node = parseExpression(item.text);
-    const e12Vars = new Set();
-    if (node?.params?.coeffExprs?.[6]) {
-      const m = node.params.coeffExprs[6].match(/^-?([A-Za-z_][A-Za-z0-9_]*)$/);
-      if (m) e12Vars.add(m[1]);
-    }
-    const newItems = varNames.map((name) => ({
-      id: `expr_${nextId.current++}`,
-      text: `${name} = ${e12Vars.has(name) ? 1 : 0}`,
-      color: null, anim: null, drawPos: null, label: null,
-    }));
+    const weightVar = algebra.weightCoeffVar?.(node);
+    const newItems = varNames.map((name) =>
+      makeItem(`expr_${nextId.current++}`, `${name} = ${name === weightVar ? 1 : 0}`)
+    );
     dispatch({ type: 'INSERT_MANY_BEFORE', beforeId: itemId, newItems });
-  };
-
-  const updateDualDepPoint = (nodeId, x, y) => {
-    const node = nodes[nodeId];
-    if (!node || node.type !== 'multivector' || !node.params?.dual) return;
-    const { coeffExprs } = node.params;
-    if (!coeffExprs) return;
-    const w = values[nodeId]?.[6] ?? 1;
-    const applyCoeff = (expr, targetCoeff) => {
-      if (!expr) return;
-      const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
-      if (!m) return;
-      const scalarVal = m[1] === '-' ? -targetCoeff : targetCoeff;
-      const si = items.find((it) => parseExpression(it.text)?.id === m[2]);
-      if (!si) return;
-      dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
-    };
-    if (coeffExprs[3] !== undefined) applyCoeff(coeffExprs[3], y * w);
-    if (coeffExprs[2] !== undefined) applyCoeff(coeffExprs[2], -x * w);
-  };
-
-  const updateLiteralMVPoint = (nodeId, x, y) => {
-    const item = items.find((it) => {
-      const n = parseExpression(it.text);
-      return n?.id === nodeId && n?.type === 'multivector' && !n.params?.dual;
-    });
-    if (!item) return;
-    const e01 = fmtNum(y);
-    const e02 = fmtNum(-x);
-    const term = (c, blade) => {
-      if (c === 0) return null;
-      if (c === 1) return blade;
-      if (c === -1) return `-${blade}`;
-      return `${c}*${blade}`;
-    };
-    const parts = [term(e01, 'e01'), term(e02, 'e02'), 'e12'].filter(Boolean);
-    const expr = parts.join(' + ').replace(/ \+ -/g, ' - ');
-    dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
   };
 
   // Find the item whose node id is anchorable in vectorPositions.
@@ -685,9 +628,7 @@ export function useGraph(algebra) {
     clearAll,
     loadItems,
     updateFreePoint,
-    updateDepPoint,
-    updateDualDepPoint,
-    updateLiteralMVPoint,
+    updateParametricPoint,
     createScalarsFor,
     addFreePoint,
     algebra,
