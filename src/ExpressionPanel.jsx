@@ -404,17 +404,9 @@ export default function ExpressionPanel() {
                   aria-hidden="true"
                 >⠿</div>
 
-                {/* Play + settings buttons — scalar only */}
+                {/* Settings button — scalar only */}
                 {isScalar ? (
                   <div className="play-area">
-                    <button
-                      className={`play-btn${isPlaying ? ' playing' : ''}`}
-                      tabIndex={-1}
-                      onClick={() => togglePlay(item.id)}
-                      aria-label={isPlaying ? 'Pause' : 'Play'}
-                    >
-                      {isPlaying ? '⏸' : '▶'}
-                    </button>
                     <button
                       className={`anim-cfg-btn${animMenuIds.has(item.id) ? ' active' : ''}`}
                       tabIndex={-1}
@@ -449,16 +441,26 @@ export default function ExpressionPanel() {
                   <span className="lock-toggle-gap" />
                 )}
 
-                {/* Color swatch — opens picker; disabled on color() items (color is the expression) */}
-                <button
-                  type="button"
-                  ref={(el) => { if (el) swatchRefs.current[item.id] = el; }}
-                  className={`color-swatch${isColorItem ? ' color-swatch--expr' : ''}`}
-                  style={{ background: color }}
-                  title={isColorItem ? color : 'Change color'}
-                  tabIndex={-1}
-                  onClick={isColorItem ? undefined : () => setPickerOpenId((id) => id === item.id ? null : item.id)}
-                />
+                {/* Color swatch or play button (scalars) */}
+                {isScalar ? (
+                  <button
+                    type="button"
+                    className={`play-btn-swatch${isPlaying ? ' playing' : ''}`}
+                    tabIndex={-1}
+                    onClick={() => togglePlay(item.id)}
+                    aria-label={isPlaying ? 'Pause' : 'Play'}
+                  >{isPlaying ? '⏸' : '▶'}</button>
+                ) : (
+                  <button
+                    type="button"
+                    ref={(el) => { if (el) swatchRefs.current[item.id] = el; }}
+                    className={`color-swatch${isColorItem ? ' color-swatch--expr' : ''}`}
+                    style={{ background: color }}
+                    title={isColorItem ? color : 'Change color'}
+                    tabIndex={-1}
+                    onClick={isColorItem ? undefined : () => setPickerOpenId((id) => id === item.id ? null : item.id)}
+                  />
+                )}
 
                 <div className="expr-body">
                   {canUnitize && (

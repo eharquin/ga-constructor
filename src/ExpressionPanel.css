@@ -109,12 +109,13 @@
   padding: 0;
 }
 
-/* Column container for play + settings buttons */
+/* Column container for settings button (scalars) */
 .play-area {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   margin-right: 8px;
   width: 22px;
@@ -322,6 +323,34 @@
 }
 .color-swatch--expr:hover {
   transform: none;
+}
+
+/* Play/pause button in swatch position for scalar items */
+.play-btn-swatch {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-input);
+  background: transparent;
+  color: var(--accent2);
+  font-size: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 0 1px;
+  margin-right: 10px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.play-btn-swatch:hover {
+  border-color: var(--accent2);
+  background: var(--bg-soft);
+}
+.play-btn-swatch.playing {
+  border-color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 13%, transparent);
+  padding: 0;
 }
 
 /* Content area */
