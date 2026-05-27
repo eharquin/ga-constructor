@@ -225,34 +225,42 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1 }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1, draggable = false }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
-  const r = (hovered ? 8 : 6) * weight * scale;
+  const r_dot  = 4.5 * weight * scale;
+  const r_ring = 8   * weight * scale;
+  const sw     = Math.max(1.5, 2 * weight * scale);
+
   if (shape === 'asterisk') {
-    const arm = r * 1.1;
+    const arm = r_ring * 0.9;
     const d   = arm / Math.SQRT2;
-    const sw  = Math.max(1.5, 2 * weight * scale);
     return (
       <g>
-        {hovered && <circle cx={cx} cy={cy} r={arm + 5} fill={color + '28'} />}
-        <line x1={cx - arm} y1={cy}      x2={cx + arm} y2={cy}      stroke={color} strokeWidth={sw} strokeLinecap="round" />
-        <line x1={cx}       y1={cy - arm} x2={cx}       y2={cy + arm} stroke={color} strokeWidth={sw} strokeLinecap="round" />
-        <line x1={cx - d}   y1={cy - d}   x2={cx + d}   y2={cy + d}   stroke={color} strokeWidth={sw} strokeLinecap="round" />
-        <line x1={cx + d}   y1={cy - d}   x2={cx - d}   y2={cy + d}   stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        {draggable && (
+          <circle cx={cx} cy={cy} r={r_ring}
+            fill={hovered ? color : 'transparent'}
+            stroke={color} strokeWidth={1.5}
+            style={{ transition: 'fill 0.15s' }} />
+        )}
+        <line x1={cx - arm} y1={cy}       x2={cx + arm} y2={cy}       stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={cx}       y1={cy - arm}  x2={cx}       y2={cy + arm}  stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={cx - d}   y1={cy - d}    x2={cx + d}   y2={cy + d}    stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={cx + d}   y1={cy - d}    x2={cx - d}   y2={cy + d}    stroke={color} strokeWidth={sw} strokeLinecap="round" />
         {renderLabel(label, cx, cy, opts)}
       </g>
     );
   }
+
   return (
     <g>
-      {hovered && <circle cx={cx} cy={cy} r={r + 5} fill={color + '28'} />}
-      <circle
-        cx={cx} cy={cy} r={r}
-        fill={color}
-        style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
-        strokeWidth={hovered ? 2 : 1.5}
-      />
+      {draggable && (
+        <circle cx={cx} cy={cy} r={r_ring}
+          fill={hovered ? color : 'transparent'}
+          stroke={color} strokeWidth={1.5}
+          style={{ transition: 'fill 0.15s' }} />
+      )}
+      <circle cx={cx} cy={cy} r={r_dot} fill={color} />
       {renderLabel(label, cx, cy, opts)}
     </g>
   );
@@ -827,7 +835,7 @@ export default function Canvas() {
         break;
       }
       case 'finitePoint': {
-        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} />;
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={movableMap[id] !== false} />;
         frontLayer.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
         break;
       }
