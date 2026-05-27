@@ -145,6 +145,23 @@ export function createNodeTypes(algebra, evaluator) {
       },
     },
 
+    color: {
+      label: 'Color',
+      compute: (depValues, { rExpr, gExpr, bExpr, deps: paramDeps }) => {
+        const scalars = Object.fromEntries((paramDeps ?? []).map((d, i) => [d, depValues[i]]));
+        const r = scalar(rExpr, scalars);
+        const g = scalar(gExpr, scalars);
+        const b = scalar(bExpr, scalars);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
+        // Auto-detect 0–1 vs 0–255: if any channel > 1, treat all as 0–255.
+        const is255 = r > 1 || g > 1 || b > 1;
+        const norm = (v) => (is255 ? v : v * 255);
+        const clamp = (v) => Math.max(0, Math.min(255, Math.round(norm(v))));
+        const toHex = (v) => clamp(v).toString(16).padStart(2, '0');
+        return { color: `#${toHex(r)}${toHex(g)}${toHex(b)}`, r, g, b };
+      },
+    },
+
     list: {
       label: 'List',
       compute: (depValues, { geoms }) => {

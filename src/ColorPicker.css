@@ -1,0 +1,77 @@
+.cp-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 264px;
+  padding: 10px 12px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal);
+  font-family: system-ui, sans-serif;
+  user-select: none;
+}
+
+.cp-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 8px 2px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.cp-section-label:first-child { margin-top: 2px; }
+
+.cp-hint {
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.cp-hint code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-code);
+  color: var(--text-muted);
+}
+
+.cp-row, .cp-custom-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.cp-swatch {
+  flex: 1 0 auto;
+  width: 32px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.08s, box-shadow 0.12s;
+}
+.cp-swatch:hover { transform: scale(1.08); }
+.cp-swatch.cp-selected {
+  box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
+}
+
+.cp-custom-row .cp-swatch {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+
+.cp-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 2px 0;
+}

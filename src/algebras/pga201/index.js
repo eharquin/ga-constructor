@@ -77,34 +77,36 @@ export const SUPPORTED_NODE_TYPES = new Set([
   'motorExp', 'motorApply',
   'joinLine', 'meetPoint', 'meetChain', 'triangle',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
+  'color',
 ]);
 
 // ─── Color palette keyed by classifyMV().kind ───────────────────────────────
 
+// Palette: brand red/blue/green/yellow + neutrals.
 export const KIND_COLOR = {
-  scalar:      '#a6e3a1',
-  finitePoint: '#89b4fa',
-  idealPoint:  '#f9e2af',
-  line:        '#cba6f7',
-  idealLine:   '#cba6f7',
-  pseudoscalar:'#f38ba8',
-  rotor:       '#74c7ec',
-  translator:  '#74c7ec',
-  motor:       '#94e2d5',
-  reflector:   '#fab387',
-  triangle:    '#89dceb',
-  mixed:       '#b4befe',
+  scalar:      '#0F9D57',  // green-500
+  finitePoint: '#1482C8',  // blue-500
+  idealPoint:  '#E8A000',  // yellow-500
+  line:        '#C30A3A',  // red-500
+  idealLine:   '#E8637F',  // red-300
+  pseudoscalar:'#4E5668',  // gray-700
+  rotor:       '#55ABDF',  // blue-300
+  translator:  '#55ABDF',  // blue-300
+  motor:       '#AA7500',  // yellow-700
+  reflector:   '#92072B',  // red-700
+  triangle:    '#41BF82',  // green-300
+  mixed:       '#8B93A4',  // gray-500
 };
 
 // Parser-type fallback when value not yet computed
 export const TYPE_COLOR_FALLBACK = {
-  scalar:    '#a6e3a1',
-  freePoint: '#89b4fa',
-  vector:    '#f9e2af',
-  motorExp:  '#74c7ec',
-  triangle:  '#89dceb',
-  meetChain: '#89dceb',
-  list:      '#89dceb',
+  scalar:    '#0F9D57',
+  freePoint: '#1482C8',
+  vector:    '#E8A000',
+  motorExp:  '#55ABDF',
+  triangle:  '#41BF82',
+  meetChain: '#41BF82',
+  list:      '#41BF82',
 };
 
 // ─── Render plan — Canvas switches on { kind, data } ────────────────────────

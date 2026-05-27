@@ -146,23 +146,24 @@ export const SUPPORTED_NODE_TYPES = new Set([
   'scalar', 'vector',
   'motorExp', 'motorApply',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
+  'color',
 ]);
 
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
 export const KIND_COLOR = {
-  scalar:   '#a6e3a1',
-  vector:   '#f9e2af',
-  bivector: '#cba6f7',
-  rotor:    '#74c7ec',
-  mixed:    '#b4befe',
+  scalar:   '#0F9D57',  // green-500
+  vector:   '#E8A000',  // yellow-500
+  bivector: '#C30A3A',  // red-500
+  rotor:    '#55ABDF',  // blue-300
+  mixed:    '#8B93A4',  // gray-500
 };
 
 export const TYPE_COLOR_FALLBACK = {
-  scalar:   '#a6e3a1',
-  vector:   '#f9e2af',
-  motorExp: '#74c7ec',
-  list:     '#89dceb',
+  scalar:   '#0F9D57',
+  vector:   '#E8A000',
+  motorExp: '#55ABDF',
+  list:     '#41BF82',
 };
 
 // ─── Initial showcase ───────────────────────────────────────────────────────

@@ -237,6 +237,16 @@ export function createParseExpression(algebra, evaluator) {
       }
     }
 
+    // color(R, G, B) — RGB color value (non-MV). Auto-detects 0–1 vs 0–255 range.
+    if (accepts('color')) {
+      const rgb = parse3Call(expr, 'color');
+      if (rgb) {
+        const [rExpr, gExpr, bExpr] = rgb;
+        const deps = uniqueDeps(rExpr, gExpr, bExpr);
+        return { id, label, type: 'color', deps, params: { rExpr, gExpr, bExpr, deps } };
+      }
+    }
+
     // vector(xExpr, yExpr) — always supported
     const vecCoords = parse2DCall(expr, 'vector');
     if (vecCoords) {

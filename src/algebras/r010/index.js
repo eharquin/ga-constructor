@@ -177,21 +177,22 @@ export function literalMVPointText(id, x, y) {
 export const SUPPORTED_NODE_TYPES = new Set([
   'scalar', 'freePoint', 'motorExp', 'motorApply',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
+  'color',
 ]);
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
 
 export const KIND_COLOR = {
-  finitePoint: '#89dceb',  // sky blue — all complex values
-  scalar:      '#a6e3a1',  // kept for TYPE_COLOR_FALLBACK
-  mixed:       '#b4befe',
+  finitePoint: '#1482C8',  // blue-500 — all complex values
+  scalar:      '#0F9D57',  // green-500 — kept for TYPE_COLOR_FALLBACK
+  mixed:       '#8B93A4',  // gray-500
 };
 
 export const TYPE_COLOR_FALLBACK = {
-  scalar:    '#a6e3a1',
-  freePoint: '#89dceb',
-  motorExp:  '#89dceb',
-  list:      '#cba6f7',
+  scalar:    '#0F9D57',
+  freePoint: '#1482C8',
+  motorExp:  '#55ABDF',  // blue-300
+  list:      '#41BF82',  // green-300
 };
 
 // ─── Initial showcase ────────────────────────────────────────────────────────

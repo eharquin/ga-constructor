@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
 import { useSettings } from './SettingsContext.jsx';
+import ColorPicker from './ColorPicker.jsx';
 import './ExpressionPanel.css';
 
 const FALLBACK_COLOR = '#6c7086';
@@ -13,6 +14,7 @@ function resolveColor(item, values, algebra) {
   const val = values?.[node.id];
   const KIND_COLOR = algebra.KIND_COLOR ?? {};
   const TYPE_COLOR_FALLBACK = algebra.TYPE_COLOR_FALLBACK ?? {};
+  if (val && typeof val === 'object' && typeof val.color === 'string') return val.color;
   if (val?.list) return KIND_COLOR.triangle ?? KIND_COLOR.list ?? FALLBACK_COLOR;
   if (val && typeof val === 'object' && 'vx' in val) return KIND_COLOR.vector ?? KIND_COLOR.idealPoint ?? FALLBACK_COLOR;
   const cls = algebra.classifyMV(val);
@@ -30,6 +32,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
   const fmtC = (n) => n.toFixed(dc);
 
   if (typeof val === 'number') return fmtN(val);
+  if (typeof val.color === 'string') return `Color ${val.color}`;
   if (val.list) return `List (${val.items.length} items)`;
   if ('vx' in val) return `Vector (${fmtC(val.vx)}, ${fmtC(val.vy)})`;
 
@@ -227,6 +230,17 @@ export default function ExpressionPanel() {
   const [labelTexts, setLabelTexts] = useState({});
   const [animMenuIds,  setAnimMenuIds]  = useState(new Set());
   const [helpOpen,     setHelpOpen]     = useState(false);
+  const [pickerOpenId, setPickerOpenId] = useState(null);
+  const swatchRefs = useRef({});
+
+  // Items that evaluate to a color value — surface to ColorPicker's "Custom" row.
+  const customColors = items.flatMap((it) => {
+    const n = parseExpression(it.text);
+    const v = n ? values[n.id] : null;
+    return (v && typeof v === 'object' && typeof v.color === 'string')
+      ? [{ id: it.id, label: n.label ?? it.id, color: v.color, text: it.text }]
+      : [];
+  });
   const toggleAnimMenu = (id) => setAnimMenuIds(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -420,15 +434,16 @@ export default function ExpressionPanel() {
                   <span className="lock-toggle-gap" />
                 )}
 
-                {/* Color swatch */}
-                <label className="color-swatch" style={{ background: color }} title="Change color">
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => setItemColor(item.id, e.target.value)}
-                    tabIndex={-1}
-                  />
-                </label>
+                {/* Color swatch — opens custom in-app picker */}
+                <button
+                  type="button"
+                  ref={(el) => { if (el) swatchRefs.current[item.id] = el; }}
+                  className="color-swatch"
+                  style={{ background: color }}
+                  title="Change color"
+                  tabIndex={-1}
+                  onClick={() => setPickerOpenId((id) => id === item.id ? null : item.id)}
+                />
 
                 <div className="expr-body">
                   {canUnitize && (
@@ -752,6 +767,7 @@ export default function ExpressionPanel() {
                     <tr><td><code>A.e12</code></td><td>Blade coefficient. Permuted names supported: <code>A.e21 = −A.e12</code>.</td></tr>
                     <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
                     <tr><td><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> …</td><td>Trig (radians). Also: <code>csc sec cot acsc asec acot abs</code>.</td></tr>
+                    <tr><td><code>color(R, G, B)</code></td><td>Define a custom color. Channels in 0–1 or 0–255 (auto-detected). Appears in the color-picker's <i>Custom</i> section.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -783,15 +799,15 @@ export default function ExpressionPanel() {
                 <h3>Object types</h3>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><b style={{color:'#89b4fa'}}>●</b> Finite point</td><td>Grade-2 with e12 ≠ 0. Drawn as a dot.</td></tr>
-                    <tr><td><b style={{color:'#f9e2af'}}>●</b> Ideal point</td><td>Grade-2 with e12 = 0. Drawn as a vector from origin.</td></tr>
-                    <tr><td><b style={{color:'#cba6f7'}}>●</b> Line / Reflector</td><td>Grade-1. Drawn as an infinite line.</td></tr>
-                    <tr><td><b style={{color:'#74c7ec'}}>●</b> Rotor / Translator</td><td>Even-grade motor. Not drawn on canvas.</td></tr>
-                    <tr><td><b style={{color:'#94e2d5'}}>●</b> Motor</td><td>General even-grade element. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#fab387'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
-                    <tr><td><b style={{color:'#f38ba8'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#a6e3a1'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#89dceb'}}>●</b> List</td><td><code>[A, B, …]</code> — any object types. Polygon outline when all elements are finite points. Expand with ▸ in the panel.</td></tr>
+                    <tr><td><b style={{color:'#1482C8'}}>●</b> Finite point</td><td>Grade-2 with e12 ≠ 0. Drawn as a dot.</td></tr>
+                    <tr><td><b style={{color:'#E8A000'}}>●</b> Ideal point</td><td>Grade-2 with e12 = 0. Drawn as a vector from origin.</td></tr>
+                    <tr><td><b style={{color:'#C30A3A'}}>●</b> Line / Reflector</td><td>Grade-1. Drawn as an infinite line.</td></tr>
+                    <tr><td><b style={{color:'#55ABDF'}}>●</b> Rotor / Translator</td><td>Even-grade motor. Not drawn on canvas.</td></tr>
+                    <tr><td><b style={{color:'#AA7500'}}>●</b> Motor</td><td>General even-grade element. Not drawn.</td></tr>
+                    <tr><td><b style={{color:'#92072B'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
+                    <tr><td><b style={{color:'#4E5668'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
+                    <tr><td><b style={{color:'#0F9D57'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
+                    <tr><td><b style={{color:'#41BF82'}}>●</b> List</td><td><code>[A, B, …]</code> — any object types. Polygon outline when all elements are finite points. Expand with ▸ in the panel.</td></tr>
                   </tbody>
                 </table>
               </section>
@@ -813,6 +829,22 @@ export default function ExpressionPanel() {
           </div>
         </div>
       )}
+
+      <ColorPicker
+        open={pickerOpenId != null}
+        anchorEl={pickerOpenId != null ? swatchRefs.current[pickerOpenId] : null}
+        currentColor={(() => {
+          if (pickerOpenId == null) return null;
+          const it = items.find((x) => x.id === pickerOpenId);
+          return it ? resolveColor(it, values, algebra) : null;
+        })()}
+        customColors={customColors}
+        onPick={(hex) => {
+          if (pickerOpenId != null) setItemColor(pickerOpenId, hex);
+          setPickerOpenId(null);
+        }}
+        onClose={() => setPickerOpenId(null)}
+      />
     </aside>
   );
 }

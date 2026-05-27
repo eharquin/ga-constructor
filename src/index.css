@@ -9,78 +9,90 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* ─── PGA palette ────────────────────────────────────────────────────────────
+   Four brand ramps + neutral ramp, exposed under semantic aliases below.
+   Ramps themselves are not exported as CSS vars; the in-app color picker
+   carries them in JS (see ColorPicker.jsx). */
+
 :root {
-  --bg:                 #f5f5f7;
-  --bg-panel:           #ffffff;
-  --bg-row-hover:       #f5f5fb;
-  --bg-canvas:          #fafafa;
-  --bg-soft:            #fafaff;
-  --bg-code:            #f0f0f8;
-  --bg-suggest:         #9a650015;
-  --bg-active:          #6699ff18;
-  --bg-overlay:         rgba(0, 0, 0, 0.45);
-  --shadow-modal:       0 8px 40px rgba(0, 0, 0, 0.22);
+  /* Backgrounds (gray-50 → white) */
+  --bg:                 #F7F8FA;   /* gray-50  */
+  --bg-panel:           #FFFFFF;
+  --bg-row-hover:       #EFF6FD;   /* blue-50 mixed soft */
+  --bg-canvas:          #FAFBFD;
+  --bg-soft:            #F7F8FA;
+  --bg-code:            #E1E4EA66; /* gray-100 @ 40% */
+  --bg-suggest:         #E8A00018; /* yellow-500 @ ~9% */
+  --bg-active:          #1482C81F; /* blue-500 @ ~12% */
+  --bg-overlay:         rgba(30, 36, 51, 0.45);
+  --shadow-modal:       0 8px 40px rgba(30, 36, 51, 0.22);
 
-  --text:               #1c1c2e;
-  --text-muted:         #9090b0;
-  --text-dim:           #c0c0d4;
-  --text-strong:        #4060a0;
-  --accent:             #6699ff;
-  --accent-soft:        #b4d0ff;
-  --accent2:            #2ca876;
-  --error:              #d44060;
-  --warning:            #9a6500;
+  /* Text */
+  --text:               #1E2433;   /* gray-900 */
+  --text-muted:         #8B93A4;   /* gray-500 */
+  --text-dim:           #C0C6D2;   /* gray-300 */
+  --text-strong:        #0D5F94;   /* blue-700 */
 
-  --border:             #e2e2ea;
-  --border-subtle:      #eeeef4;
-  --border-input:       #d0d0e4;
-  --border-strong:      #b0b0c8;
-  --border-divider:     #f0f0f8;
+  /* Accents (mapped to brand) */
+  --accent:             #1482C8;   /* blue-500 */
+  --accent-soft:        #A0D0F4;   /* blue-100 */
+  --accent2:            #0F9D57;   /* green-500 */
+  --error:              #C30A3A;   /* red-500 */
+  --warning:            #AA7500;   /* yellow-700 (legible on light bg) */
 
-  --grid-line:          #ebebf2;
-  --axis-line:          rgba(100, 100, 160, 0.4);
-  --grid-label:         #9090b0;
-  --point-stroke:       rgba(0, 0, 0, 0.18);
-  --point-stroke-hover: rgba(0, 0, 0, 0.45);
-  --point-ring-hover:   rgba(0, 0, 0, 0.30);
+  /* Borders */
+  --border:             #E1E4EA;   /* gray-100 */
+  --border-subtle:      #EEF0F4;
+  --border-input:       #C0C6D2;   /* gray-300 */
+  --border-strong:      #8B93A4;   /* gray-500 */
+  --border-divider:     #EEF0F4;
+
+  /* Canvas overlays */
+  --grid-line:          #E1E4EA;
+  --axis-line:          rgba(78, 86, 104, 0.4);   /* gray-700 alpha */
+  --grid-label:         #8B93A4;
+  --point-stroke:       rgba(30, 36, 51, 0.18);   /* gray-900 alpha */
+  --point-stroke-hover: rgba(30, 36, 51, 0.45);
+  --point-ring-hover:   rgba(30, 36, 51, 0.30);
 
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --bg:                 #15151e;
-  --bg-panel:           #1d1d28;
-  --bg-row-hover:       #25253a;
-  --bg-canvas:          #11111a;
-  --bg-soft:            #20202e;
-  --bg-code:            #2a2a3e;
-  --bg-suggest:         #c89a4022;
-  --bg-active:          #6699ff2a;
+  --bg:                 #1E2433;   /* gray-900 */
+  --bg-panel:           #262E40;   /* between 700 and 900 */
+  --bg-row-hover:       #2C3548;
+  --bg-canvas:          #161B28;
+  --bg-soft:            #232A3C;
+  --bg-code:            #2C344A;
+  --bg-suggest:         #E8A00026; /* yellow-500 @ ~15% */
+  --bg-active:          #1482C833; /* blue-500 @ ~20% */
   --bg-overlay:         rgba(0, 0, 0, 0.65);
   --shadow-modal:       0 8px 40px rgba(0, 0, 0, 0.55);
 
-  --text:               #e2e2ee;
-  --text-muted:         #8a8aaa;
-  --text-dim:           #55556e;
-  --text-strong:        #a8c0ff;
-  --accent:             #7faaff;
-  --accent-soft:        #3a4a78;
-  --accent2:            #4ec898;
-  --error:              #ff6a88;
-  --warning:            #d0a040;
+  --text:               #E1E4EA;   /* gray-100 */
+  --text-muted:         #8B93A4;   /* gray-500 */
+  --text-dim:           #4E5668;   /* gray-700 */
+  --text-strong:        #A0D0F4;   /* blue-100 */
 
-  --border:             #2e2e42;
-  --border-subtle:      #262638;
-  --border-input:       #3a3a52;
-  --border-strong:      #555570;
-  --border-divider:     #262638;
+  --accent:             #55ABDF;   /* blue-300 (lifts on dark) */
+  --accent-soft:        #0D5F94;   /* blue-700 */
+  --accent2:            #41BF82;   /* green-300 */
+  --error:              #E8637F;   /* red-300 */
+  --warning:            #F0B833;   /* yellow-300 */
 
-  --grid-line:          #25253a;
-  --axis-line:          rgba(180, 180, 230, 0.35);
-  --grid-label:         #6a6a88;
-  --point-stroke:       rgba(255, 255, 255, 0.20);
-  --point-stroke-hover: rgba(255, 255, 255, 0.55);
-  --point-ring-hover:   rgba(255, 255, 255, 0.40);
+  --border:             #2E3548;
+  --border-subtle:      #262E40;
+  --border-input:       #3A4258;
+  --border-strong:      #4E5668;   /* gray-700 */
+  --border-divider:     #262E40;
+
+  --grid-line:          #262E40;
+  --axis-line:          rgba(192, 198, 210, 0.35);  /* gray-300 alpha */
+  --grid-label:         #8B93A4;
+  --point-stroke:       rgba(225, 228, 234, 0.20);  /* gray-100 alpha */
+  --point-stroke-hover: rgba(225, 228, 234, 0.55);
+  --point-ring-hover:   rgba(225, 228, 234, 0.40);
 
   color-scheme: dark;
 }

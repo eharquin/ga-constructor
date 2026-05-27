@@ -306,8 +306,7 @@
   border-radius: 50%;
   border: 2px solid var(--point-stroke);
   cursor: pointer;
-  position: relative;
-  display: block;
+  padding: 0;
   transition: border-color 0.15s, transform 0.1s;
   margin-right: 10px;
 }
@@ -315,18 +314,6 @@
 .color-swatch:hover {
   border-color: var(--point-stroke-hover);
   transform: scale(1.15);
-}
-
-/* Hide the native input visually while keeping it clickable */
-.color-swatch input[type='color'] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-  border: none;
-  padding: 0;
 }
 
 /* Content area */
