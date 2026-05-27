@@ -259,14 +259,6 @@
 }
 
 /* ---- Color swatch ---- */
-.visibility-toggle {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  margin: 0 6px 0 0;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
 
 .lock-toggle {
   flex-shrink: 0;

@@ -418,16 +418,6 @@ export default function ExpressionPanel() {
                   <div className="play-btn-gap" />
                 )}
 
-                {/* Visibility toggle */}
-                <input
-                  type="checkbox"
-                  className="visibility-toggle"
-                  checked={item.visible !== false}
-                  onChange={(e) => setItemVisible(item.id, e.target.checked)}
-                  tabIndex={-1}
-                  title="Toggle visibility"
-                />
-
                 {/* Lock toggle — drag-eligible items only */}
                 {isDraggable ? (
                   <button
