@@ -124,10 +124,16 @@ export default function AppearancePanel({
 
   const isPointKind  = kind === 'finitePoint' || kind === 'idealPoint';
   const showAppearance = isPointKind || isList;
-  const lo = labelOpts ?? {};
+  const lo          = labelOpts ?? {};
   const fontSize    = lo.fontSize    ?? 13;
-  const labelAngle  = lo.angle       ?? 0;
-  const updLabelOpts = (patch) => onLabelOptsChange({ fontSize, angle: labelAngle, ...lo, ...patch });
+  const orientation = lo.orientation ?? 0;
+  const anchor      = lo.anchor      ?? 'top-right';
+  const updLabelOpts = (patch) => onLabelOptsChange({ fontSize, orientation, anchor, ...lo, ...patch });
+  const ANCHORS = [
+    'top-left', 'top', 'top-right',
+    'left', null, 'right',
+    'bottom-left', 'bottom', 'bottom-right',
+  ];
 
   return createPortal(
     <div
@@ -218,13 +224,25 @@ export default function AppearancePanel({
         <div className="ap-section-title">Label</div>
         <div className="ap-row">
           <span className="ap-row-label">Angle</span>
-          <NumInput value={labelAngle} onChange={(v) => updLabelOpts({ angle: v })} min={-180} max={180} step={5} width={60} />
+          <NumInput value={orientation} onChange={(v) => updLabelOpts({ orientation: v })} min={-180} max={180} step={5} width={60} />
           <span className="ap-unit">°</span>
         </div>
         <div className="ap-row">
           <span className="ap-row-label">Font size</span>
           <NumInput value={fontSize} onChange={(v) => updLabelOpts({ fontSize: Math.max(6, Math.min(36, Math.round(v))) })} min={6} max={36} step={1} width={52} />
           <span className="ap-unit">px</span>
+        </div>
+        <div className="ap-row">
+          <span className="ap-row-label">Position</span>
+          <div className="ap-anchor-grid">
+            {ANCHORS.map((pos, i) => pos
+              ? <button key={pos} type="button"
+                  className={`ap-anchor-btn${anchor === pos ? ' active' : ''}`}
+                  onClick={() => updLabelOpts({ anchor: pos })}
+                  title={pos} />
+              : <div key={i} className="ap-anchor-center" />
+            )}
+          </div>
         </div>
       </section>}
 

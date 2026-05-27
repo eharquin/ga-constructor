@@ -165,6 +165,48 @@
   border-radius: 50%;
 }
 
+/* ── Anchor grid ── */
+.ap-anchor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 14px);
+  grid-template-rows: repeat(3, 14px);
+  gap: 2px;
+}
+.ap-anchor-btn {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+}
+.ap-anchor-btn::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.ap-anchor-btn.active {
+  border-color: var(--accent);
+  background: var(--bg-active);
+}
+.ap-anchor-btn.active::after { background: var(--accent); }
+.ap-anchor-center {
+  width: 14px;
+  height: 14px;
+  border: 1px dashed var(--border-input);
+  border-radius: 2px;
+  background: var(--bg-soft);
+}
+
 /* ── Elements list ── */
 .ap-elem-row { gap: 6px; }
 .ap-elem-index {
