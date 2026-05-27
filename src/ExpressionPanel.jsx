@@ -7,8 +7,21 @@ import './ExpressionPanel.css';
 
 const FALLBACK_COLOR = '#6c7086';
 
-function resolveColor(item, values, algebra) {
-  if (item.color) return item.color;
+function resolveColor(item, values, algebra, items) {
+  if (item.color) {
+    if (item.color.startsWith('@') && items) {
+      const label = item.color.slice(1);
+      for (const it2 of items) {
+        const n2 = algebra.parseExpression(it2.text);
+        if (n2 && (n2.label === label || n2.id === label)) {
+          const v = values?.[n2.id];
+          if (v && typeof v === 'object' && typeof v.color === 'string') return v.color;
+        }
+      }
+      return FALLBACK_COLOR;
+    }
+    return item.color;
+  }
   const node = algebra.parseExpression(item.text);
   if (!node) return FALLBACK_COLOR;
   const val = values?.[node.id];
@@ -300,6 +313,7 @@ export default function ExpressionPanel() {
           const node      = parseExpression(item.text);
           const isInvalid = item.text.trim() !== '' && !node;
           const isScalar    = node?.type === 'scalar';
+          const isColorItem = node?.type === 'color';
           // Position sub-row applies to vector nodes plus any anchorable value:
           // ideal point (PGA dual etc.), grade-1 vector (VGA), or bivector.
           const positionKind = node ? classifyMV(values[node.id])?.kind : null;
@@ -329,7 +343,7 @@ export default function ExpressionPanel() {
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
-          const color      = resolveColor(item, values, algebra);
+          const color      = resolveColor(item, values, algebra, items);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra, settings.decimals) : null;
           const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
@@ -434,15 +448,15 @@ export default function ExpressionPanel() {
                   <span className="lock-toggle-gap" />
                 )}
 
-                {/* Color swatch — opens custom in-app picker */}
+                {/* Color swatch — opens picker; disabled on color() items (color is the expression) */}
                 <button
                   type="button"
                   ref={(el) => { if (el) swatchRefs.current[item.id] = el; }}
-                  className="color-swatch"
+                  className={`color-swatch${isColorItem ? ' color-swatch--expr' : ''}`}
                   style={{ background: color }}
-                  title="Change color"
+                  title={isColorItem ? color : 'Change color'}
                   tabIndex={-1}
-                  onClick={() => setPickerOpenId((id) => id === item.id ? null : item.id)}
+                  onClick={isColorItem ? undefined : () => setPickerOpenId((id) => id === item.id ? null : item.id)}
                 />
 
                 <div className="expr-body">
@@ -833,14 +847,10 @@ export default function ExpressionPanel() {
       <ColorPicker
         open={pickerOpenId != null}
         anchorEl={pickerOpenId != null ? swatchRefs.current[pickerOpenId] : null}
-        currentColor={(() => {
-          if (pickerOpenId == null) return null;
-          const it = items.find((x) => x.id === pickerOpenId);
-          return it ? resolveColor(it, values, algebra) : null;
-        })()}
+        currentColor={pickerOpenId != null ? (items.find((x) => x.id === pickerOpenId)?.color ?? null) : null}
         customColors={customColors}
-        onPick={(hex) => {
-          if (pickerOpenId != null) setItemColor(pickerOpenId, hex);
+        onPick={(val) => {
+          if (pickerOpenId != null) setItemColor(pickerOpenId, val);
           setPickerOpenId(null);
         }}
         onClose={() => setPickerOpenId(null)}

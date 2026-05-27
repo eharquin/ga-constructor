@@ -328,12 +328,29 @@ export function useGraph(algebra) {
   }, [items, parseExpression]);
 
   const colorMap = useMemo(() => {
+    // Resolve '@label' color refs to the current hex from values.
+    const resolveRef = (ref) => {
+      const label = ref.slice(1);
+      for (const it2 of items) {
+        const n2 = parseExpression(it2.text);
+        if (n2 && (n2.label === label || n2.id === label)) {
+          const v = values[n2.id];
+          if (v && typeof v === 'object' && typeof v.color === 'string') return v.color;
+        }
+      }
+      return FALLBACK_COLOR;
+    };
+
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
-      if (item.color) { map[node.id] = item.color; continue; }
+      if (item.color) {
+        map[node.id] = item.color.startsWith('@') ? resolveRef(item.color) : item.color;
+        continue;
+      }
       const val = values[node.id];
+      if (val && typeof val === 'object' && typeof val.color === 'string') { map[node.id] = val.color; continue; }
       if (val && typeof val === 'object' && 'vx' in val) { map[node.id] = KIND_COLOR.vector ?? KIND_COLOR.idealPoint ?? FALLBACK_COLOR; continue; }
       const cls = classifyMV(val);
       map[node.id] = cls ? (KIND_COLOR[cls.kind] ?? FALLBACK_COLOR) : (TYPE_COLOR_FALLBACK[node.type] ?? FALLBACK_COLOR);

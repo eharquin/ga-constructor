@@ -60,8 +60,16 @@ export default function ColorPicker({ open, anchorEl, currentColor, customColors
   }, [open, anchorEl, onClose]);
 
   if (!open) return null;
-  const norm = (c) => (c ?? '').toLowerCase();
-  const cur = norm(currentColor);
+  const normHex = (c) => (c ?? '').toLowerCase();
+  // currentColor is either '#rrggbb', '@label', or null.
+  const isRef   = currentColor?.startsWith('@');
+  const curRef  = isRef ? currentColor.slice(1) : null;
+  const curHex  = isRef ? null : normHex(currentColor);
+
+  const hexSelected  = (hex) => !isRef && normHex(hex) === curHex;
+  const customSelected = (c) => isRef
+    ? (c.label === curRef || c.id === curRef)
+    : normHex(c.color) === curHex;
 
   return createPortal(
     <div
@@ -80,7 +88,7 @@ export default function ColorPicker({ open, anchorEl, currentColor, customColors
               <Swatch
                 key={hex}
                 hex={hex}
-                selected={norm(hex) === cur}
+                selected={hexSelected(hex)}
                 onPick={onPick}
                 label={`${ramp.name} ${hex}`}
               />
@@ -92,7 +100,7 @@ export default function ColorPicker({ open, anchorEl, currentColor, customColors
       <div className="cp-section-label">Neutrals</div>
       <div className="cp-row">
         {PGA_NEUTRALS.map((hex) => (
-          <Swatch key={hex} hex={hex} selected={norm(hex) === cur} onPick={onPick} label={hex} />
+          <Swatch key={hex} hex={hex} selected={hexSelected(hex)} onPick={onPick} label={hex} />
         ))}
       </div>
 
@@ -108,8 +116,8 @@ export default function ColorPicker({ open, anchorEl, currentColor, customColors
             <Swatch
               key={c.id}
               hex={c.color}
-              selected={norm(c.color) === cur}
-              onPick={onPick}
+              selected={customSelected(c)}
+              onPick={() => onPick('@' + (c.label ?? c.id))}
               label={`${c.label ?? c.id} ${c.color}`}
             />
           ))

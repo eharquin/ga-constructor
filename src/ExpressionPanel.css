@@ -316,6 +316,14 @@
   transform: scale(1.15);
 }
 
+.color-swatch--expr {
+  cursor: default;
+  opacity: 0.75;
+}
+.color-swatch--expr:hover {
+  transform: none;
+}
+
 /* Content area */
 .expr-body {
   flex: 1;
