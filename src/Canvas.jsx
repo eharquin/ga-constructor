@@ -229,7 +229,7 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
   const r_dot  = 4.5 * weight * scale;
-  const r_ring = 7   * weight * scale;
+  const r_ring = 10  * weight * scale;
   const sw     = Math.max(1.5, 2 * weight * scale);
 
   if (shape === 'asterisk') {
