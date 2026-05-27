@@ -8,7 +8,11 @@ const fmtNum = (val) => parseFloat(val.toFixed(6));
 const FALLBACK_COLOR = '#6c7086';
 
 const ITEM = (id, text, extra = {}) => ({
-  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null, ...extra,
+  id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null,
+  visible: true, movable: true, normalizeMode: null,
+  opacity: null, scale: null, pointShape: null,
+  showOutline: null, showFill: null, hiddenElements: null,
+  ...extra,
 });
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
@@ -26,7 +30,7 @@ function pickPointName(usedIds) {
 function itemsReducer(items, action) {
   switch (action.type) {
     case 'ADD_ITEM':
-      return [...items, { id: action.id, text: action.text, color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null }];
+      return [...items, ITEM(action.id, action.text)];
     case 'SET_TEXT':
       return items.map((it) => it.id === action.id ? { ...it, text: action.text } : it);
     case 'SET_COLOR':
@@ -45,9 +49,28 @@ function itemsReducer(items, action) {
       return items.map((it) => it.id === action.id ? { ...it, movable: action.movable } : it);
     case 'SET_NORMALIZE_MODE':
       return items.map((it) => it.id === action.id ? { ...it, normalizeMode: action.mode } : it);
+    case 'SET_OPACITY':
+      return items.map((it) => it.id === action.id ? { ...it, opacity: action.opacity } : it);
+    case 'SET_SCALE':
+      return items.map((it) => it.id === action.id ? { ...it, scale: action.scale } : it);
+    case 'SET_POINT_SHAPE':
+      return items.map((it) => it.id === action.id ? { ...it, pointShape: action.shape } : it);
+    case 'SET_LIST_SHOW_OUTLINE':
+      return items.map((it) => it.id === action.id ? { ...it, showOutline: action.show } : it);
+    case 'SET_LIST_SHOW_FILL':
+      return items.map((it) => it.id === action.id ? { ...it, showFill: action.show } : it);
+    case 'TOGGLE_LIST_ELEMENT': {
+      return items.map((it) => {
+        if (it.id !== action.id) return it;
+        const hidden = new Set(it.hiddenElements ?? []);
+        if (hidden.has(action.index)) hidden.delete(action.index);
+        else hidden.add(action.index);
+        return { ...it, hiddenElements: [...hidden] };
+      });
+    }
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = { id: action.newId, text: '', color: null, anim: null, drawPos: null, label: null, labelOpts: null, visible: true, movable: true, normalizeMode: null };
+      const newItem = ITEM(action.newId, '');
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -83,6 +106,12 @@ function itemsReducer(items, action) {
         visible: it.visible ?? true,
         movable: it.movable ?? true,
         normalizeMode: it.normalizeMode ?? null,
+        opacity: it.opacity ?? null,
+        scale: it.scale ?? null,
+        pointShape: it.pointShape ?? null,
+        showOutline: it.showOutline ?? null,
+        showFill: it.showFill ?? null,
+        hiddenElements: it.hiddenElements ?? null,
       }));
     default:
       return items;
@@ -722,6 +751,12 @@ export function useGraph(algebra) {
     setItemVisible:    (id, visible)    => dispatch({ type: 'SET_VISIBLE',    id, visible }),
     setItemMovable:    (id, movable)    => dispatch({ type: 'SET_MOVABLE',    id, movable }),
     setItemNormalizeMode: (id, mode)    => dispatch({ type: 'SET_NORMALIZE_MODE', id, mode }),
+    setItemOpacity:       (id, opacity) => dispatch({ type: 'SET_OPACITY',        id, opacity }),
+    setItemScale:         (id, scale)   => dispatch({ type: 'SET_SCALE',          id, scale }),
+    setItemPointShape:    (id, shape)   => dispatch({ type: 'SET_POINT_SHAPE',    id, shape }),
+    setListShowOutline:   (id, show)    => dispatch({ type: 'SET_LIST_SHOW_OUTLINE', id, show }),
+    setListShowFill:      (id, show)    => dispatch({ type: 'SET_LIST_SHOW_FILL',    id, show }),
+    toggleListElement:    (id, index)   => dispatch({ type: 'TOGGLE_LIST_ELEMENT',  id, index }),
     normalizeMap,
     movableMap,
     reorderItem,

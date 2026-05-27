@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
 import { useSettings } from './SettingsContext.jsx';
-import ColorPicker from './ColorPicker.jsx';
+import AppearancePanel from './AppearancePanel.jsx';
 import './ExpressionPanel.css';
 
 const FALLBACK_COLOR = '#6c7086';
@@ -226,6 +226,7 @@ export default function ExpressionPanel() {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
+    setItemOpacity, setItemScale, setItemPointShape, setListShowOutline, setListShowFill, toggleListElement,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
   } = useGraphContext();
@@ -844,17 +845,48 @@ export default function ExpressionPanel() {
         </div>
       )}
 
-      <ColorPicker
-        open={pickerOpenId != null}
-        anchorEl={pickerOpenId != null ? swatchRefs.current[pickerOpenId] : null}
-        currentColor={pickerOpenId != null ? (items.find((x) => x.id === pickerOpenId)?.color ?? null) : null}
-        customColors={customColors}
-        onPick={(val) => {
-          if (pickerOpenId != null) setItemColor(pickerOpenId, val);
-          setPickerOpenId(null);
-        }}
-        onClose={() => setPickerOpenId(null)}
-      />
+      {(() => {
+        const openItem = pickerOpenId != null ? items.find((x) => x.id === pickerOpenId) : null;
+        if (!openItem) return null;
+        const openNode = parseExpression(openItem.text);
+        const openVal  = openNode ? values[openNode.id] : null;
+        const openPlan = openVal != null ? algebra.getRenderPlan?.(openVal) : null;
+        const openKind = openPlan?.kind ?? algebra.classifyMV?.(openVal)?.kind ?? null;
+        const isList   = openKind === 'list';
+        const listElements = isList && openPlan?.elements
+          ? openPlan.elements.map((e, i) => ({ index: i, kind: e.kind }))
+          : [];
+        const openLabelOpts = openNode ? (labelOptsMap[openNode.id] ?? null) : null;
+        return (
+          <AppearancePanel
+            open
+            anchorEl={swatchRefs.current[pickerOpenId]}
+            onClose={() => setPickerOpenId(null)}
+            itemVisible={openItem.visible !== false}
+            onVisibilityChange={(v) => setItemVisible(pickerOpenId, v)}
+            itemColor={openItem.color ?? null}
+            kind={openKind}
+            isList={isList}
+            opacity={openItem.opacity ?? 1}
+            scale={openItem.scale ?? 1}
+            pointShape={openItem.pointShape ?? 'circle'}
+            onOpacityChange={(v) => setItemOpacity(pickerOpenId, v)}
+            onScaleChange={(v) => setItemScale(pickerOpenId, v)}
+            onPointShapeChange={(s) => setItemPointShape(pickerOpenId, s)}
+            customColors={customColors}
+            onColorPick={(val) => { setItemColor(pickerOpenId, val); setPickerOpenId(null); }}
+            labelOpts={openLabelOpts}
+            onLabelOptsChange={(opts) => setLabelOpts(pickerOpenId, opts)}
+            showOutline={openItem.showOutline ?? true}
+            showFill={openItem.showFill ?? false}
+            listElements={listElements}
+            hiddenElements={openItem.hiddenElements ?? []}
+            onOutlineChange={(v) => setListShowOutline(pickerOpenId, v)}
+            onFillChange={(v) => setListShowFill(pickerOpenId, v)}
+            onElementToggle={(idx) => toggleListElement(pickerOpenId, idx)}
+          />
+        );
+      })()}
     </aside>
   );
 }

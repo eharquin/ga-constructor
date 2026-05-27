@@ -1,0 +1,180 @@
+.ap-popover {
+  position: fixed;
+  z-index: 1000;
+  padding: 0 0 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-modal);
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  user-select: none;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+/* ── Header ── */
+.ap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 1;
+  border-radius: 10px 10px 0 0;
+}
+.ap-type-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.ap-header-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ap-vis-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Toggle switch ── */
+.ap-toggle { display: inline-flex; align-items: center; cursor: pointer; }
+.ap-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ap-toggle-track {
+  width: 32px; height: 18px; border-radius: 9px;
+  background: var(--border-strong);
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.ap-toggle input:checked + .ap-toggle-track {
+  background: var(--accent);
+}
+.ap-toggle-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.ap-toggle input:checked + .ap-toggle-track .ap-toggle-thumb { left: 16px; }
+
+/* ── Sections ── */
+.ap-section {
+  padding: 8px 14px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ap-section:last-child { border-bottom: none; }
+.ap-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* ── Rows ── */
+.ap-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-height: 26px;
+}
+.ap-row-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+}
+.ap-unit { font-size: 11px; color: var(--text-muted); }
+
+/* ── Number input ── */
+.ap-num {
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  padding: 3px 6px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.ap-num::-webkit-inner-spin-button,
+.ap-num::-webkit-outer-spin-button { opacity: 1; }
+.ap-num:focus { outline: none; border-color: var(--accent); }
+
+/* ── Shape buttons ── */
+.ap-shape-btns { display: flex; gap: 4px; }
+.ap-shape-btn {
+  width: 28px; height: 26px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.ap-shape-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.ap-shape-btn:hover:not(.active) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* ── Color swatches ── */
+.ap-swatch-row {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 3px;
+  flex-wrap: wrap;
+}
+.ap-custom-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.ap-swatch {
+  flex: 1 0 auto;
+  width: 30px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.08s, box-shadow 0.1s;
+}
+.ap-swatch:hover { transform: scale(1.12); }
+.ap-swatch.ap-selected {
+  box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent);
+}
+.ap-custom-row .ap-swatch {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+}
+
+/* ── Elements list ── */
+.ap-elem-row { gap: 6px; }
+.ap-elem-index {
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 22px;
+}
+.ap-elem-kind {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+}

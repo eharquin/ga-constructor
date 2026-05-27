@@ -1,0 +1,212 @@
+{
+  "name": "distances_and_angles",
+  "algebra": "pga201",
+  "items": [
+    {
+      "id": "expr_24",
+      "text": "t = -0.59",
+      "color": null,
+      "anim": {
+        "min": -1,
+        "max": 0,
+        "step": 0.01
+      },
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_17",
+      "text": "A=point(-1,t)",
+      "color": "#E8A000",
+      "anim": null,
+      "drawPos": null,
+      "label": "A angle = {aCAB}",
+      "labelOpts": {
+        "fontSize": 13,
+        "orientation": 0,
+        "anchor": "bottom-right"
+      },
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_18",
+      "text": "B=point(1,1)",
+      "color": "#E8A000",
+      "anim": null,
+      "drawPos": null,
+      "label": "B angle = {aCBA}",
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_19",
+      "text": "C=point(-1,1)",
+      "color": "#E8A000",
+      "anim": null,
+      "drawPos": null,
+      "label": "C angle = {aACB}",
+      "labelOpts": {
+        "fontSize": 13,
+        "orientation": 0,
+        "anchor": "top-left"
+      },
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_20",
+      "text": "BA=B&A",
+      "color": "#E8637F",
+      "anim": null,
+      "drawPos": null,
+      "label": "{dBA}",
+      "labelOpts": {
+        "fontSize": 16,
+        "orientation": 0,
+        "anchor": "bottom-right"
+      },
+      "visible": true,
+      "movable": true,
+      "normalizeMode": "norm"
+    },
+    {
+      "id": "expr_22",
+      "text": "CB=C&B",
+      "color": "#E8637F",
+      "anim": null,
+      "drawPos": null,
+      "label": "{dCB}",
+      "labelOpts": {
+        "fontSize": 16,
+        "orientation": 0,
+        "anchor": "top"
+      },
+      "visible": true,
+      "movable": true,
+      "normalizeMode": "norm"
+    },
+    {
+      "id": "expr_21",
+      "text": "CA=C&A",
+      "color": "#E8637F",
+      "anim": null,
+      "drawPos": null,
+      "label": "{dCA}",
+      "labelOpts": {
+        "fontSize": 16,
+        "orientation": 0,
+        "anchor": "left"
+      },
+      "visible": true,
+      "movable": true,
+      "normalizeMode": "norm"
+    },
+    {
+      "id": "expr_23",
+      "text": "dBA=|B&A|",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_25",
+      "text": "dCB=|C&B|",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_26",
+      "text": "dCA=|C&A|",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_28",
+      "text": "RtoD=57.2958",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": false,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_27",
+      "text": "aCAB=acos(CA|BA)*RtoD",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_29",
+      "text": "aCBA=acos(BA|CB)*RtoD",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_31",
+      "text": "aACB=acos(CA|CB)*RtoD",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    },
+    {
+      "id": "expr_30",
+      "text": "",
+      "color": null,
+      "anim": null,
+      "drawPos": null,
+      "label": null,
+      "labelOpts": null,
+      "visible": true,
+      "movable": true,
+      "normalizeMode": null
+    }
+  ],
+  "hash": "#eyJhbGdlYnJhIjoicGdhMjAxIiwiaXRlbXMiOlt7ImlkIjoiZXhwcl8yNCIsInRleHQiOiJ0ID0gLTAuNTkiLCJjb2xvciI6bnVsbCwiYW5pbSI6eyJtaW4iOi0xLCJtYXgiOjAsInN0ZXAiOjAuMDF9LCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6bnVsbCwibGFiZWxPcHRzIjpudWxsLCJ2aXNpYmxlIjp0cnVlLCJtb3ZhYmxlIjp0cnVlLCJub3JtYWxpemVNb2RlIjpudWxsfSx7ImlkIjoiZXhwcl8xNyIsInRleHQiOiJBPXBvaW50KC0xLHQpIiwiY29sb3IiOiIjRThBMDAwIiwiYW5pbSI6bnVsbCwiZHJhd1BvcyI6bnVsbCwibGFiZWwiOiJBIGFuZ2xlID0ge2FDQUJ9IiwibGFiZWxPcHRzIjp7ImZvbnRTaXplIjoxMywib3JpZW50YXRpb24iOjAsImFuY2hvciI6ImJvdHRvbS1yaWdodCJ9LCJ2aXNpYmxlIjp0cnVlLCJtb3ZhYmxlIjp0cnVlLCJub3JtYWxpemVNb2RlIjpudWxsfSx7ImlkIjoiZXhwcl8xOCIsInRleHQiOiJCPXBvaW50KDEsMSkiLCJjb2xvciI6IiNFOEEwMDAiLCJhbmltIjpudWxsLCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6IkIgYW5nbGUgPSB7YUNCQX0iLCJsYWJlbE9wdHMiOm51bGwsInZpc2libGUiOnRydWUsIm1vdmFibGUiOnRydWUsIm5vcm1hbGl6ZU1vZGUiOm51bGx9LHsiaWQiOiJleHByXzE5IiwidGV4dCI6IkM9cG9pbnQoLTEsMSkiLCJjb2xvciI6IiNFOEEwMDAiLCJhbmltIjpudWxsLCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6IkMgYW5nbGUgPSB7YUFDQn0iLCJsYWJlbE9wdHMiOnsiZm9udFNpemUiOjEzLCJvcmllbnRhdGlvbiI6MCwiYW5jaG9yIjoidG9wLWxlZnQifSwidmlzaWJsZSI6dHJ1ZSwibW92YWJsZSI6dHJ1ZSwibm9ybWFsaXplTW9kZSI6bnVsbH0seyJpZCI6ImV4cHJfMjAiLCJ0ZXh0IjoiQkE9QiZBIiwiY29sb3IiOiIjRTg2MzdGIiwiYW5pbSI6bnVsbCwiZHJhd1BvcyI6bnVsbCwibGFiZWwiOiJ7ZEJBfSIsImxhYmVsT3B0cyI6eyJmb250U2l6ZSI6MTYsIm9yaWVudGF0aW9uIjowLCJhbmNob3IiOiJib3R0b20tcmlnaHQifSwidmlzaWJsZSI6dHJ1ZSwibW92YWJsZSI6dHJ1ZSwibm9ybWFsaXplTW9kZSI6Im5vcm0ifSx7ImlkIjoiZXhwcl8yMiIsInRleHQiOiJDQj1DJkIiLCJjb2xvciI6IiNFODYzN0YiLCJhbmltIjpudWxsLCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6IntkQ0J9IiwibGFiZWxPcHRzIjp7ImZvbnRTaXplIjoxNiwib3JpZW50YXRpb24iOjAsImFuY2hvciI6InRvcCJ9LCJ2aXNpYmxlIjp0cnVlLCJtb3ZhYmxlIjp0cnVlLCJub3JtYWxpemVNb2RlIjoibm9ybSJ9LHsiaWQiOiJleHByXzIxIiwidGV4dCI6IkNBPUMmQSIsImNvbG9yIjoiI0U4NjM3RiIsImFuaW0iOm51bGwsImRyYXdQb3MiOm51bGwsImxhYmVsIjoie2RDQX0iLCJsYWJlbE9wdHMiOnsiZm9udFNpemUiOjE2LCJvcmllbnRhdGlvbiI6MCwiYW5jaG9yIjoibGVmdCJ9LCJ2aXNpYmxlIjp0cnVlLCJtb3ZhYmxlIjp0cnVlLCJub3JtYWxpemVNb2RlIjoibm9ybSJ9LHsiaWQiOiJleHByXzIzIiwidGV4dCI6ImRCQT18QiZBfCIsImNvbG9yIjpudWxsLCJhbmltIjpudWxsLCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6bnVsbCwibGFiZWxPcHRzIjpudWxsLCJ2aXNpYmxlIjp0cnVlLCJtb3ZhYmxlIjp0cnVlLCJub3JtYWxpemVNb2RlIjpudWxsfSx7ImlkIjoiZXhwcl8yNSIsInRleHQiOiJkQ0I9fEMmQnwiLCJjb2xvciI6bnVsbCwiYW5pbSI6bnVsbCwiZHJhd1BvcyI6bnVsbCwibGFiZWwiOm51bGwsImxhYmVsT3B0cyI6bnVsbCwidmlzaWJsZSI6dHJ1ZSwibW92YWJsZSI6dHJ1ZSwibm9ybWFsaXplTW9kZSI6bnVsbH0seyJpZCI6ImV4cHJfMjYiLCJ0ZXh0IjoiZENBPXxDJkF8IiwiY29sb3IiOm51bGwsImFuaW0iOm51bGwsImRyYXdQb3MiOm51bGwsImxhYmVsIjpudWxsLCJsYWJlbE9wdHMiOm51bGwsInZpc2libGUiOnRydWUsIm1vdmFibGUiOnRydWUsIm5vcm1hbGl6ZU1vZGUiOm51bGx9LHsiaWQiOiJleHByXzI4IiwidGV4dCI6IlJ0b0Q9NTcuMjk1OCIsImNvbG9yIjpudWxsLCJhbmltIjpudWxsLCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6bnVsbCwibGFiZWxPcHRzIjpudWxsLCJ2aXNpYmxlIjpmYWxzZSwibW92YWJsZSI6dHJ1ZSwibm9ybWFsaXplTW9kZSI6bnVsbH0seyJpZCI6ImV4cHJfMjciLCJ0ZXh0IjoiYUNBQj1hY29zKENBfEJBKSpSdG9EIiwiY29sb3IiOm51bGwsImFuaW0iOm51bGwsImRyYXdQb3MiOm51bGwsImxhYmVsIjpudWxsLCJsYWJlbE9wdHMiOm51bGwsInZpc2libGUiOnRydWUsIm1vdmFibGUiOnRydWUsIm5vcm1hbGl6ZU1vZGUiOm51bGx9LHsiaWQiOiJleHByXzI5IiwidGV4dCI6ImFDQkE9YWNvcyhCQXxDQikqUnRvRCIsImNvbG9yIjpudWxsLCJhbmltIjpudWxsLCJkcmF3UG9zIjpudWxsLCJsYWJlbCI6bnVsbCwibGFiZWxPcHRzIjpudWxsLCJ2aXNpYmxlIjp0cnVlLCJtb3ZhYmxlIjp0cnVlLCJub3JtYWxpemVNb2RlIjpudWxsfSx7ImlkIjoiZXhwcl8zMSIsInRleHQiOiJhQUNCPWFjb3MoQ0F8Q0IpKlJ0b0QiLCJjb2xvciI6bnVsbCwiYW5pbSI6bnVsbCwiZHJhd1BvcyI6bnVsbCwibGFiZWwiOm51bGwsImxhYmVsT3B0cyI6bnVsbCwidmlzaWJsZSI6dHJ1ZSwibW92YWJsZSI6dHJ1ZSwibm9ybWFsaXplTW9kZSI6bnVsbH0seyJpZCI6ImV4cHJfMzAiLCJ0ZXh0IjoiIiwiY29sb3IiOm51bGwsImFuaW0iOm51bGwsImRyYXdQb3MiOm51bGwsImxhYmVsIjpudWxsLCJsYWJlbE9wdHMiOm51bGwsInZpc2libGUiOnRydWUsIm1vdmFibGUiOnRydWUsIm5vcm1hbGl6ZU1vZGUiOm51bGx9XX0",
+  "savedAt": "2026-05-27T13:22:08.916Z"
+}

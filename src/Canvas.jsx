@@ -225,10 +225,25 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1 }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1 }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
-  const r = (hovered ? 8 : 6) * weight;
+  const r = (hovered ? 8 : 6) * weight * scale;
+  if (shape === 'asterisk') {
+    const arm = r * 1.1;
+    const d   = arm / Math.SQRT2;
+    const sw  = Math.max(1.5, 2 * weight * scale);
+    return (
+      <g>
+        {hovered && <circle cx={cx} cy={cy} r={arm + 5} fill={color + '28'} />}
+        <line x1={cx - arm} y1={cy}      x2={cx + arm} y2={cy}      stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={cx}       y1={cy - arm} x2={cx}       y2={cy + arm} stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={cx - d}   y1={cy - d}   x2={cx + d}   y2={cy + d}   stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={cx + d}   y1={cy - d}   x2={cx - d}   y2={cy + d}   stroke={color} strokeWidth={sw} strokeLinecap="round" />
+        {renderLabel(label, cx, cy, opts)}
+      </g>
+    );
+  }
   return (
     <g>
       {hovered && <circle cx={cx} cy={cy} r={r + 5} fill={color + '28'} />}
@@ -373,6 +388,7 @@ function renderLabel(label, cx, cy, opts) {
   if (!label) return null;
   const fontSize    = opts?.fontSize    ?? 13;
   const orientation = opts?.orientation ?? 0;
+  const textAngle   = opts?.angle       ?? 0;
   const anchorKey   = opts?.anchor      ?? 'top-right';
   const cfg = ANCHOR_CFG[anchorKey] ?? ANCHOR_CFG['top-right'];
   const off = fontSize * 0.65 + 4;
@@ -388,7 +404,7 @@ function renderLabel(label, cx, cy, opts) {
       fontSize={fontSize}
       fontWeight="bold"
       pointerEvents="none"
-      transform={orientation !== 0 ? `rotate(${orientation},${tx},${ty})` : undefined}
+      transform={orientation !== 0 || textAngle !== 0 ? `rotate(${orientation + textAngle},${tx},${ty})` : undefined}
     >{label}</text>
   );
 }
@@ -564,6 +580,23 @@ export default function Canvas() {
     [items, nodes, parseExpression]
   );
 
+  const appearanceMap = useMemo(() => {
+    const map = {};
+    for (const it of items) {
+      const node = parseExpression(it.text);
+      if (!node) continue;
+      map[node.id] = {
+        opacity:        it.opacity        ?? 1,
+        scale:          it.scale          ?? 1,
+        pointShape:     it.pointShape     ?? 'circle',
+        showOutline:    it.showOutline    ?? true,
+        showFill:       it.showFill       ?? false,
+        hiddenElements: new Set(it.hiddenElements ?? []),
+      };
+    }
+    return map;
+  }, [items, parseExpression]);
+
   const [vp,        setVp]        = useState(INITIAL_VP);
   const [size,      setSize]      = useState({ w: 800, h: 600 });
   const [cursor,    setCursor]    = useState('grab');
@@ -721,6 +754,10 @@ export default function Canvas() {
     const opts    = labelOptsMap[id] ?? null;
     const hovered = id === hoveredId;
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
+    const appear  = appearanceMap[id] ?? {};
+    const opacity = appear.opacity ?? 1;
+    const scale   = appear.scale   ?? 1;
+    const shape   = appear.pointShape ?? 'circle';
 
     // Scalar-valued nodes (triangle, meetChain) have no canvas presence.
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
@@ -732,26 +769,43 @@ export default function Canvas() {
 
     switch (plan.kind) {
       case 'list': {
-        if (plan.outline) {
-          backLayer.push(<SvgPolygon key={`${id}-outline`} points={plan.outline} label={label} color={color} vp={vp} opts={opts} />);
+        const showOutline    = appear.showOutline    ?? true;
+        const showFill       = appear.showFill       ?? false;
+        const hiddenElems    = appear.hiddenElements ?? new Set();
+        const visibleOutline = plan.outline?.filter((_, i) => !hiddenElems.has(i));
+
+        const listChildren = [];
+        if (showOutline && visibleOutline && visibleOutline.length >= 2) {
+          listChildren.push(<SvgPolygon key={`${id}-outline`} points={visibleOutline} label={label} color={color} vp={vp} opts={opts} />);
+        }
+        if (showFill && visibleOutline && visibleOutline.length >= 3) {
+          const pts = visibleOutline.map(({ x, y }) => { const c = w2c(x, y, vp); return `${c.cx},${c.cy}`; }).join(' ');
+          listChildren.push(<polygon key={`${id}-fill`} points={pts} fill={color} fillOpacity={0.18} stroke="none" />);
         }
         plan.elements.forEach((elem, ei) => {
+          if (hiddenElems.has(ei)) return;
           const ekey = `${id}-e${ei}`;
           switch (elem.kind) {
             case 'finitePoint':
-              frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} />);
+              frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} />);
               break;
             case 'line': {
               const bd = algebra.lineBaseAndDir?.(elem.L);
-              backLayer.push(<SvgLine key={ekey} bd={bd} label={null} color={color} vp={vp} W={size.w} H={size.h} opts={null} weight={weight} />);
+              listChildren.push(<SvgLine key={ekey} bd={bd} label={null} color={color} vp={vp} W={size.w} H={size.h} opts={null} weight={weight} />);
               break;
             }
             case 'positionedVector':
-              backLayer.push(<SvgVector key={ekey} vx={elem.vx} vy={elem.vy} px={0} py={0} label={null} color={color} vp={vp} hovered={false} linked={false} tipDraggable={false} opts={null} />);
+              listChildren.push(<SvgVector key={ekey} vx={elem.vx} vy={elem.vy} px={0} py={0} label={null} color={color} vp={vp} hovered={false} linked={false} tipDraggable={false} opts={null} />);
               break;
             default: break;
           }
         });
+        if (listChildren.length > 0) {
+          backLayer.push(opacity < 1
+            ? <g key={`${id}-list`} opacity={opacity}>{listChildren}</g>
+            : <g key={`${id}-list`}>{listChildren}</g>
+          );
+        }
         break;
       }
       case 'positionedVector': {
@@ -772,9 +826,11 @@ export default function Canvas() {
         }
         break;
       }
-      case 'finitePoint':
-        frontLayer.push(<SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} />);
+      case 'finitePoint': {
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} />;
+        frontLayer.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
         break;
+      }
       case 'line': {
         // PGA-only — algebra.getRenderPlan returns the line MV; resolve its base+dir here.
         const bd = algebra.lineBaseAndDir?.(plan.L);
