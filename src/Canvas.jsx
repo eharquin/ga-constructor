@@ -235,9 +235,16 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
   if (shape === 'asterisk') {
     const arm = r_ring * 0.9;
     const d   = arm / Math.SQRT2;
+    const dotScale = hovered ? r_ring / r_dot : 1;
     return (
       <g>
-        <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={hovered ? 1 : 0.2} style={{ transition: 'fill-opacity 0.35s' }} />
+        <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />
+        <circle cx={cx} cy={cy} r={r_dot} fill={color}
+          style={{
+            transformOrigin: `${cx}px ${cy}px`,
+            transform: `scale(${dotScale})`,
+            transition: 'transform 0.35s ease',
+          }} />
         <line x1={cx - arm} y1={cy}       x2={cx + arm} y2={cy}       stroke={color} strokeWidth={sw} strokeLinecap="round" />
         <line x1={cx}       y1={cy - arm}  x2={cx}       y2={cy + arm}  stroke={color} strokeWidth={sw} strokeLinecap="round" />
         <line x1={cx - d}   y1={cy - d}    x2={cx + d}   y2={cy + d}    stroke={color} strokeWidth={sw} strokeLinecap="round" />
@@ -247,10 +254,16 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
     );
   }
 
+  const dotScale = hovered ? r_ring / r_dot : 1;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={hovered ? 1 : 0.2} style={{ transition: 'fill-opacity 0.35s' }} />
-      <circle cx={cx} cy={cy} r={r_dot} fill={color} />
+      <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />
+      <circle cx={cx} cy={cy} r={r_dot} fill={color}
+        style={{
+          transformOrigin: `${cx}px ${cy}px`,
+          transform: `scale(${dotScale})`,
+          transition: 'transform 0.35s ease',
+        }} />
       {renderLabel(label, cx, cy, opts)}
     </g>
   );
