@@ -237,7 +237,7 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
     const d   = arm / Math.SQRT2;
     return (
       <g>
-        <circle cx={cx} cy={cy} r={r_ring} style={{ fill: 'var(--bg-canvas)' }} />
+        <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />
         <line x1={cx - arm} y1={cy}       x2={cx + arm} y2={cy}       stroke={color} strokeWidth={sw} strokeLinecap="round" />
         <line x1={cx}       y1={cy - arm}  x2={cx}       y2={cy + arm}  stroke={color} strokeWidth={sw} strokeLinecap="round" />
         <line x1={cx - d}   y1={cy - d}    x2={cx + d}   y2={cy + d}    stroke={color} strokeWidth={sw} strokeLinecap="round" />
@@ -249,7 +249,7 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
 
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r_ring} style={{ fill: 'var(--bg-canvas)' }} />
+      <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />
       <circle cx={cx} cy={cy} r={r_dot} fill={color} />
       {renderLabel(label, cx, cy, opts)}
     </g>
