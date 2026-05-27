@@ -260,37 +260,6 @@
 
 /* ---- Color swatch ---- */
 
-.lock-toggle {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 11px;
-  line-height: 1;
-  opacity: 0.35;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.1s;
-}
-
-.lock-toggle:hover {
-  opacity: 1;
-}
-
-.lock-toggle.locked {
-  opacity: 1;
-}
-
-.lock-toggle-gap {
-  flex-shrink: 0;
-  width: 18px;
-  margin-right: 6px;
-}
 
 .color-swatch {
   flex-shrink: 0;

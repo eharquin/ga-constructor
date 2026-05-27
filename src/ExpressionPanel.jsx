@@ -418,19 +418,6 @@ export default function ExpressionPanel() {
                   <div className="play-btn-gap" />
                 )}
 
-                {/* Lock toggle — drag-eligible items only */}
-                {isDraggable ? (
-                  <button
-                    type="button"
-                    className={`lock-toggle${item.movable === false ? ' locked' : ''}`}
-                    onClick={() => setItemMovable(item.id, item.movable === false)}
-                    tabIndex={-1}
-                    title={item.movable === false ? 'Locked (click to allow drag)' : 'Movable (click to lock)'}
-                  >{item.movable === false ? '🔒' : '🔓'}</button>
-                ) : (
-                  <span className="lock-toggle-gap" />
-                )}
-
                 {/* Color swatch or play button (scalars) */}
                 {isScalar ? (
                   <button
@@ -812,6 +799,17 @@ export default function ExpressionPanel() {
           ? openPlan.elements.map((e, i) => ({ index: i, kind: e.kind }))
           : [];
         const openLabelOpts = openNode ? (labelOptsMap[openNode.id] ?? null) : null;
+        const openIsDraggable = (() => {
+          if (!openNode) return false;
+          if (openNode.type === 'freePoint' || openNode.type === 'vector') return true;
+          if (openNode.type === 'multivector') {
+            const { coeffExprs, components, dual } = openNode.params ?? {};
+            if (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined) return true;
+            if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) return true;
+            if (!dual && Math.abs(components?.[6] ?? 0) > 1e-10) return true;
+          }
+          return false;
+        })();
         return (
           <AppearancePanel
             open
@@ -819,6 +817,9 @@ export default function ExpressionPanel() {
             onClose={() => setPickerOpenId(null)}
             itemVisible={openItem.visible !== false}
             onVisibilityChange={(v) => setItemVisible(pickerOpenId, v)}
+            itemMovable={openItem.movable !== false}
+            itemDraggable={openIsDraggable}
+            onMovableChange={(v) => setItemMovable(pickerOpenId, v)}
             itemColor={openItem.color ?? null}
             kind={openKind}
             isList={isList}

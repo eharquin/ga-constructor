@@ -92,6 +92,8 @@
   font-size: 12px;
   color: var(--text);
 }
+.ap-row-label--short { flex: 0 0 auto; }
+.ap-row-sep { flex: 1; }
 .ap-unit { font-size: 11px; color: var(--text-muted); }
 
 /* ── Number input ── */

@@ -67,6 +67,7 @@ export default function AppearancePanel({
   open, anchorEl, onClose,
   // item state
   itemVisible, onVisibilityChange,
+  itemMovable, itemDraggable, onMovableChange,
   itemColor,
   kind, isList,
   // appearance
@@ -152,6 +153,17 @@ export default function AppearancePanel({
         </div>
       </div>
 
+      {/* ── Movable ── (draggable items only) */}
+      {itemDraggable && (
+        <section className="ap-section">
+          <div className="ap-section-title">Movable</div>
+          <div className="ap-row">
+            <span className="ap-row-label">Allow drag</span>
+            <Toggle checked={!!itemMovable} onChange={onMovableChange} label="Toggle movable" />
+          </div>
+        </section>
+      )}
+
       {/* ── Appearance ── */}
       {showAppearance && (
         <section className="ap-section">
@@ -159,10 +171,9 @@ export default function AppearancePanel({
           <div className="ap-row">
             <span className="ap-row-label">Opacity</span>
             <NumInput value={opacity ?? 1} onChange={onOpacityChange} min={0} max={1} step={0.05} />
-          </div>
-          <div className="ap-row">
-            <span className="ap-row-label">Size</span>
-            <NumInput value={scale ?? 1} onChange={onScaleChange} min={0.1} max={10} step={0.1} width={60} />
+            <span className="ap-row-sep" />
+            <span className="ap-row-label ap-row-label--short">Size</span>
+            <NumInput value={scale ?? 1} onChange={onScaleChange} min={0.1} max={10} step={0.1} width={52} />
           </div>
           {isPointKind && (
             <div className="ap-row">
@@ -224,12 +235,11 @@ export default function AppearancePanel({
         <div className="ap-section-title">Label</div>
         <div className="ap-row">
           <span className="ap-row-label">Angle</span>
-          <NumInput value={orientation} onChange={(v) => updLabelOpts({ orientation: v })} min={-180} max={180} step={5} width={60} />
+          <NumInput value={orientation} onChange={(v) => updLabelOpts({ orientation: v })} min={-180} max={180} step={5} width={52} />
           <span className="ap-unit">°</span>
-        </div>
-        <div className="ap-row">
-          <span className="ap-row-label">Font size</span>
-          <NumInput value={fontSize} onChange={(v) => updLabelOpts({ fontSize: Math.max(6, Math.min(36, Math.round(v))) })} min={6} max={36} step={1} width={52} />
+          <span className="ap-row-sep" />
+          <span className="ap-row-label ap-row-label--short">Size</span>
+          <NumInput value={fontSize} onChange={(v) => updLabelOpts({ fontSize: Math.max(6, Math.min(36, Math.round(v))) })} min={6} max={36} step={1} width={44} />
           <span className="ap-unit">px</span>
         </div>
         <div className="ap-row">
