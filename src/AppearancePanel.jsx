@@ -180,8 +180,8 @@ export default function AppearancePanel({
         </section>
       )}
 
-      {/* ── Color ── */}
-      <section className="ap-section">
+      {/* ── Color ── (not for scalars) */}
+      {kind !== 'scalar' && <section className="ap-section">
         <div className="ap-section-title">Color</div>
         {RAMP_ORDER.map((key) => {
           const ramp = PGA_PALETTE[key];
@@ -211,7 +211,7 @@ export default function AppearancePanel({
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* ── Label ── (not for scalars) */}
       {kind !== 'scalar' && <section className="ap-section">
