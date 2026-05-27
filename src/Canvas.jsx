@@ -757,7 +757,7 @@ export default function Canvas() {
   for (const id of orderedNodeIds) {
     const node = nodes[id];
     if (!node) continue;
-    if (hiddenIds.has(id)) continue;
+    const isHidden = hiddenIds.has(id);
     const val = values[id];
     if (val == null) continue;
     const color   = colorMap[id] ?? '#4444cc';
@@ -777,6 +777,15 @@ export default function Canvas() {
     // this; new algebras just have to return one of the supported kinds.
     const plan = getRenderPlan(val);
     if (!plan) continue;
+
+    // Hidden items: only finitePoints with a label get a label-only pass.
+    if (isHidden) {
+      if (plan.kind === 'finitePoint' && label) {
+        const { cx, cy } = w2c(plan.x, plan.y, vp);
+        frontLayer.push(<g key={`${id}-lbl`}>{renderLabel(label, cx, cy, opts)}</g>);
+      }
+      continue;
+    }
 
     switch (plan.kind) {
       case 'list': {
