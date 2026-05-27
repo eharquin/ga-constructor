@@ -6,6 +6,29 @@
 // Supports: +, -, *, /, ^ (wedge), & (Vee), unary -(neg), ! (dual), ~ (reverse),
 // parens, named nodes, scalar / trig built-ins, and basis blades.
 
+// ─── Named palette color constants ───────────────────────────────────────────
+// Available as bare identifiers in expressions: red, blue, green, yellow, gray.
+
+function _hexToRGB(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return { r, g, b };
+}
+
+function _makeColor(hex) {
+  const { r, g, b } = _hexToRGB(hex);
+  return { color: hex, r, g, b };
+}
+
+export const COLOR_CONSTS = {
+  red:    _makeColor('#C30A3A'),  // red-500
+  blue:   _makeColor('#1482C8'),  // blue-500
+  green:  _makeColor('#0F9D57'),  // green-500
+  yellow: _makeColor('#E8A000'),  // yellow-500
+  gray:   _makeColor('#8B93A4'),  // gray-500
+};
+
 // ─── Built-in scalar functions ───────────────────────────────────────────────
 
 const BUILTIN_FN_NAMES = new Set([
@@ -37,7 +60,7 @@ export function createEvalMVArith(algebra) {
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
   // Property names accepted after '.' that are not blade names.
-  const PROP_NAMES = new Set(['norm', 'inorm']);
+  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b']);
 
   // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
   const BASIS_ENV = (() => {
@@ -237,7 +260,7 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !seen.has(t.val)) {
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -380,7 +403,9 @@ export function createEvalMVArith(algebra) {
     const tokens = tokenize(str.trim());
     if (!tokens) return null;
 
-    const fullEnv = { ...BASIS_ENV, ...env };
+    // Merge order: user env takes priority over constants, but only when defined.
+    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS };
+    for (const [k, v] of Object.entries(env)) { if (v !== undefined) fullEnv[k] = v; }
     let pos = 0;
     const peek = () => tokens[pos];
     const eat  = () => tokens[pos++];
@@ -543,6 +568,10 @@ export function createEvalMVArith(algebra) {
             val = applyNorm(val);
           } else if (prop.val === 'inorm') {
             val = applyINorm(val);
+          } else if (prop.val === 'r' || prop.val === 'g' || prop.val === 'b') {
+            val = (val && typeof val === 'object' && typeof val.color === 'string')
+              ? (val[prop.val] ?? null)
+              : null;
           } else {
             const b = parseBladeName(prop.val);
             if (!b) return null;

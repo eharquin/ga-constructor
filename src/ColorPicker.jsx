@@ -4,10 +4,10 @@ import './ColorPicker.css';
 
 // PGA palette — brand ramps + neutrals.
 export const PGA_PALETTE = {
-  red:    { name: 'PGAred',    base: '#C30A3A', shades: ['#FADADF', '#F5A9B8', '#E8637F', '#C30A3A', '#92072B', '#60041C'] },
-  blue:   { name: 'PGAblue',   base: '#1482C8', shades: ['#D4EBFA', '#A0D0F4', '#55ABDF', '#1482C8', '#0D5F94', '#073D60'] },
-  green:  { name: 'PGAgreen',  base: '#0F9D57', shades: ['#C8F0DC', '#8DDCB4', '#41BF82', '#0F9D57', '#0A7540', '#064D2A'] },
-  yellow: { name: 'PGAyellow', base: '#E8A000', shades: ['#FDF0CB', '#FAD880', '#F0B833', '#E8A000', '#AA7500', '#6E4C00'] },
+  red:    { name: 'red',    base: '#C30A3A', shades: ['#FADADF', '#F5A9B8', '#E8637F', '#C30A3A', '#92072B', '#60041C'] },
+  blue:   { name: 'blue',   base: '#1482C8', shades: ['#D4EBFA', '#A0D0F4', '#55ABDF', '#1482C8', '#0D5F94', '#073D60'] },
+  green:  { name: 'green',  base: '#0F9D57', shades: ['#C8F0DC', '#8DDCB4', '#41BF82', '#0F9D57', '#0A7540', '#064D2A'] },
+  yellow: { name: 'yellow', base: '#E8A000', shades: ['#FDF0CB', '#FAD880', '#F0B833', '#E8A000', '#AA7500', '#6E4C00'] },
 };
 
 export const PGA_NEUTRALS = ['#F7F8FA', '#E1E4EA', '#C0C6D2', '#8B93A4', '#4E5668', '#1E2433'];

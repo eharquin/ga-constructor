@@ -24,6 +24,7 @@
 // builtins (sin, cos, PI …) — anything accepted by evalExpr.
 
 import { extractVarNames } from './evalExpr.js';
+import { COLOR_CONSTS } from './evalMVArith.js';
 
 const ID  = /[A-Za-z_][A-Za-z0-9_]*/;
 const NUM = /-?\d+(?:\.\d+)?/;
@@ -153,7 +154,7 @@ export function createParseExpression(algebra, evaluator) {
     const deps = [];
     for (const expr of exprs)
       for (const v of extractVarNames(expr, parseBladeName))
-        if (!seen.has(v)) { seen.add(v); deps.push(v); }
+        if (!(v in COLOR_CONSTS) && !seen.has(v)) { seen.add(v); deps.push(v); }
     return deps;
   }
 
