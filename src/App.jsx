@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { GraphProvider, useGraphContext } from './GraphContext.jsx';
 import { AlgebraProvider, useAlgebra } from './AlgebraContext.jsx';
 import { SettingsProvider, useSettings } from './SettingsContext.jsx';
+import { encodeGraph } from './urlHash.js';
 import ExpressionPanel from './ExpressionPanel.jsx';
 import Canvas from './Canvas.jsx';
 import './App.css';
@@ -37,7 +38,7 @@ function SavedGraphsControls() {
     if (!trimmed) return;
     setBusy(true);
     try {
-      await saveGraph(trimmed, { items, algebra: algebraId });
+      await saveGraph(trimmed, { items, algebra: algebraId, hash: encodeGraph(algebraId, items) });
       if (open) await refresh();
     } catch (e) { console.error(e); window.alert('Save failed: ' + e); }
     finally { setBusy(false); }
@@ -62,6 +63,19 @@ function SavedGraphsControls() {
       }
       setOpen(false);
     } catch (e) { console.error(e); window.alert('Load failed'); }
+    finally { setBusy(false); }
+  };
+
+  const handleCopyLink = async (name) => {
+    setBusy(true);
+    try {
+      const data = await loadGraph(name);
+      const hash = data.hash || encodeGraph(data.algebra, data.items);
+      const url = location.origin + location.pathname + location.search + hash;
+      try { await navigator.clipboard.writeText(url); }
+      catch { window.prompt('Copy this URL:', url); return; }
+      window.alert(`Link copied for "${name}"`);
+    } catch (e) { window.alert('Failed to get link: ' + e); }
     finally { setBusy(false); }
   };
 
@@ -93,6 +107,7 @@ function SavedGraphsControls() {
                       <span className="saved-graphs-name">{name}</span>
                       <span className="saved-graphs-actions">
                         <button className="modal-btn" onClick={() => handleLoad(name)} disabled={busy}>Load</button>
+                        <button className="modal-btn" onClick={() => handleCopyLink(name)} disabled={busy} title="Copy shareable link">🔗</button>
                         <button className="modal-btn modal-btn-danger" onClick={() => handleDelete(name)} disabled={busy} title="Delete">🗑</button>
                       </span>
                     </li>
@@ -104,6 +119,33 @@ function SavedGraphsControls() {
         </div>
       )}
     </>
+  );
+}
+
+function ShareButton() {
+  const { items } = useGraphContext();
+  const { algebraId } = useAlgebra();
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const hash = encodeGraph(algebraId, items);
+    const url = location.origin + location.pathname + location.search + hash;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt('Copy this URL:', url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      className="app-icon-btn"
+      onClick={handleShare}
+      title="Copy shareable link"
+    >{copied ? '✓' : '🔗'}</button>
   );
 }
 
@@ -207,6 +249,13 @@ function AppShell() {
   const { undo, redo, canUndo, canRedo } = useGraphContext();
   const dragRef = useRef(null);
 
+  // Clear the hash after loading so the URL stays clean for subsequent edits.
+  useEffect(() => {
+    if (window.location.hash) {
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('ga-theme', theme);
@@ -255,6 +304,7 @@ function AppShell() {
         <AlgebraSelect />
         <span className="app-header-spacer" />
         <UndoRedoControls />
+        <ShareButton />
         <SavedGraphsControls />
         <OptionsMenu />
         <button

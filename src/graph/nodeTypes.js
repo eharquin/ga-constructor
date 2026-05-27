@@ -12,6 +12,7 @@ import { evalScalar } from './evalExpr.js';
 
 export function createNodeTypes(algebra, evaluator) {
   const { Algebra, arraySize, dualOp, reverseOp, geomToMV } = algebra;
+  const expFn = algebra.expFn ?? ((mv) => mv.Exp());
   // PGA-only helpers (null on VGA) — used to guard the PGA-specific nodes.
   const point2D        = algebra.point2D        ?? null;
   const line2D         = algebra.line2D         ?? null;
@@ -103,7 +104,7 @@ export function createNodeTypes(algebra, evaluator) {
           if (!src || typeof src.length !== 'number' || src.length < arraySize) return null;
           const mv = new Algebra(arraySize);
           for (let i = 0; i < arraySize; i++) mv[i] = src[i] || 0;
-          return mv.Exp();
+          return expFn(mv);
         };
         if (raw?.list) return { list: true, items: raw.items.map(expOne).filter(Boolean) };
         return expOne(raw);

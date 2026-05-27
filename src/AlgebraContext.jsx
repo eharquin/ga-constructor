@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { ALGEBRAS, DEFAULT_ALGEBRA_ID, getAlgebra } from './algebras/index.js';
+import { readHashGraph } from './urlHash.js';
 
 const AlgebraContext = createContext(null);
 
 export function AlgebraProvider({ children, initialId = DEFAULT_ALGEBRA_ID }) {
-  const [algebraId, setAlgebraId] = useState(
-    () => localStorage.getItem('ga-algebra') || initialId
-  );
+  const [algebraId, setAlgebraId] = useState(() => {
+    const fromHash = readHashGraph();
+    if (fromHash?.algebra) return fromHash.algebra;
+    return localStorage.getItem('ga-algebra') || initialId;
+  });
 
   useEffect(() => {
     localStorage.setItem('ga-algebra', algebraId);

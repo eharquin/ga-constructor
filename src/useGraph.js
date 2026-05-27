@@ -1,4 +1,5 @@
 import { useReducer, useMemo, useRef, useState, useEffect } from 'react';
+import { readHashGraph } from './urlHash.js';
 
 // Format a number for expression text: strip floating-point noise, preserve useful decimals.
 const fmtNum = (val) => parseFloat(val.toFixed(6));
@@ -147,6 +148,10 @@ export function useGraph(algebra) {
   const TYPE_COLOR_FALLBACK  = algebra.TYPE_COLOR_FALLBACK ?? {};
 
   const [state, dispatch] = useReducer(reducer, null, () => {
+    const fromHash = readHashGraph();
+    if (fromHash?.algebra === algebra.id && fromHash.items?.length > 0) {
+      return initialState(fromHash.items);
+    }
     try {
       const saved = localStorage.getItem(`ga-items-${algebra.id}`);
       if (saved) {
@@ -499,9 +504,9 @@ export function useGraph(algebra) {
     if (!xHandled || !yHandled) {
       const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
       const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
-      const text = node.label !== null
-        ? `${nodeId} = point(${xPart}, ${yPart})`
-        : `point(${xPart}, ${yPart})`;
+      const text = algebra.freePointText
+        ? algebra.freePointText(node.label !== null ? nodeId : null, xPart, yPart)
+        : (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart})` : `point(${xPart}, ${yPart})`);
       dispatch({ type: 'SET_TEXT', id: item.id, text });
     }
   };
@@ -540,7 +545,6 @@ export function useGraph(algebra) {
     if (!node || node.type !== 'multivector') return;
     const { coeffExprs } = node.params;
     if (!coeffExprs) return;
-    const w = values[nodeId]?.[6] ?? 1;
     const applyCoeff = (expr, targetCoeff) => {
       if (!expr) return;
       const m = expr.match(/^(-?)([A-Za-z_][A-Za-z0-9_]*)$/);
@@ -550,8 +554,14 @@ export function useGraph(algebra) {
       if (!si) return;
       dispatch({ type: 'SET_TEXT', id: si.id, text: `${m[2]} = ${fmtNum(scalarVal)}` });
     };
-    if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);
-    if (coeffExprs[5] !== undefined) applyCoeff(coeffExprs[5], -x * w);
+    if (algebra.depPointCoords) {
+      const coords = algebra.depPointCoords(coeffExprs, values[nodeId], x, y);
+      for (const [idxStr, val] of Object.entries(coords)) applyCoeff(coeffExprs[+idxStr], val);
+    } else {
+      const w = values[nodeId]?.[6] ?? 1;
+      if (coeffExprs[4] !== undefined) applyCoeff(coeffExprs[4], y * w);
+      if (coeffExprs[5] !== undefined) applyCoeff(coeffExprs[5], -x * w);
+    }
   };
 
   const createScalarsFor = (itemId, varNames) => {
@@ -596,17 +606,35 @@ export function useGraph(algebra) {
       return n?.id === nodeId && n?.type === 'multivector' && !n.params?.dual;
     });
     if (!item) return;
-    const e01 = fmtNum(y);
-    const e02 = fmtNum(-x);
-    const term = (c, blade) => {
-      if (c === 0) return null;
-      if (c === 1) return blade;
-      if (c === -1) return `-${blade}`;
-      return `${c}*${blade}`;
-    };
-    const parts = [term(e01, 'e01'), term(e02, 'e02'), 'e12'].filter(Boolean);
-    const expr = parts.join(' + ').replace(/ \+ -/g, ' - ');
-    dispatch({ type: 'SET_TEXT', id: item.id, text: `${nodeId} = ${expr}` });
+    let text;
+    if (algebra.literalMVPointText) {
+      text = algebra.literalMVPointText(nodeId, x, y);
+    } else {
+      const e01 = fmtNum(y);
+      const e02 = fmtNum(-x);
+      const term = (c, blade) => {
+        if (c === 0) return null;
+        if (c === 1) return blade;
+        if (c === -1) return `-${blade}`;
+        return `${c}*${blade}`;
+      };
+      const parts = [term(e01, 'e01'), term(e02, 'e02'), 'e12'].filter(Boolean);
+      const expr = parts.join(' + ').replace(/ \+ -/g, ' - ');
+      text = `${nodeId} = ${expr}`;
+    }
+    dispatch({ type: 'SET_TEXT', id: item.id, text });
+  };
+
+  const updateScalarAsComplexPoint = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'scalar';
+    });
+    if (!item) return;
+    const text = algebra.freePointText
+      ? algebra.freePointText(nodeId, String(fmtNum(x)), String(fmtNum(y)))
+      : `${nodeId} = ${fmtNum(x)}`;
+    dispatch({ type: 'SET_TEXT', id: item.id, text });
   };
 
   // Find the item whose node id is anchorable in vectorPositions.
@@ -688,6 +716,7 @@ export function useGraph(algebra) {
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,
+    updateScalarAsComplexPoint,
     createScalarsFor,
     addFreePoint,
     algebra,

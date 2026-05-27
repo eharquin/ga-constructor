@@ -4,8 +4,9 @@
 
 import pga201 from './pga201/index.js';
 import vga200 from './vga200/index.js';
+import r010   from './r010/index.js';
 
-export const ALGEBRAS = [pga201, vga200];
+export const ALGEBRAS = [pga201, vga200, r010];
 
 export const DEFAULT_ALGEBRA_ID = pga201.id;
 

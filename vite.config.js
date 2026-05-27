@@ -59,6 +59,7 @@ function savedGraphsPlugin() {
               name,
               algebra: typeof parsed.algebra === 'string' ? parsed.algebra : null,
               items: Array.isArray(parsed.items) ? parsed.items : [],
+              hash: typeof parsed.hash === 'string' ? parsed.hash : null,
               savedAt: new Date().toISOString(),
             }
             await fs.writeFile(file, JSON.stringify(payload, null, 2))
