@@ -213,8 +213,8 @@ export default function AppearancePanel({
         )}
       </section>
 
-      {/* ── Label ── */}
-      <section className="ap-section">
+      {/* ── Label ── (not for scalars) */}
+      {kind !== 'scalar' && <section className="ap-section">
         <div className="ap-section-title">Label</div>
         <div className="ap-row">
           <span className="ap-row-label">Angle</span>
@@ -226,7 +226,7 @@ export default function AppearancePanel({
           <NumInput value={fontSize} onChange={(v) => updLabelOpts({ fontSize: Math.max(6, Math.min(36, Math.round(v))) })} min={6} max={36} step={1} width={52} />
           <span className="ap-unit">px</span>
         </div>
-      </section>
+      </section>}
 
       {/* ── List ── */}
       {isList && (
