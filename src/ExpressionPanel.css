@@ -472,6 +472,25 @@
   color: var(--error);
 }
 
+/* ---- Scalar slider ---- */
+.scalar-slider-row {
+  padding: 0 8px 4px 68px;
+  display: flex;
+  align-items: center;
+}
+
+.scalar-slider-row--dim {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.scalar-slider {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  accent-color: var(--accent2);
+}
+
 /* ---- Anim sub-row (interval input) ---- */
 .sub-row {
   display: flex;

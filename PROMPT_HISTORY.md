@@ -133,4 +133,22 @@ A chronological log of all prompts given to Claude in this project.
 
 71. **Operator precedence + norm extraction (branch `feat/operator-precedence`, PR #3)** — Replaced flat `parseTerm` in `evalMVArith.js` with a 4-level precedence ladder: `^ & | §` (tightest) → `* /` → `>>>` → `+ -` (loosest). Mirrored in `validate()`. `A * B ^ C` now parses as `A * (B^C)`; `M * N >>> A ^ B` as `(M*N) >>> (A^B)`. Also added norm extraction: `|expr|` uses smart norm (auto-detects finite vs ideal via `classifyMV`; plain `Math.abs` for scalars); `(expr).norm` forces finite norm (`Algebra.Length`); `(expr).inorm` forces ideal norm (`Algebra.Length(Dual(…))`). Fixed `|…|`/`|` ambiguity with `absDepth` counter. Added 5 example saved graphs.
 
+## 2026-05-28
+
+72. **Scalar slider below scalar expressions** — Added an `<input type="range">` row below each scalar expression that scrubs the value within its `[min, max]` animation interval. Dimmed when animMode is `'infinite'`.
+
+73. **Zero shown below scalar (3 rounds)** — Fixed `expr-result` showing `0` for zero-value scalars. Root cause chain: `'0'` truthy → `expr-result` rendered; then `formatMV` returning `'0'` → `expr-mv` rendered; then `hasPosition` returning `0` (falsy `||` chain) → React rendering `{0}` as text. Fixed with `!isScalar` guards on first two, `!!` coercion on last.
+
+74. **Non-draggable hollow ring** — `Q = M >>> P` (motorApply result) should not show the transparent hollow ring. Added `draggable` prop to `SvgPoint` and gated the ring on it; `isDragEligible` computed from node type.
+
+75. **Point ring size + vector tail appearance** — Reduced hollow ring radius from 14 to 10. Gave vector tails the same ring + animated-dot appearance as draggable points.
+
+76. **Independent tail/tip hover** — Split `hoveredId` into `hoveredId` + `hoveredDragType`. `tailHovered`/`tipHovered` derived from `hoveredDragType !== 'vectorTip'`. Hovering tip no longer animates tail, and vice versa.
+
+77. **Tooltip rename** — Changed color swatch `title` from `'Change color'` to `'Object menu'`.
+
+78. **NumStepper buttons** — Added `−`/`+` increment buttons to opacity, size, orientation, and font-size fields in `AppearancePanel`. New `NumStepper` component wrapping `NumInput`.
+
+79. **Variable references in appearance fields** — Opacity, size, label angle, and label font-size inputs now accept scalar variable names (e.g., `t`). Typing a variable name stores it as a string in `item.opacity`/`item.scale`/`labelOpts.orientation`/`labelOpts.fontSize`. Canvas resolves via `resolveField(raw, values, fallback)`. AppearancePanel shows variable name in italic with resolved value as tooltip; `+/-` buttons disabled when a variable is active.
+
 ---

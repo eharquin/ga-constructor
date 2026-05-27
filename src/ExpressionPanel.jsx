@@ -321,7 +321,7 @@ export default function ExpressionPanel() {
           const hasPosition = node?.type === 'vector' ||
                               positionKind === 'idealPoint' || positionKind === 'vector' ||
                               positionKind === 'bivector' ||
-                              (values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
+                              !!(values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
           const isDraggable = (() => {
             if (!node) return false;
             if (node.type === 'freePoint' || node.type === 'vector') return true;
@@ -433,7 +433,7 @@ export default function ExpressionPanel() {
                     ref={(el) => { if (el) swatchRefs.current[item.id] = el; }}
                     className={`color-swatch${isColorItem ? ' color-swatch--expr' : ''}`}
                     style={{ background: color }}
-                    title={isColorItem ? color : 'Change color'}
+                    title={isColorItem ? color : 'Object menu'}
                     tabIndex={-1}
                     onClick={isColorItem ? undefined : () => setPickerOpenId((id) => id === item.id ? null : item.id)}
                   />
@@ -483,9 +483,9 @@ export default function ExpressionPanel() {
                       {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
                     </button>
                   ) : (
-                    displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                    !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
                   )}
-                  {!isList && mvStr && <div className="expr-mv">{mvStr}</div>}
+                  {!isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
                 </div>
 
@@ -510,6 +510,26 @@ export default function ExpressionPanel() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Slider row — scalar only */}
+              {isScalar && node && (
+                <div className={`scalar-slider-row${animMode === 'infinite' ? ' scalar-slider-row--dim' : ''}`}>
+                  <input
+                    type="range"
+                    className="scalar-slider"
+                    min={Math.min(anim.min, anim.max)}
+                    max={Math.max(anim.min, anim.max)}
+                    step="any"
+                    value={Math.max(Math.min(anim.min, anim.max), Math.min(Math.max(anim.min, anim.max), node.params.value ?? 0))}
+                    disabled={animMode === 'infinite'}
+                    onChange={(e) => {
+                      const val = parseFloat(parseFloat(e.target.value).toFixed(6));
+                      setItemText(item.id, `${node.id} = ${val}`);
+                    }}
+                    tabIndex={-1}
+                  />
                 </div>
               )}
 
@@ -790,6 +810,12 @@ export default function ExpressionPanel() {
       {(() => {
         const openItem = pickerOpenId != null ? items.find((x) => x.id === pickerOpenId) : null;
         if (!openItem) return null;
+        const resolveScalar = (name) => {
+          const v = values[name];
+          if (typeof v === 'number') return v;
+          if (Array.isArray(v) && typeof v[0] === 'number') return v[0];
+          return null;
+        };
         const openNode = parseExpression(openItem.text);
         const openVal  = openNode ? values[openNode.id] : null;
         const openPlan = openVal != null ? algebra.getRenderPlan?.(openVal) : null;
@@ -825,6 +851,7 @@ export default function ExpressionPanel() {
             isList={isList}
             opacity={openItem.opacity ?? 1}
             scale={openItem.scale ?? 1}
+            resolveScalar={resolveScalar}
             pointShape={openItem.pointShape ?? 'circle'}
             onOpacityChange={(v) => setItemOpacity(pickerOpenId, v)}
             onScaleChange={(v) => setItemScale(pickerOpenId, v)}

@@ -25,22 +25,43 @@ function Toggle({ checked, onChange, label }) {
   );
 }
 
-function NumInput({ value, onChange, min = 0, max = 1, step = 0.05, width = 52 }) {
+function NumStepper({ value, onChange, min = 0, max = 1, step = 0.05, width = 36, resolveScalar }) {
+  const isVar = typeof value === 'string';
+  const resolved = isVar ? resolveScalar?.(value) : null;
+  const clamp = (v) => Math.max(min, Math.min(max, parseFloat(v.toFixed(6))));
+  return (
+    <div className="ap-stepper">
+      <button type="button" className="ap-step-btn" onClick={() => !isVar && onChange(clamp(value - step))} tabIndex={-1} disabled={isVar}>−</button>
+      <NumInput value={value} onChange={onChange} min={min} max={max} step={step} width={width} resolvedHint={resolved} />
+      <button type="button" className="ap-step-btn" onClick={() => !isVar && onChange(clamp(value + step))} tabIndex={-1} disabled={isVar}>+</button>
+    </div>
+  );
+}
+
+function NumInput({ value, onChange, min = 0, max = 1, step = 0.05, width = 52, resolvedHint }) {
   const [local, setLocal] = useState('');
   const editing = useRef(false);
-  const display = editing.current ? local : String(parseFloat((value ?? 0).toFixed(3)));
+  const isVar = typeof value === 'string';
+  const display = editing.current ? local : (isVar ? value : String(parseFloat((value ?? 0).toFixed(3))));
+  const hint = isVar && resolvedHint != null ? `= ${parseFloat(resolvedHint.toFixed(3))}` : undefined;
   return (
     <input
-      type="number" min={min} max={max} step={step}
-      className="ap-num"
+      type="text"
+      className={`ap-num${isVar ? ' ap-num--var' : ''}`}
       style={{ width }}
       value={display}
+      title={hint}
       onFocus={() => { editing.current = true; setLocal(display); }}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => {
         editing.current = false;
-        const v = parseFloat(local);
-        if (!isNaN(v)) onChange(Math.max(min, Math.min(max, v)));
+        const trimmed = local.trim();
+        if (/^[A-Za-z_]\w*$/.test(trimmed)) {
+          onChange(trimmed);
+        } else {
+          const v = parseFloat(trimmed);
+          if (!isNaN(v)) onChange(Math.max(min, Math.min(max, v)));
+        }
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur();
@@ -81,6 +102,8 @@ export default function AppearancePanel({
   // list
   showOutline, showFill, listElements, hiddenElements,
   onOutlineChange, onFillChange, onElementToggle,
+  // scalar variable resolver
+  resolveScalar,
 }) {
   const popoverRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -170,10 +193,10 @@ export default function AppearancePanel({
           <div className="ap-section-title">Appearance</div>
           <div className="ap-row">
             <span className="ap-row-label">Opacity</span>
-            <NumInput value={opacity ?? 1} onChange={onOpacityChange} min={0} max={1} step={0.05} />
+            <NumStepper value={opacity ?? 1} onChange={onOpacityChange} min={0} max={1} step={0.05} resolveScalar={resolveScalar} />
             <span className="ap-row-sep" />
             <span className="ap-row-label ap-row-label--short">Size</span>
-            <NumInput value={scale ?? 1} onChange={onScaleChange} min={0.1} max={10} step={0.1} width={52} />
+            <NumStepper value={scale ?? 1} onChange={onScaleChange} min={0.1} max={10} step={0.1} resolveScalar={resolveScalar} />
           </div>
           {isPointKind && (
             <div className="ap-row">
@@ -235,11 +258,11 @@ export default function AppearancePanel({
         <div className="ap-section-title">Label</div>
         <div className="ap-row">
           <span className="ap-row-label">Angle</span>
-          <NumInput value={orientation} onChange={(v) => updLabelOpts({ orientation: v })} min={-180} max={180} step={5} width={52} />
+          <NumStepper value={orientation} onChange={(v) => updLabelOpts({ orientation: v })} min={-180} max={180} step={5} resolveScalar={resolveScalar} />
           <span className="ap-unit">°</span>
           <span className="ap-row-sep" />
           <span className="ap-row-label ap-row-label--short">Size</span>
-          <NumInput value={fontSize} onChange={(v) => updLabelOpts({ fontSize: Math.max(6, Math.min(36, Math.round(v))) })} min={6} max={36} step={1} width={44} />
+          <NumStepper value={fontSize} onChange={(v) => updLabelOpts({ fontSize: typeof v === 'string' ? v : Math.max(6, Math.min(36, Math.round(v))) })} min={6} max={36} step={1} width={32} resolveScalar={resolveScalar} />
           <span className="ap-unit">px</span>
         </div>
         <div className="ap-row">

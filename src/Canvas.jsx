@@ -23,6 +23,16 @@ function roundToScale(val, scale) {
   return parseFloat(val.toFixed(decimals));
 }
 
+function resolveField(raw, values, fallback) {
+  if (typeof raw === 'string') {
+    const v = values[raw];
+    if (typeof v === 'number') return v;
+    if (Array.isArray(v) && typeof v[0] === 'number') return v[0];
+    return fallback;
+  }
+  return raw ?? fallback;
+}
+
 function svgPt(e, svg) {
   const r = svg.getBoundingClientRect();
   return { mx: e.clientX - r.left, my: e.clientY - r.top };
@@ -225,11 +235,11 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1 }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1, draggable = true }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
   const r_dot  = 4.5 * weight * scale;
-  const r_ring = 14  * weight * scale;
+  const r_ring = 10  * weight * scale;
   const sw     = Math.max(1.5, 2 * weight * scale);
 
   if (shape === 'asterisk') {
@@ -238,7 +248,7 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
     const dotScale = hovered ? r_ring / r_dot : 1;
     return (
       <g>
-        <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />
+        {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
         <circle cx={cx} cy={cy} r={r_dot} fill={color}
           style={{
             transformOrigin: `${cx}px ${cy}px`,
@@ -257,7 +267,7 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
   const dotScale = hovered ? r_ring / r_dot : 1;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />
+      {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
       <circle cx={cx} cy={cy} r={r_dot} fill={color}
         style={{
           transformOrigin: `${cx}px ${cy}px`,
@@ -334,7 +344,7 @@ function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
   );
 }
 
-function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDraggable = true, opts }) {
+function SvgVector({ vx, vy, px, py, label, color, vp, tailHovered = false, tipHovered = false, linked, tipDraggable = true, opts }) {
   const tail = w2c(px, py, vp);
   const tip  = w2c(px + vx, py + vy, vp);
   const dx   = tip.cx - tail.cx;
@@ -353,26 +363,30 @@ function SvgVector({ vx, vy, px, py, label, color, vp, hovered, linked, tipDragg
     ].join(' ');
   }
 
-  const tailR = hovered ? 7 : 5;
+  const r_dot  = 4.5;
+  const r_ring = 10;
+  const tailDotScale = tailHovered ? r_ring / r_dot : 1;
 
   return (
     <g>
       <line x1={tail.cx} y1={tail.cy} x2={tip.cx} y2={tip.cy}
-            stroke={color} strokeWidth={hovered ? 2.5 : 2} strokeLinecap="round" />
+            stroke={color} strokeWidth={(tailHovered || tipHovered) ? 2.5 : 2} strokeLinecap="round" />
       {arrowPts && <polygon points={arrowPts} fill={color} />}
-      {hovered && tipDraggable && len > 8 && (
+      {tipHovered && tipDraggable && len > 8 && (
         <circle cx={tip.cx} cy={tip.cy} r={5}
                 fill="none" style={{ stroke: 'var(--point-ring-hover)' }} strokeWidth={1.5} />
       )}
       {!linked ? (
         <>
-          {hovered && <circle cx={tail.cx} cy={tail.cy} r={tailR + 4} fill={color + '28'} />}
-          <circle cx={tail.cx} cy={tail.cy} r={tailR}
-                  fill={color}
-                  style={{ stroke: hovered ? 'var(--point-stroke-hover)' : 'var(--point-stroke)' }}
-                  strokeWidth={hovered ? 2 : 1.5} />
+          <circle cx={tail.cx} cy={tail.cy} r={r_ring} fill={color} fillOpacity={0.2} />
+          <circle cx={tail.cx} cy={tail.cy} r={r_dot} fill={color}
+                  style={{
+                    transformOrigin: `${tail.cx}px ${tail.cy}px`,
+                    transform: `scale(${tailDotScale})`,
+                    transition: 'transform 0.35s ease',
+                  }} />
         </>
-      ) : hovered && (
+      ) : (tailHovered || tipHovered) && (
         <circle cx={tail.cx} cy={tail.cy} r={11}
                 fill="none" stroke={color + 'bb'}
                 strokeWidth={1.5} strokeDasharray="3 3" />
@@ -611,11 +625,12 @@ export default function Canvas() {
   const [vp,        setVp]        = useState(INITIAL_VP);
   const [size,      setSize]      = useState({ w: 800, h: 600 });
   const [cursor,    setCursor]    = useState('grab');
-  const [hoveredId, setHoveredId] = useState(null);
+  const [hoveredId,       setHoveredId]       = useState(null);
+  const [hoveredDragType, setHoveredDragType] = useState(null);
 
   const dragRef     = useRef(null);
   const ptDragRef   = useRef(null);
-  const hovIdRef    = useRef(null);
+  const hovIdRef    = useRef({ id: null, dragType: null });
   const prevSizeRef = useRef({ w: 800, h: 600 });
 
   const snap = useRef(null);
@@ -718,13 +733,15 @@ export default function Canvas() {
       setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
     } else {
-      const hit   = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap, algebra);
-      const hitId = hit?.id ?? null;
+      const hit         = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap, algebra);
+      const hitId       = hit?.id       ?? null;
+      const hitDragType = hit?.dragType ?? null;
       const newCursor = hitId ? 'pointer' : 'grab';
       if (newCursor !== cursor) setCursor(newCursor);
-      if (hitId !== hovIdRef.current) {
-        hovIdRef.current = hitId;
+      if (hitId !== hovIdRef.current.id || hitDragType !== hovIdRef.current.dragType) {
+        hovIdRef.current = { id: hitId, dragType: hitDragType };
         setHoveredId(hitId);
+        setHoveredDragType(hitDragType);
       }
     }
   }
@@ -762,12 +779,19 @@ export default function Canvas() {
     if (val == null) continue;
     const color   = colorMap[id] ?? '#4444cc';
     const label   = labelMap[id] ?? null;
-    const opts    = labelOptsMap[id] ?? null;
-    const hovered = id === hoveredId;
+    const rawOpts = labelOptsMap[id] ?? null;
+    const opts    = rawOpts ? {
+      ...rawOpts,
+      fontSize:    resolveField(rawOpts.fontSize,    values, 13),
+      orientation: resolveField(rawOpts.orientation, values, 0),
+    } : null;
+    const hovered     = id === hoveredId;
+    const tailHovered = hovered && hoveredDragType !== 'vectorTip';
+    const tipHovered  = hovered && hoveredDragType === 'vectorTip';
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
     const appear  = appearanceMap[id] ?? {};
-    const opacity = appear.opacity ?? 1;
-    const scale   = appear.scale   ?? 1;
+    const opacity = resolveField(appear.opacity, values, 1);
+    const scale   = resolveField(appear.scale,   values, 1);
     const shape   = appear.pointShape ?? 'circle';
 
     // Scalar-valued nodes (triangle, meetChain) have no canvas presence.
@@ -807,7 +831,7 @@ export default function Canvas() {
           const ekey = `${id}-e${ei}`;
           switch (elem.kind) {
             case 'finitePoint':
-              frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} />);
+              frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} draggable={false} />);
               break;
             case 'line': {
               const bd = algebra.lineBaseAndDir?.(elem.L);
@@ -815,7 +839,7 @@ export default function Canvas() {
               break;
             }
             case 'positionedVector':
-              listChildren.push(<SvgVector key={ekey} vx={elem.vx} vy={elem.vy} px={0} py={0} label={null} color={color} vp={vp} hovered={false} linked={false} tipDraggable={false} opts={null} />);
+              listChildren.push(<SvgVector key={ekey} vx={elem.vx} vy={elem.vy} px={0} py={0} label={null} color={color} vp={vp} tailHovered={false} tipHovered={false} linked={false} tipDraggable={false} opts={null} />);
               break;
             default: break;
           }
@@ -835,7 +859,7 @@ export default function Canvas() {
         const tipDraggable = (plan.tipDraggable ?? true) && node.type === 'vector';
         backLayer.push(
           <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
-            label={label} color={color} vp={vp} hovered={hovered} linked={pos.linked}
+            label={label} color={color} vp={vp} tailHovered={tailHovered} tipHovered={tipHovered} linked={pos.linked}
             tipDraggable={tipDraggable} opts={opts} />
         );
         if (hasIdealLine && plan.ringMarker !== false) {
@@ -847,7 +871,23 @@ export default function Canvas() {
         break;
       }
       case 'finitePoint': {
-        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} />;
+        const isDragEligible = movableMap[id] !== false && (() => {
+          if (node.type === 'freePoint') return true;
+          if (node.type === 'scalar') return true;
+          if (node.type === 'multivector') {
+            const { coeffExprs, components, dual } = node.params ?? {};
+            const hasVar = algebra.hasDepPointCoeffs
+              ? algebra.hasDepPointCoeffs(coeffExprs)
+              : (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined);
+            if (hasVar) return true;
+            if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) return true;
+            return !dual && (algebra.isLitMVPoint
+              ? algebra.isLitMVPoint(components, val)
+              : Math.abs(components?.[6] ?? 0) > 1e-10);
+          }
+          return false;
+        })();
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} />;
         frontLayer.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
         break;
       }
