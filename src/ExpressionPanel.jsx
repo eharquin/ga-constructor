@@ -535,7 +535,7 @@ export default function ExpressionPanel() {
                     className="scalar-slider"
                     min={Math.min(anim.min, anim.max)}
                     max={Math.max(anim.min, anim.max)}
-                    step="any"
+                    step={Math.abs(anim.step) || 'any'}
                     value={Math.max(Math.min(anim.min, anim.max), Math.min(Math.max(anim.min, anim.max), node.params.value ?? 0))}
                     disabled={animMode === 'infinite'}
                     onChange={(e) => {
