@@ -183,6 +183,28 @@ function SvgGrid({ vp, W, H }) {
   for (let wx = Math.floor(minX / step) * step; wx <= maxX; wx += step) wxs.push(wx);
   for (let wy = Math.floor(minY / step) * step; wy <= maxY; wy += step) wys.push(wy);
 
+  // Minor grid: subdivide each major square into 5 parts. Skip lines that
+  // coincide with a major line (every 5th), and only render when minor
+  // spacing is wide enough to read.
+  const minorStep = step / 5;
+  const minorPx   = minorStep * vp.scale;
+  const showMinor = minorPx >= 8;
+  const minorXs = [], minorYs = [];
+  if (showMinor) {
+    const startX = Math.floor(minX / minorStep) * minorStep;
+    for (let wx = startX; wx <= maxX; wx += minorStep) {
+      const k = Math.round(wx / minorStep);
+      if (k % 5 === 0) continue; // overlaps a major line
+      minorXs.push(wx);
+    }
+    const startY = Math.floor(minY / minorStep) * minorStep;
+    for (let wy = startY; wy <= maxY; wy += minorStep) {
+      const k = Math.round(wy / minorStep);
+      if (k % 5 === 0) continue;
+      minorYs.push(wy);
+    }
+  }
+
   const { cx: ox, cy: oy } = w2c(0, 0, vp);
 
   // X-axis label row: clamp to visible band, flip to bottom when axis is off-top
@@ -198,6 +220,14 @@ function SvgGrid({ vp, W, H }) {
 
   return (
     <g>
+      {minorXs.map((wx, i) => {
+        const { cx } = w2c(wx, 0, vp);
+        return <line key={`mx${i}`} x1={cx} y1={0} x2={cx} y2={H} style={{ stroke: 'var(--grid-line-minor)' }} strokeWidth={1} />;
+      })}
+      {minorYs.map((wy, i) => {
+        const { cy } = w2c(0, wy, vp);
+        return <line key={`my${i}`} x1={0} y1={cy} x2={W} y2={cy} style={{ stroke: 'var(--grid-line-minor)' }} strokeWidth={1} />;
+      })}
       {wxs.map((wx, i) => {
         const { cx } = w2c(wx, 0, vp);
         return <line key={i} x1={cx} y1={0} x2={cx} y2={H} style={{ stroke: 'var(--grid-line)' }} strokeWidth={1} />;

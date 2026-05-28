@@ -49,6 +49,7 @@ html, body, #root {
 
   /* Canvas overlays */
   --grid-line:          #E1E4EA;
+  --grid-line-minor:    #F1F3F7;
   --axis-line:          rgba(78, 86, 104, 0.4);   /* gray-700 alpha */
   --grid-label:         #8B93A4;
   --point-stroke:       rgba(30, 36, 51, 0.18);   /* gray-900 alpha */
@@ -88,6 +89,7 @@ html, body, #root {
   --border-divider:     #262E40;
 
   --grid-line:          #262E40;
+  --grid-line-minor:    #1B2233;
   --axis-line:          rgba(192, 198, 210, 0.35);  /* gray-300 alpha */
   --grid-label:         #8B93A4;
   --point-stroke:       rgba(225, 228, 234, 0.20);  /* gray-100 alpha */
