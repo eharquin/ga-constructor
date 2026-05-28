@@ -146,7 +146,7 @@ export const SUPPORTED_NODE_TYPES = new Set([
   'scalar', 'vector',
   'motorExp', 'motorApply',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
-  'color',
+  'color', 'funcDef',
 ]);
 
 // ─── Colors ─────────────────────────────────────────────────────────────────

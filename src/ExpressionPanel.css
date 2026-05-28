@@ -331,6 +331,26 @@
   cursor: default;
 }
 
+/* ƒ badge shown in place of the swatch / play stack for function-definition rows */
+.func-badge {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--accent2);
+  color: var(--accent2);
+  margin-right: 10px;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+  font-family: 'Cambria Math', 'Latin Modern Math', serif;
+  font-size: 12px;
+  line-height: 1;
+}
+
 .color-swatch:hover {
   border-color: var(--point-stroke-hover);
   transform: scale(1.15);

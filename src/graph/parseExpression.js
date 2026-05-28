@@ -24,7 +24,13 @@
 // builtins (sin, cos, PI …) — anything accepted by evalExpr.
 
 import { extractVarNames } from './evalExpr.js';
-import { COLOR_CONSTS } from './evalMVArith.js';
+import { COLOR_CONSTS, BUILTIN_FN_NAMES } from './evalMVArith.js';
+
+// Top-level constructor names (parser handles these specially — defining a
+// user function with one of these names would shadow the builtin form).
+const BUILTIN_CONSTRUCTOR_NAMES = new Set([
+  'point', 'line', 'vector', 'color', 'triangle', 'exp',
+]);
 
 const ID  = /[A-Za-z_][A-Za-z0-9_]*/;
 const NUM = /-?\d+(?:\.\d+)?/;
@@ -213,6 +219,36 @@ export function createParseExpression(algebra, evaluator) {
   return function parseExpression(text) {
     if (!text || !text.trim()) return null;
     const t = text.trim();
+
+    // Function definition: name(p1, p2, ...) = body  (must come before the
+    // value-assignment branch because both start with an identifier).
+    if (accepts('funcDef')) {
+      const fnDef = t.match(new RegExp(`^(${ID.source})${WS.source}\\(([^)]*)\\)${WS.source}=${WS.source}(.+)$`));
+      if (fnDef) {
+        const name = fnDef[1];
+        const paramStr = fnDef[2];
+        const body = fnDef[3].trim();
+        if (BUILTIN_FN_NAMES.has(name) || BUILTIN_CONSTRUCTOR_NAMES.has(name)) {
+          return null; // name collides with a builtin — row shows invalid
+        }
+        const paramNames = paramStr.trim() ? paramStr.split(',').map((s) => s.trim()) : [];
+        if (!paramNames.every((p) => new RegExp(`^${ID.source}$`).test(p))) return null;
+        if (new Set(paramNames).size !== paramNames.length) return null;
+        const bodyDeps = extractMVDeps(body);
+        if (bodyDeps === null) return null; // body must parse as a valid mv expression
+        // Capture globals referenced in the body (excluding parameters and the
+        // function's own name — self-name passes through env at call time so
+        // recursion still works, without creating a cycle in topo-sort).
+        const captureDeps = bodyDeps.filter((d) => !paramNames.includes(d) && d !== name);
+        return {
+          id: name,
+          label: name,
+          type: 'funcDef',
+          deps: captureDeps,
+          params: { name, paramNames, body, captureDeps },
+        };
+      }
+    }
 
     const assign = t.match(new RegExp(`^(${ID.source})${WS.source}=${WS.source}(.+)$`));
     let label, expr;

@@ -77,7 +77,7 @@ export const SUPPORTED_NODE_TYPES = new Set([
   'motorExp', 'motorApply',
   'joinLine', 'meetPoint', 'meetChain', 'triangle',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
-  'color',
+  'color', 'funcDef',
 ]);
 
 // ─── Color palette keyed by classifyMV().kind ───────────────────────────────

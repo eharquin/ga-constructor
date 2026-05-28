@@ -206,6 +206,16 @@ export function createNodeTypes(algebra, evaluator) {
       },
     },
 
+    funcDef: {
+      label: 'Function definition',
+      compute: (depValues, { paramNames, body, captureDeps }) => ({
+        kind: 'function',
+        paramNames,
+        body,
+        capturedEnv: Object.fromEntries((captureDeps ?? []).map((d, i) => [d, depValues[i]])),
+      }),
+    },
+
     dual: {
       label: 'Dual',
       compute: ([val]) => {

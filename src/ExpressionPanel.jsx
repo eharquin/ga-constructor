@@ -460,6 +460,7 @@ export default function ExpressionPanel({ onHide }) {
           const hasError   = isInvalid || isDupLabel;
           const isScalar    = node?.type === 'scalar';
           const isColorItem = node?.type === 'color';
+          const isFuncDef   = node?.type === 'funcDef';
           // Position sub-row applies to vector nodes plus any anchorable value:
           // ideal point (PGA dual etc.), grade-1 vector (VGA), or bivector.
           const positionKind = node ? classifyMV(values[node.id])?.kind : null;
@@ -483,7 +484,7 @@ export default function ExpressionPanel({ onHide }) {
           const isList      = !!val_?.list;
           const DRAWABLE_KINDS = new Set(['finitePoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
-          const canUnitize  = node && node.type !== 'scalar' && !isList;
+          const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList;
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
@@ -550,6 +551,8 @@ export default function ExpressionPanel({ onHide }) {
                 {/* Error pastille (replaces play-area / color swatch when invalid) */}
                 {hasError ? (
                   <div className="error-pastille" title={isDupLabel ? `Duplicate label: ${node?.label}` : 'Invalid expression'} aria-label="Error" />
+                ) : isFuncDef ? (
+                  <div className="func-badge" title={`Function ${node.params.name}(${node.params.paramNames.join(', ')})`} aria-label="Function">ƒ</div>
                 ) : isScalar ? (
                   <div className="play-area">
                     <button
@@ -611,7 +614,7 @@ export default function ExpressionPanel({ onHide }) {
                     onFocus={() => handleEditFocus(item.id)}
                     onBlur={handleEditBlur}
                   />
-                  {!hasError && isList ? (
+                  {!hasError && !isFuncDef && isList ? (
                     <button
                       className="list-toggle"
                       style={{ color }}
@@ -625,9 +628,12 @@ export default function ExpressionPanel({ onHide }) {
                       {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
                     </button>
                   ) : (
-                    !hasError && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                    !hasError && !isFuncDef && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
                   )}
-                  {!hasError && !isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
+                  {!hasError && !isFuncDef && !isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
+                  {isFuncDef && (
+                    <div className="expr-mv">Function ({node.params.paramNames.join(', ')})</div>
+                  )}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
                   {!isInvalid && isDupLabel && (
                     <div className="expr-error">duplicate label: {node.label}</div>

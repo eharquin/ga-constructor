@@ -31,11 +31,13 @@ export const COLOR_CONSTS = {
 
 // ─── Built-in scalar functions ───────────────────────────────────────────────
 
-const BUILTIN_FN_NAMES = new Set([
+export const BUILTIN_FN_NAMES = new Set([
   'sqrt', 'abs', 'len',
   'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
   'asin', 'acos', 'atan', 'acsc', 'asec', 'acot',
 ]);
+
+const MAX_USER_CALL_DEPTH = 64;
 
 const TRIG_FNS = {
   sin:  Math.sin,
@@ -94,7 +96,7 @@ export function createEvalMVArith(algebra) {
         continue;
       }
       if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
-      if ('+-*/()!~^&|.§[]'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
+      if ('+-*/()!~^&|.§[],'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
       if (c === ':') { raw.push({ type: 'op', val: ':' }); i++; continue; }
       return null;
     }
@@ -236,10 +238,20 @@ export function createEvalMVArith(algebra) {
       if (t.type === 'num') { eat(); return true; }
       if (t.type === 'id') {
         eat();
-        if (BUILTIN_FN_NAMES.has(t.val)) {
-          if (!peek() || peek().type !== 'op' || peek().val !== '(') return false;
+        // Any id followed by '(' is treated syntactically as a function call
+        // (builtin or user-defined); the call dispatcher in parseFactor handles
+        // name resolution and arity checking.
+        if (peek()?.type === 'op' && peek().val === '(') {
           eat();
+          if (peek()?.type === 'op' && peek().val === ')') {
+            eat();
+            return true;
+          }
           if (!expr()) return false;
+          while (peek()?.type === 'op' && peek().val === ',') {
+            eat();
+            if (!expr()) return false;
+          }
           if (!peek() || peek().type !== 'op' || peek().val !== ')') return false;
           eat();
         }
@@ -519,32 +531,70 @@ export function createEvalMVArith(algebra) {
         eat(); val = t.val;
       } else if (t.type === 'id') {
         eat();
-        if (BUILTIN_FN_NAMES.has(t.val)) {
-          if (!peek() || peek().val !== '(') return null;
+        if (peek()?.type === 'op' && peek().val === '(') {
+          // id(arg1, arg2, ...) — builtin or user-function call.
           eat();
-          const arg = parseExpr();
-          if (!peek() || peek().val !== ')') return null;
-          eat();
-          if (arg === null) return null;
-          if (t.val === 'len') { val = arg?.list ? arg.items.length : null; }
-          else if (t.val === 'abs') { val = applyAbs(arg); }
-          else if (TRIG_FNS[t.val]) { val = applyScalarFn(TRIG_FNS[t.val], arg); }
-          else if (t.val === 'sqrt') {
-            if (typeof arg === 'number') { val = Math.sqrt(arg); }
+          const args = [];
+          if (peek()?.type === 'op' && peek().val === ')') {
+            eat();
+          } else {
+            const a0 = parseExpr();
+            if (a0 === null) return null;
+            args.push(a0);
+            while (peek()?.type === 'op' && peek().val === ',') {
+              eat();
+              const a = parseExpr();
+              if (a === null) return null;
+              args.push(a);
+            }
+            if (!peek() || peek().val !== ')') return null;
+            eat();
+          }
+
+          if (BUILTIN_FN_NAMES.has(t.val)) {
+            if (args.length !== 1) { val = null; }
             else {
-              const mv = toMV(arg);
-              if (!mv) { val = null; }
-              else if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
-                const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
-              } else {
-                const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
-                const log = normalised.Log();
-                const half = new Algebra(arraySize);
-                for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
-                val = half.Exp();
+              const arg = args[0];
+              if (t.val === 'len') { val = arg?.list ? arg.items.length : null; }
+              else if (t.val === 'abs') { val = applyAbs(arg); }
+              else if (TRIG_FNS[t.val]) { val = applyScalarFn(TRIG_FNS[t.val], arg); }
+              else if (t.val === 'sqrt') {
+                if (typeof arg === 'number') { val = Math.sqrt(arg); }
+                else {
+                  const mv = toMV(arg);
+                  if (!mv) { val = null; }
+                  else if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
+                    const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
+                  } else {
+                    const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
+                    const log = normalised.Log();
+                    const half = new Algebra(arraySize);
+                    for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
+                    val = half.Exp();
+                  }
+                }
+              } else { val = null; }
+            }
+          } else {
+            // User-function dispatch: look up `{ kind: 'function', paramNames, body, capturedEnv }` in env.
+            const fn = fullEnv[t.val];
+            if (!fn || typeof fn !== 'object' || fn.kind !== 'function') { val = null; }
+            else if (args.length !== fn.paramNames.length) { val = null; }
+            else {
+              const depth = (env?.__callDepth ?? 0) + 1;
+              if (depth > MAX_USER_CALL_DEPTH) { val = null; }
+              else {
+                // Merge: outer call-site env (so the function name itself stays
+                // resolvable for recursion), then the captured globals snapshot
+                // (from def-time deps), then parameter bindings.
+                const childEnv = { ...(env ?? {}), ...(fn.capturedEnv ?? {}), __callDepth: depth };
+                for (let i = 0; i < fn.paramNames.length; i++) {
+                  childEnv[fn.paramNames[i]] = args[i];
+                }
+                val = evalMVArith(fn.body, childEnv);
               }
             }
-          } else { val = null; }
+          }
         } else {
           const v = fullEnv[t.val];
           val = v !== undefined ? v : (() => {
