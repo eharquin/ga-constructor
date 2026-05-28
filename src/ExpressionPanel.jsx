@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
 import { useSettings } from './SettingsContext.jsx';
@@ -173,6 +174,84 @@ const ANIM_MODES = [
 const SPEED_LEVELS = [0.25, 0.5, 1, 2, 4, 8];
 const fmtSpeed = (s) => `${s}x`;
 
+// Portal popover for the per-scalar animation mode/speed menu.
+function AnimMenuPopover({ anchorEl, animMode, animSpeed, onModeChange, onSpeedChange, onClose }) {
+  const popRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const POP_W = 196;
+
+  useLayoutEffect(() => {
+    if (!anchorEl) return;
+    const r = anchorEl.getBoundingClientRect();
+    const POP_H_EST = 130;
+    let top  = r.bottom + 6;
+    let left = r.left;
+    if (left + POP_W > window.innerWidth - 8) left = window.innerWidth - POP_W - 8;
+    if (left < 8) left = 8;
+    if (top + POP_H_EST > window.innerHeight - 8) top = Math.max(8, r.top - POP_H_EST - 6);
+    setPos({ top, left });
+  }, [anchorEl]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (popRef.current?.contains(e.target)) return;
+      if (anchorEl?.contains(e.target)) return;
+      onClose();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [anchorEl, onClose]);
+
+  const speedIdx = SPEED_LEVELS.indexOf(animSpeed);
+
+  return createPortal(
+    <div
+      ref={popRef}
+      className="anim-popover"
+      style={{ top: pos.top, left: pos.left, width: POP_W }}
+      role="dialog"
+      aria-label="Animation settings"
+    >
+      <div className="anim-menu-section-label">Animation Mode</div>
+      <div className="anim-mode-grid">
+        {ANIM_MODES.map(({ id: modeId, icon, label: modeLabel }) => (
+          <button
+            key={modeId}
+            className={`anim-mode-btn${animMode === modeId ? ' active' : ''}`}
+            onClick={() => onModeChange(modeId)}
+            tabIndex={-1}
+            title={modeLabel}
+          >
+            <span className="anim-mode-icon">{icon}</span>
+          </button>
+        ))}
+      </div>
+      <div className="anim-menu-section-label">Speed</div>
+      <div className="anim-speed-row">
+        <button
+          className="anim-speed-btn"
+          tabIndex={-1}
+          disabled={speedIdx <= 0}
+          onClick={() => speedIdx > 0 && onSpeedChange(SPEED_LEVELS[speedIdx - 1])}
+        >«</button>
+        <span className="anim-speed-val">{fmtSpeed(animSpeed)}</span>
+        <button
+          className="anim-speed-btn"
+          tabIndex={-1}
+          disabled={speedIdx >= SPEED_LEVELS.length - 1}
+          onClick={() => speedIdx < SPEED_LEVELS.length - 1 && onSpeedChange(SPEED_LEVELS[speedIdx + 1])}
+        >»</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Interval helpers (scalars) ────────────────────────────────────────────────
 
 const DEFAULT_ANIM = { min: -10, max: 10, step: 0.1 };
@@ -232,6 +311,7 @@ export default function ExpressionPanel() {
   } = useGraphContext();
 
   const inputRefs    = useRef({});
+  const animBtnRefs  = useRef({});
   const pendingFocus = useRef(null);
   const blurTimer    = useRef(null);
 
@@ -244,7 +324,7 @@ export default function ExpressionPanel() {
   const [posTxts,    setPosTxts]    = useState({});
   const [expandedLists, setExpandedLists] = useState(new Set());
   const [labelTexts, setLabelTexts] = useState({});
-  const [animMenuIds,  setAnimMenuIds]  = useState(new Set());
+  const [animMenuOpenId, setAnimMenuOpenId] = useState(null);
   const [helpOpen,     setHelpOpen]     = useState(false);
   const [pickerOpenId, setPickerOpenId] = useState(null);
   const swatchRefs = useRef({});
@@ -257,11 +337,7 @@ export default function ExpressionPanel() {
       ? [{ id: it.id, label: n.label ?? it.id, color: v.color, text: it.text }]
       : [];
   });
-  const toggleAnimMenu = (id) => setAnimMenuIds(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const toggleAnimMenu = (id) => setAnimMenuOpenId((cur) => cur === id ? null : id);
 
   useEffect(() => {
     if (pendingFocus.current) {
@@ -369,8 +445,6 @@ export default function ExpressionPanel() {
 
           const animConf  = animSettings[item.id] ?? {};
           const animMode  = animConf.mode  ?? 'repeat';
-          const animSpeed = animConf.speed ?? 1;
-          const speedIdx  = SPEED_LEVELS.indexOf(animSpeed);
 
           const isDragging  = dragId === item.id;
           const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
@@ -427,7 +501,8 @@ export default function ExpressionPanel() {
                       aria-label={isPlaying ? 'Pause' : 'Play'}
                     >{isPlaying ? '⏸' : '▶'}</button>
                     <button
-                      className={`anim-cfg-btn${animMenuIds.has(item.id) ? ' active' : ''}`}
+                      ref={(el) => { if (el) animBtnRefs.current[item.id] = el; }}
+                      className={`anim-cfg-btn${animMenuOpenId === item.id ? ' active' : ''}`}
                       tabIndex={-1}
                       onClick={() => toggleAnimMenu(item.id)}
                       title={`Animation mode: ${ANIM_MODES.find((m) => m.id === animMode)?.label ?? animMode}`}
@@ -558,42 +633,6 @@ export default function ExpressionPanel() {
                     spellCheck={false}
                     disabled={animMode === 'infinite'}
                   />
-                </div>
-              )}
-
-              {/* Animation mode + speed menu */}
-              {isScalar && animMenuIds.has(item.id) && (
-                <div className="anim-menu">
-                  <div className="anim-menu-section-label">Animation Mode</div>
-                  <div className="anim-mode-grid">
-                    {ANIM_MODES.map(({ id: modeId, icon, label: modeLabel }) => (
-                      <button
-                        key={modeId}
-                        className={`anim-mode-btn${animMode === modeId ? ' active' : ''}`}
-                        onClick={() => setAnimMode(item.id, modeId)}
-                        tabIndex={-1}
-                        title={modeLabel}
-                      >
-                        <span className="anim-mode-icon">{icon}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="anim-menu-section-label">Speed</div>
-                  <div className="anim-speed-row">
-                    <button
-                      className="anim-speed-btn"
-                      tabIndex={-1}
-                      disabled={speedIdx <= 0}
-                      onClick={() => speedIdx > 0 && setAnimSpeed(item.id, SPEED_LEVELS[speedIdx - 1])}
-                    >«</button>
-                    <span className="anim-speed-val">{fmtSpeed(animSpeed)}</span>
-                    <button
-                      className="anim-speed-btn"
-                      tabIndex={-1}
-                      disabled={speedIdx >= SPEED_LEVELS.length - 1}
-                      onClick={() => speedIdx < SPEED_LEVELS.length - 1 && setAnimSpeed(item.id, SPEED_LEVELS[speedIdx + 1])}
-                    >»</button>
-                  </div>
                 </div>
               )}
 
@@ -881,6 +920,17 @@ export default function ExpressionPanel() {
           />
         );
       })()}
+
+      {animMenuOpenId != null && (
+        <AnimMenuPopover
+          anchorEl={animBtnRefs.current[animMenuOpenId]}
+          animMode={animSettings[animMenuOpenId]?.mode ?? 'repeat'}
+          animSpeed={animSettings[animMenuOpenId]?.speed ?? 1}
+          onModeChange={(m) => setAnimMode(animMenuOpenId, m)}
+          onSpeedChange={(s) => setAnimSpeed(animMenuOpenId, s)}
+          onClose={() => setAnimMenuOpenId(null)}
+        />
+      )}
     </aside>
   );
 }
