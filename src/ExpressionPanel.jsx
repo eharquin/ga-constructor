@@ -611,7 +611,7 @@ export default function ExpressionPanel({ onHide }) {
                     onFocus={() => handleEditFocus(item.id)}
                     onBlur={handleEditBlur}
                   />
-                  {isList ? (
+                  {!hasError && isList ? (
                     <button
                       className="list-toggle"
                       style={{ color }}
@@ -625,9 +625,9 @@ export default function ExpressionPanel({ onHide }) {
                       {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
                     </button>
                   ) : (
-                    !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                    !hasError && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
                   )}
-                  {!isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
+                  {!hasError && !isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
                   {!isInvalid && isDupLabel && (
                     <div className="expr-error">duplicate label: {node.label}</div>
