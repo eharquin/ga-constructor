@@ -275,6 +275,7 @@ export default function ExpressionPanel() {
   const handleEditFocus = (id) => {
     if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
     setEditingId(id);
+    if (playingIds.has(id)) togglePlay(id);
   };
   const handleEditBlur = () => {
     if (blurTimer.current) clearTimeout(blurTimer.current);
