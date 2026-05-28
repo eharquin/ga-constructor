@@ -306,16 +306,22 @@ export default function ExpressionPanel({ onHide }) {
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
     setItemOpacity, setItemScale, setItemPointShape, setListShowPoints, setListShowOutline, setListShowFill,
-    addFolder, setFolderName, setFolderCollapsed,
-    reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
+    addFolder, setFolderName, setFolderCollapsed, toggleFolderChildrenVisible,
+    reorderItem, insertItemAfter, insertChildInFolder, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
     undo, redo, canUndo, canRedo,
   } = useGraphContext();
 
-  const inputRefs    = useRef({});
-  const animBtnRefs  = useRef({});
-  const pendingFocus = useRef(null);
-  const blurTimer    = useRef(null);
+  const inputRefs          = useRef({});
+  const folderInputRefs    = useRef({});
+  const animBtnRefs        = useRef({});
+  const pendingFocus       = useRef(null);
+  const pendingFolderFocus = useRef(null);
+  const blurTimer          = useRef(null);
+  const swatchHoverTimer   = useRef(null);
+  const pickerLeaveTimer   = useRef(null);
+  const treeLineMeasured   = useRef(false);
+  const [treeLineX, setTreeLineX] = useState(37);
 
   const [dragId,     setDragId]     = useState(null);
   const [dropTarget, setDropTarget] = useState(null); // { id, position: 'before'|'after' }
@@ -364,9 +370,30 @@ export default function ExpressionPanel({ onHide }) {
       inputRefs.current[pendingFocus.current]?.focus();
       pendingFocus.current = null;
     }
+    if (pendingFolderFocus.current) {
+      const el = folderInputRefs.current[pendingFolderFocus.current];
+      if (el) { el.focus(); el.select(); pendingFolderFocus.current = null; }
+    }
   });
 
   const focus = (id) => { pendingFocus.current = id; };
+
+  const startPickerClose = () => {
+    if (pickerLeaveTimer.current) clearTimeout(pickerLeaveTimer.current);
+    pickerLeaveTimer.current = setTimeout(() => { pickerLeaveTimer.current = null; setPickerOpenId(null); }, 400);
+  };
+  const cancelPickerClose = () => {
+    if (pickerLeaveTimer.current) { clearTimeout(pickerLeaveTimer.current); pickerLeaveTimer.current = null; }
+  };
+
+  const measureCollapseBtn = (btn) => {
+    if (!btn || treeLineMeasured.current) return;
+    const entry = btn.closest('.expr-entry');
+    if (!entry) return;
+    treeLineMeasured.current = true;
+    const x = Math.round(btn.getBoundingClientRect().left - entry.getBoundingClientRect().left + btn.offsetWidth / 2);
+    if (x > 0) setTreeLineX(x);
+  };
 
   const handleEditFocus = (id) => {
     if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
@@ -381,7 +408,7 @@ export default function ExpressionPanel({ onHide }) {
   const handleKeyDown = (e, item, index) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      focus(insertItemAfter(item.id));
+      focus(insertItemAfter(item.id, item.parentId ?? null));
     }
     if (e.key === 'Backspace' && item.text === '') {
       e.preventDefault();
@@ -444,7 +471,7 @@ export default function ExpressionPanel({ onHide }) {
           >↷</button>
           <button
             className="panel-hdr-btn"
-            onClick={() => addFolder()}
+            onClick={() => { pendingFolderFocus.current = addFolder(); }}
             tabIndex={-1}
             title="New folder"
             aria-label="New folder"
@@ -460,7 +487,7 @@ export default function ExpressionPanel({ onHide }) {
           >«</button>
         )}
       </div>
-      <div className="expr-list">
+      <div className="expr-list" style={{ '--tree-x': `${treeLineX}px` }}>
         {(() => {
         // Precompute folder lookup + dragged-kind once per render.
         const folderCollapsed = new Map();
@@ -488,7 +515,9 @@ export default function ExpressionPanel({ onHide }) {
           const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
           const isDropAfter  = dropTarget?.id === item.id && dropTarget.position === 'after';
           const isDropInside = dropTarget?.id === item.id && dropTarget.position === 'inside';
-          const entryClass = `expr-entry${depth > 0 ? ' expr-entry--child' : ''}${item.kind === 'folder' ? ' expr-entry--folder' : ''}${isDragging ? ' dragging' : ''}${isDropBefore ? ' drop-before' : ''}${isDropAfter ? ' drop-after' : ''}${isDropInside ? ' drop-inside' : ''}`;
+          const isLastChild = depth > 0 && (index + 1 >= items.length || items[index + 1].parentId !== item.parentId);
+          const hasVisibleChildren = item.kind === 'folder' && !item.collapsed && items.some((it) => it.parentId === item.id);
+          const entryClass = `expr-entry${depth > 0 ? ' expr-entry--child' : ''}${isLastChild ? ' expr-entry--last-child' : ''}${item.kind === 'folder' ? ' expr-entry--folder' : ''}${hasVisibleChildren ? ' expr-entry--folder-open' : ''}${isDragging ? ' dragging' : ''}${isDropBefore ? ' drop-before' : ''}${isDropAfter ? ' drop-after' : ''}${isDropInside ? ' drop-inside' : ''}`;
 
           const dragHandlers = {
             onDragOver: (e) => {
@@ -515,6 +544,8 @@ export default function ExpressionPanel({ onHide }) {
           // Folder rows: simple header (collapse toggle | 📁 | name input | ×).
           if (item.kind === 'folder') {
             const isCollapsed = !!item.collapsed;
+            const children = items.filter((it) => it.parentId === item.id);
+            const allChildrenHidden = children.length > 0 && children.every((it) => it.visible === false);
             return (
               <div key={item.id} className={entryClass} {...dragHandlers}>
                 <div className="expr-row folder-row">
@@ -533,19 +564,33 @@ export default function ExpressionPanel({ onHide }) {
                     type="button"
                     className="folder-collapse"
                     tabIndex={-1}
+                    ref={measureCollapseBtn}
                     onClick={() => setFolderCollapsed(item.id, !isCollapsed)}
                     aria-label={isCollapsed ? 'Expand folder' : 'Collapse folder'}
                   >{isCollapsed ? '▸' : '▾'}</button>
-                  <span className="folder-icon" aria-hidden="true">📁</span>
+                  <button
+                    type="button"
+                    className={`folder-icon-btn${allChildrenHidden ? ' folder-icon-btn--hidden' : ''}`}
+                    tabIndex={-1}
+                    title={allChildrenHidden ? 'Show all' : 'Hide all'}
+                    onClick={() => toggleFolderChildrenVisible(item.id)}
+                    aria-label={allChildrenHidden ? 'Show all children' : 'Hide all children'}
+                  >📁</button>
                   <input
                     type="text"
                     className="folder-name-input"
+                    ref={(el) => { if (el) folderInputRefs.current[item.id] = el; else delete folderInputRefs.current[item.id]; }}
                     value={item.folderName ?? ''}
                     placeholder="Folder"
                     spellCheck={false}
                     autoComplete="off"
                     onChange={(e) => setFolderName(item.id, e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                        focus(insertChildInFolder(item.id));
+                      }
+                    }}
                   />
                   <button
                     className="expr-delete"
@@ -655,11 +700,23 @@ export default function ExpressionPanel({ onHide }) {
                   <button
                     type="button"
                     ref={(el) => { if (el) swatchRefs.current[item.id] = el; }}
-                    className={`color-swatch${isColorItem ? ' color-swatch--expr' : ''}`}
+                    className={`color-swatch${isColorItem ? ' color-swatch--expr' : ''}${!item.visible ? ' color-swatch--hidden' : ''}`}
                     style={{ background: color }}
-                    title={isColorItem ? color : 'Object menu'}
+                    title="Click to toggle visibility"
                     tabIndex={-1}
-                    onClick={isColorItem ? undefined : () => setPickerOpenId((id) => id === item.id ? null : item.id)}
+                    onClick={() => setItemVisible(item.id, !item.visible)}
+                    onMouseEnter={() => {
+                      cancelPickerClose();
+                      if (isColorItem || pickerOpenId === item.id) return;
+                      swatchHoverTimer.current = setTimeout(() => {
+                        setPickerOpenId(item.id);
+                        swatchHoverTimer.current = null;
+                      }, 500);
+                    }}
+                    onMouseLeave={() => {
+                      if (swatchHoverTimer.current) { clearTimeout(swatchHoverTimer.current); swatchHoverTimer.current = null; }
+                      if (pickerOpenId === item.id) startPickerClose();
+                    }}
                   />
                 )}
 
@@ -1031,6 +1088,8 @@ export default function ExpressionPanel({ onHide }) {
             open
             anchorEl={swatchRefs.current[pickerOpenId]}
             onClose={() => setPickerOpenId(null)}
+            onMouseEnter={cancelPickerClose}
+            onMouseLeave={startPickerClose}
             itemVisible={openItem.visible !== false}
             onVisibilityChange={(v) => setItemVisible(pickerOpenId, v)}
             itemMovable={openItem.movable !== false}

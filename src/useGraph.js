@@ -70,14 +70,18 @@ function itemsReducer(items, action) {
     case 'SET_LIST_SHOW_FILL':
       return items.map((it) => it.id === action.id ? { ...it, showFill: action.show } : it);
     case 'ADD_FOLDER':
-      return [...items, ITEM(action.id, '', { kind: 'folder', folderName: action.name, parentId: null })];
+      return [ITEM(action.id, '', { kind: 'folder', folderName: action.name, parentId: null }), ...items];
     case 'SET_FOLDER_NAME':
       return items.map((it) => it.id === action.id ? { ...it, folderName: action.name } : it);
     case 'SET_FOLDER_COLLAPSED':
       return items.map((it) => it.id === action.id ? { ...it, collapsed: action.collapsed } : it);
+    case 'SET_FOLDER_CHILDREN_VISIBLE': {
+      const allHidden = items.filter((it) => it.parentId === action.id).every((it) => it.visible === false);
+      return items.map((it) => it.parentId === action.id ? { ...it, visible: allHidden ? true : false } : it);
+    }
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
-      const newItem = ITEM(action.newId, '');
+      const newItem = ITEM(action.newId, '', { parentId: action.parentId ?? null });
       if (idx === -1) return [...items, newItem];
       return [...items.slice(0, idx + 1), newItem, ...items.slice(idx + 1)];
     }
@@ -519,9 +523,15 @@ export function useGraph(algebra) {
     return map;
   }, [items, values, parseExpression, classifyMV, toEuclidean]);
 
-  const insertItemAfter = (afterId) => {
+  const insertItemAfter = (afterId, parentId = null) => {
     const newId = `expr_${nextId.current++}`;
-    dispatch({ type: 'INSERT_AFTER', afterId, newId });
+    dispatch({ type: 'INSERT_AFTER', afterId, newId, parentId });
+    return newId;
+  };
+
+  const insertChildInFolder = (folderId) => {
+    const newId = `expr_${nextId.current++}`;
+    dispatch({ type: 'INSERT_AFTER', afterId: folderId, newId, parentId: folderId });
     return newId;
   };
 
@@ -767,7 +777,7 @@ export function useGraph(algebra) {
 
   const addFolder = () => {
     const id = `folder_${nextId.current++}`;
-    dispatch({ type: 'ADD_FOLDER', id, name: nextFolderName(items) });
+    dispatch({ type: 'ADD_FOLDER', id, name: '' });
     return id;
   };
 
@@ -814,13 +824,15 @@ export function useGraph(algebra) {
     setListShowPoints:    (id, show)    => dispatch({ type: 'SET_LIST_SHOW_POINTS',  id, show }),
     setListShowOutline:   (id, show)    => dispatch({ type: 'SET_LIST_SHOW_OUTLINE', id, show }),
     setListShowFill:      (id, show)    => dispatch({ type: 'SET_LIST_SHOW_FILL',    id, show }),
-    setFolderName:        (id, name)    => dispatch({ type: 'SET_FOLDER_NAME',       id, name }),
-    setFolderCollapsed:   (id, collapsed) => dispatch({ type: 'SET_FOLDER_COLLAPSED', id, collapsed }),
+    setFolderName:              (id, name)      => dispatch({ type: 'SET_FOLDER_NAME',             id, name }),
+    setFolderCollapsed:         (id, collapsed) => dispatch({ type: 'SET_FOLDER_COLLAPSED',         id, collapsed }),
+    toggleFolderChildrenVisible:(id)            => dispatch({ type: 'SET_FOLDER_CHILDREN_VISIBLE',  id }),
     addFolder,
     normalizeMap,
     movableMap,
     reorderItem,
     insertItemAfter,
+    insertChildInFolder,
     deleteItem,
     clearAll,
     loadItems,

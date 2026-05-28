@@ -85,7 +85,7 @@ function ColorSwatch({ hex, selected, onPick, label }) {
 // ── AppearancePanel ───────────────────────────────────────────────────────────
 
 export default function AppearancePanel({
-  open, anchorEl, onClose,
+  open, anchorEl, onClose, onMouseEnter, onMouseLeave,
   // item state
   itemVisible, onVisibilityChange,
   itemMovable, itemDraggable, onMovableChange,
@@ -166,6 +166,8 @@ export default function AppearancePanel({
       style={{ top: pos.top, left: pos.left, width: POP_W }}
       role="dialog"
       aria-label="Appearance"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {/* ── Header ── */}
       <div className="ap-header">
