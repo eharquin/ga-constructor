@@ -10,7 +10,7 @@ const MATH = {
   exp: Math.exp, log: Math.log, log2: Math.log2, log10: Math.log10,
   floor: Math.floor, ceil: Math.ceil, round: Math.round,
   min: Math.min, max: Math.max, sign: Math.sign, hypot: Math.hypot,
-  PI: Math.PI, E: Math.E,
+  PI: Math.PI, E: Math.E, pi: Math.PI,
 };
 
 export const MATH_NAMES = new Set(Object.keys(MATH));
