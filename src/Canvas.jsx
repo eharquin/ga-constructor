@@ -184,25 +184,21 @@ function SvgGrid({ vp, W, H }) {
   for (let wy = Math.floor(minY / step) * step; wy <= maxY; wy += step) wys.push(wy);
 
   // Minor grid: subdivide each major square into 5 parts. Skip lines that
-  // coincide with a major line (every 5th), and only render when minor
-  // spacing is wide enough to read.
+  // coincide with a major line (every 5th). Always rendered — major step
+  // already adapts to zoom, so minor density stays bounded.
   const minorStep = step / 5;
-  const minorPx   = minorStep * vp.scale;
-  const showMinor = minorPx >= 8;
   const minorXs = [], minorYs = [];
-  if (showMinor) {
-    const startX = Math.floor(minX / minorStep) * minorStep;
-    for (let wx = startX; wx <= maxX; wx += minorStep) {
-      const k = Math.round(wx / minorStep);
-      if (k % 5 === 0) continue; // overlaps a major line
-      minorXs.push(wx);
-    }
-    const startY = Math.floor(minY / minorStep) * minorStep;
-    for (let wy = startY; wy <= maxY; wy += minorStep) {
-      const k = Math.round(wy / minorStep);
-      if (k % 5 === 0) continue;
-      minorYs.push(wy);
-    }
+  const startX = Math.floor(minX / minorStep) * minorStep;
+  for (let wx = startX; wx <= maxX; wx += minorStep) {
+    const k = Math.round(wx / minorStep);
+    if (k % 5 === 0) continue; // overlaps a major line
+    minorXs.push(wx);
+  }
+  const startY = Math.floor(minY / minorStep) * minorStep;
+  for (let wy = startY; wy <= maxY; wy += minorStep) {
+    const k = Math.round(wy / minorStep);
+    if (k % 5 === 0) continue;
+    minorYs.push(wy);
   }
 
   const { cx: ox, cy: oy } = w2c(0, 0, vp);
