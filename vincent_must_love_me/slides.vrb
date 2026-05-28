@@ -1,0 +1,14 @@
+\frametitle{User-defined functions (just landed)}
+\begin{lstlisting}
+dist(A, B) = |A & B|         # function definition
+midpoint(A, B) = (A + B) / 2
+ln(A, B)   = A & B           # parameters are any object
+
+d  = dist(P, Q)              # call anywhere
+m  = midpoint(P, Q)
+L  = ln(P, Q)
+d2 = 2 * dist(P, Q) + 1      # nested in arithmetic
+\end{lstlisting}
+  Functions are values — captured globals propagate reactively,
+  recursion is allowed with a depth cap, builtin-name collisions are
+  rejected at parse time.
