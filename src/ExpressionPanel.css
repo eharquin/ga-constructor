@@ -319,6 +319,18 @@
   margin-right: 10px;
 }
 
+/* Solid red pastille shown in place of swatch / play stack when row has an error */
+.error-pastille {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--error);
+  border: 2px solid var(--error);
+  margin-right: 10px;
+  cursor: default;
+}
+
 .color-swatch:hover {
   border-color: var(--point-stroke-hover);
   transform: scale(1.15);

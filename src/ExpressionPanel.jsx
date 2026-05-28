@@ -457,6 +457,7 @@ export default function ExpressionPanel({ onHide }) {
           const node       = parseExpression(item.text);
           const isInvalid  = item.text.trim() !== '' && !node;
           const isDupLabel = duplicateLabelIds.has(item.id);
+          const hasError   = isInvalid || isDupLabel;
           const isScalar    = node?.type === 'scalar';
           const isColorItem = node?.type === 'color';
           // Position sub-row applies to vector nodes plus any anchorable value:
@@ -546,8 +547,10 @@ export default function ExpressionPanel({ onHide }) {
                   aria-hidden="true"
                 >⠿</div>
 
-                {/* Color swatch or play+anim-mode stack (scalars) */}
-                {isScalar ? (
+                {/* Error pastille (replaces play-area / color swatch when invalid) */}
+                {hasError ? (
+                  <div className="error-pastille" title={isDupLabel ? `Duplicate label: ${node?.label}` : 'Invalid expression'} aria-label="Error" />
+                ) : isScalar ? (
                   <div className="play-area">
                     <button
                       type="button"
@@ -656,7 +659,7 @@ export default function ExpressionPanel({ onHide }) {
               )}
 
               {/* Slider row — scalar only */}
-              {isScalar && node && (
+              {isScalar && !hasError && node && (
                 <div className={`scalar-slider-row${animMode === 'infinite' ? ' scalar-slider-row--dim' : ''}`}>
                   <span className="scalar-slider-bound">{Math.min(anim.min, anim.max)}</span>
                   <input
@@ -678,7 +681,7 @@ export default function ExpressionPanel({ onHide }) {
               )}
 
               {/* Interval sub-row — scalar only, shown while editing the expression */}
-              {isScalar && editingId === item.id && (
+              {isScalar && !hasError && editingId === item.id && (
                 <div className={`sub-row${animMode === 'infinite' ? ' sub-row-dim' : ''}`}>
                   <span className="sub-label">interval</span>
                   <input
