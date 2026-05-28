@@ -300,7 +300,7 @@ function AppShell() {
   return (
     <div className="app">
       <header className="app-header">
-        <span className="app-title">GA Constructor</span>
+        <span className="app-title">multiVector.net</span>
         <AlgebraSelect />
         <span className="app-header-spacer" />
         <UndoRedoControls />
