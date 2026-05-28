@@ -334,10 +334,20 @@ export function useGraph(algebra) {
       if (cls?.kind === 'scalar') return parseFloat((val[0] || 0).toFixed(4)).toString();
       return '?';
     };
+    // Count occurrences of each label so duplicates can be suppressed.
+    const labelCounts = new Map();
+    for (const item of items) {
+      const n = parseExpression(item.text);
+      const lbl = n?.label;
+      if (!lbl) continue;
+      labelCounts.set(lbl, (labelCounts.get(lbl) ?? 0) + 1);
+    }
     const map = {};
     for (const item of items) {
       const node = parseExpression(item.text);
       if (!node) continue;
+      // Drop the canvas label entirely when this name collides with another item.
+      if (node.label && labelCounts.get(node.label) > 1) { map[node.id] = null; continue; }
       const raw = item.label ?? null;
       if (!raw) { map[node.id] = null; continue; }
       map[node.id] = raw.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) =>
