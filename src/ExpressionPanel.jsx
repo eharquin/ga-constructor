@@ -330,6 +330,20 @@ export default function ExpressionPanel({ onHide }) {
   const [pickerOpenId, setPickerOpenId] = useState(null);
   const swatchRefs = useRef({});
 
+  // Item ids whose parsed label collides with an earlier item's label.
+  const duplicateLabelIds = (() => {
+    const seen = new Set();
+    const dups = new Set();
+    for (const it of items) {
+      const n = parseExpression(it.text);
+      const lbl = n?.label;
+      if (!lbl) continue;
+      if (seen.has(lbl)) dups.add(it.id);
+      else seen.add(lbl);
+    }
+    return dups;
+  })();
+
   // Items that evaluate to a color value — surface to ColorPicker's "Custom" row.
   const customColors = items.flatMap((it) => {
     const n = parseExpression(it.text);
@@ -436,8 +450,9 @@ export default function ExpressionPanel({ onHide }) {
       </div>
       <div className="expr-list">
         {items.map((item, index) => {
-          const node      = parseExpression(item.text);
-          const isInvalid = item.text.trim() !== '' && !node;
+          const node       = parseExpression(item.text);
+          const isInvalid  = item.text.trim() !== '' && !node;
+          const isDupLabel = duplicateLabelIds.has(item.id);
           const isScalar    = node?.type === 'scalar';
           const isColorItem = node?.type === 'color';
           // Position sub-row applies to vector nodes plus any anchorable value:
@@ -512,7 +527,7 @@ export default function ExpressionPanel({ onHide }) {
                 setDropTarget(null);
               }}
             >
-              <div className={`expr-row${isInvalid ? ' expr-invalid' : ''}`}>
+              <div className={`expr-row${(isInvalid || isDupLabel) ? ' expr-invalid' : ''}`}>
 
                 {/* Drag handle */}
                 <div
@@ -607,6 +622,9 @@ export default function ExpressionPanel({ onHide }) {
                   )}
                   {!isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isInvalid  && <div className="expr-error">unknown syntax</div>}
+                  {!isInvalid && isDupLabel && (
+                    <div className="expr-error">duplicate label: {node.label}</div>
+                  )}
                 </div>
 
                 <button
