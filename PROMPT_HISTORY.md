@@ -157,4 +157,6 @@ A chronological log of all prompts given to Claude in this project.
 
 82. **List menu — Points/Segments/Area, drop Elements** — `AppearancePanel`'s "List" section now has three toggles: Points (new), Segments, Area (renamed from Fill area). Per-element show/hide ("Elements" sub-section) removed. `hiddenElements` field + `TOGGLE_LIST_ELEMENT` action + `toggleListElement` API gone; new `showPoints` field + `SET_LIST_SHOW_POINTS` + `setListShowPoints`. `Canvas.jsx` list-render branch gates finitePoint elements on `showPoints` (default true); outline/fill defaults are Segments=true, Area=true so `[A, B, C]` renders three points + AB/BC segments + filled triangle out of the box.
 
+83. **Segments are pure strokes, default zoom −1…1** — `SvgPolygon` (used only by the Segments toggle) now renders an open `<polyline fill="none">` instead of a closed filled `<polygon>` — Segments draws AB, BC only; the closing CA edge and the translucent fill it carried are gone. Area still renders its own closed filled polygon, so the two toggles are now independent. Bumped `INITIAL_VP.scale` from 30 → 300 so a default 800×600 canvas shows roughly y ∈ [−1, 1] and x ∈ [−1.33, 1.33] out of the box.
+
 ---

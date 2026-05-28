@@ -3,7 +3,7 @@ import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
 import { useSettings } from './SettingsContext.jsx';
 
-const INITIAL_VP  = { scale: 30, offsetX: 400, offsetY: 300 };
+const INITIAL_VP  = { scale: 300, offsetX: 400, offsetY: 300 };
 const HIT_RADIUS  = 12;
 const SNAP_RADIUS = 24;
 
@@ -601,7 +601,7 @@ function SvgPolygon({ points, label, color, vp, opts }) {
   const { cx: lx, cy: ly } = w2c(cx, cy, vp);
   return (
     <g>
-      <polygon points={pts} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
       {renderLabel(label, lx, ly, opts)}
     </g>
   );
