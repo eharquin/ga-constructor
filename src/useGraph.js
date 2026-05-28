@@ -11,7 +11,7 @@ const ITEM = (id, text, extra = {}) => ({
   id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null,
   visible: true, movable: true, normalizeMode: null,
   opacity: null, scale: null, pointShape: null,
-  showOutline: null, showFill: null, hiddenElements: null,
+  showPoints: null, showOutline: null, showFill: null,
   ...extra,
 });
 
@@ -55,19 +55,12 @@ function itemsReducer(items, action) {
       return items.map((it) => it.id === action.id ? { ...it, scale: action.scale } : it);
     case 'SET_POINT_SHAPE':
       return items.map((it) => it.id === action.id ? { ...it, pointShape: action.shape } : it);
+    case 'SET_LIST_SHOW_POINTS':
+      return items.map((it) => it.id === action.id ? { ...it, showPoints: action.show } : it);
     case 'SET_LIST_SHOW_OUTLINE':
       return items.map((it) => it.id === action.id ? { ...it, showOutline: action.show } : it);
     case 'SET_LIST_SHOW_FILL':
       return items.map((it) => it.id === action.id ? { ...it, showFill: action.show } : it);
-    case 'TOGGLE_LIST_ELEMENT': {
-      return items.map((it) => {
-        if (it.id !== action.id) return it;
-        const hidden = new Set(it.hiddenElements ?? []);
-        if (hidden.has(action.index)) hidden.delete(action.index);
-        else hidden.add(action.index);
-        return { ...it, hiddenElements: [...hidden] };
-      });
-    }
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
       const newItem = ITEM(action.newId, '');
@@ -109,9 +102,9 @@ function itemsReducer(items, action) {
         opacity: it.opacity ?? null,
         scale: it.scale ?? null,
         pointShape: it.pointShape ?? null,
+        showPoints: it.showPoints ?? null,
         showOutline: it.showOutline ?? null,
         showFill: it.showFill ?? null,
-        hiddenElements: it.hiddenElements ?? null,
       }));
     default:
       return items;
@@ -764,9 +757,9 @@ export function useGraph(algebra) {
     setItemOpacity:       (id, opacity) => dispatch({ type: 'SET_OPACITY',        id, opacity }),
     setItemScale:         (id, scale)   => dispatch({ type: 'SET_SCALE',          id, scale }),
     setItemPointShape:    (id, shape)   => dispatch({ type: 'SET_POINT_SHAPE',    id, shape }),
+    setListShowPoints:    (id, show)    => dispatch({ type: 'SET_LIST_SHOW_POINTS',  id, show }),
     setListShowOutline:   (id, show)    => dispatch({ type: 'SET_LIST_SHOW_OUTLINE', id, show }),
     setListShowFill:      (id, show)    => dispatch({ type: 'SET_LIST_SHOW_FILL',    id, show }),
-    toggleListElement:    (id, index)   => dispatch({ type: 'TOGGLE_LIST_ELEMENT',  id, index }),
     normalizeMap,
     movableMap,
     reorderItem,

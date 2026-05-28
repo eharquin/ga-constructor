@@ -305,7 +305,7 @@ export default function ExpressionPanel({ onHide }) {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
-    setItemOpacity, setItemScale, setItemPointShape, setListShowOutline, setListShowFill, toggleListElement,
+    setItemOpacity, setItemScale, setItemPointShape, setListShowPoints, setListShowOutline, setListShowFill,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
     undo, redo, canUndo, canRedo,
@@ -932,9 +932,6 @@ export default function ExpressionPanel({ onHide }) {
         const openPlan = openVal != null ? algebra.getRenderPlan?.(openVal) : null;
         const openKind = openPlan?.kind ?? algebra.classifyMV?.(openVal)?.kind ?? null;
         const isList   = openKind === 'list';
-        const listElements = isList && openPlan?.elements
-          ? openPlan.elements.map((e, i) => ({ index: i, kind: e.kind }))
-          : [];
         const openLabelOpts = openNode ? (labelOptsMap[openNode.id] ?? null) : null;
         const openIsDraggable = (() => {
           if (!openNode) return false;
@@ -971,13 +968,12 @@ export default function ExpressionPanel({ onHide }) {
             onColorPick={(val) => { setItemColor(pickerOpenId, val); setPickerOpenId(null); }}
             labelOpts={openLabelOpts}
             onLabelOptsChange={(opts) => setLabelOpts(pickerOpenId, opts)}
+            showPoints={openItem.showPoints ?? true}
             showOutline={openItem.showOutline ?? true}
             showFill={openItem.showFill ?? false}
-            listElements={listElements}
-            hiddenElements={openItem.hiddenElements ?? []}
+            onPointsChange={(v) => setListShowPoints(pickerOpenId, v)}
             onOutlineChange={(v) => setListShowOutline(pickerOpenId, v)}
             onFillChange={(v) => setListShowFill(pickerOpenId, v)}
-            onElementToggle={(idx) => toggleListElement(pickerOpenId, idx)}
           />
         );
       })()}

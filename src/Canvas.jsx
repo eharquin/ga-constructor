@@ -640,9 +640,9 @@ export default function Canvas() {
         opacity:        it.opacity        ?? 1,
         scale:          it.scale          ?? 1,
         pointShape:     it.pointShape     ?? 'circle',
+        showPoints:     it.showPoints     ?? true,
         showOutline:    it.showOutline    ?? true,
-        showFill:       it.showFill       ?? false,
-        hiddenElements: new Set(it.hiddenElements ?? []),
+        showFill:       it.showFill       ?? true,
       };
     }
     return map;
@@ -839,25 +839,26 @@ export default function Canvas() {
 
     switch (plan.kind) {
       case 'list': {
+        const showPoints     = appear.showPoints     ?? true;
         const showOutline    = appear.showOutline    ?? true;
-        const showFill       = appear.showFill       ?? false;
-        const hiddenElems    = appear.hiddenElements ?? new Set();
-        const visibleOutline = plan.outline?.filter((_, i) => !hiddenElems.has(i));
+        const showFill       = appear.showFill       ?? true;
+        const outlinePts     = plan.outline;
 
         const listChildren = [];
-        if (showOutline && visibleOutline && visibleOutline.length >= 2) {
-          listChildren.push(<SvgPolygon key={`${id}-outline`} points={visibleOutline} label={label} color={color} vp={vp} opts={opts} />);
+        if (showOutline && outlinePts && outlinePts.length >= 2) {
+          listChildren.push(<SvgPolygon key={`${id}-outline`} points={outlinePts} label={label} color={color} vp={vp} opts={opts} />);
         }
-        if (showFill && visibleOutline && visibleOutline.length >= 3) {
-          const pts = visibleOutline.map(({ x, y }) => { const c = w2c(x, y, vp); return `${c.cx},${c.cy}`; }).join(' ');
+        if (showFill && outlinePts && outlinePts.length >= 3) {
+          const pts = outlinePts.map(({ x, y }) => { const c = w2c(x, y, vp); return `${c.cx},${c.cy}`; }).join(' ');
           listChildren.push(<polygon key={`${id}-fill`} points={pts} fill={color} fillOpacity={0.18} stroke="none" />);
         }
         plan.elements.forEach((elem, ei) => {
-          if (hiddenElems.has(ei)) return;
           const ekey = `${id}-e${ei}`;
           switch (elem.kind) {
             case 'finitePoint':
-              frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} draggable={false} />);
+              if (showPoints) {
+                frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} draggable={false} />);
+              }
               break;
             case 'line': {
               const bd = algebra.lineBaseAndDir?.(elem.L);

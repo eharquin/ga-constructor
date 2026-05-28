@@ -100,8 +100,8 @@ export default function AppearancePanel({
   // label
   labelOpts, onLabelOptsChange,
   // list
-  showOutline, showFill, listElements, hiddenElements,
-  onOutlineChange, onFillChange, onElementToggle,
+  showPoints, showOutline, showFill,
+  onPointsChange, onOutlineChange, onFillChange,
   // scalar variable resolver
   resolveScalar,
 }) {
@@ -284,34 +284,17 @@ export default function AppearancePanel({
         <section className="ap-section">
           <div className="ap-section-title">List</div>
           <div className="ap-row">
+            <span className="ap-row-label">Points</span>
+            <Toggle checked={showPoints ?? true} onChange={onPointsChange} label="Draw points" />
+          </div>
+          <div className="ap-row">
             <span className="ap-row-label">Segments</span>
             <Toggle checked={showOutline ?? true} onChange={onOutlineChange} label="Draw outline segments" />
           </div>
           <div className="ap-row">
-            <span className="ap-row-label">Fill area</span>
+            <span className="ap-row-label">Area</span>
             <Toggle checked={showFill ?? false} onChange={onFillChange} label="Draw filled polygon" />
           </div>
-        </section>
-      )}
-
-      {/* ── Elements ── */}
-      {isList && listElements.length > 0 && (
-        <section className="ap-section">
-          <div className="ap-section-title">Elements</div>
-          {listElements.map((el) => {
-            const hidden = (hiddenElements ?? []).includes(el.index);
-            return (
-              <div key={el.index} className="ap-row ap-elem-row">
-                <span className="ap-elem-index">[{el.index}]</span>
-                <span className="ap-elem-kind">{KIND_LABEL[el.kind] ?? el.kind}</span>
-                <Toggle
-                  checked={!hidden}
-                  onChange={() => onElementToggle(el.index)}
-                  label={`Toggle element ${el.index}`}
-                />
-              </div>
-            );
-          })}
         </section>
       )}
     </div>,

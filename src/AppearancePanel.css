@@ -241,16 +241,3 @@
   background: var(--bg-soft);
 }
 
-/* ── Elements list ── */
-.ap-elem-row { gap: 6px; }
-.ap-elem-index {
-  font-family: ui-monospace, 'SF Mono', monospace;
-  font-size: 11px;
-  color: var(--text-muted);
-  min-width: 22px;
-}
-.ap-elem-kind {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text);
-}
