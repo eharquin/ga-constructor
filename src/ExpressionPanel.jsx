@@ -330,16 +330,20 @@ export default function ExpressionPanel({ onHide }) {
   const [pickerOpenId, setPickerOpenId] = useState(null);
   const swatchRefs = useRef({});
 
-  // Item ids whose parsed label collides with an earlier item's label.
+  // Item ids whose parsed label is shared with at least one other item.
+  // All occurrences of a duplicated label are flagged (not just later ones).
   const duplicateLabelIds = (() => {
-    const seen = new Set();
-    const dups = new Set();
+    const byLabel = new Map(); // label -> [itemId, ...]
     for (const it of items) {
       const n = parseExpression(it.text);
       const lbl = n?.label;
       if (!lbl) continue;
-      if (seen.has(lbl)) dups.add(it.id);
-      else seen.add(lbl);
+      if (!byLabel.has(lbl)) byLabel.set(lbl, []);
+      byLabel.get(lbl).push(it.id);
+    }
+    const dups = new Set();
+    for (const ids of byLabel.values()) {
+      if (ids.length > 1) for (const id of ids) dups.add(id);
     }
     return dups;
   })();
