@@ -233,9 +233,11 @@ export default function ExpressionPanel() {
 
   const inputRefs    = useRef({});
   const pendingFocus = useRef(null);
+  const blurTimer    = useRef(null);
 
   const [dragId,     setDragId]     = useState(null);
   const [dropTarget, setDropTarget] = useState(null); // { id, position: 'before'|'after' }
+  const [editingId,  setEditingId]  = useState(null); // id whose expression input (or interval input) has focus
 
   // Local state for in-progress edits (keyed by item id)
   const [animTexts,  setAnimTexts]  = useState({});
@@ -269,6 +271,15 @@ export default function ExpressionPanel() {
   });
 
   const focus = (id) => { pendingFocus.current = id; };
+
+  const handleEditFocus = (id) => {
+    if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
+    setEditingId(id);
+  };
+  const handleEditBlur = () => {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    blurTimer.current = setTimeout(() => { setEditingId(null); blurTimer.current = null; }, 0);
+  };
 
   const handleKeyDown = (e, item, index) => {
     if (e.key === 'Enter') {
@@ -468,6 +479,8 @@ export default function ExpressionPanel() {
                     autoComplete="off"
                     onChange={(e) => setItemText(item.id, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, item, index)}
+                    onFocus={() => handleEditFocus(item.id)}
+                    onBlur={handleEditBlur}
                   />
                   {isList ? (
                     <button
@@ -516,6 +529,7 @@ export default function ExpressionPanel() {
               {/* Slider row — scalar only */}
               {isScalar && node && (
                 <div className={`scalar-slider-row${animMode === 'infinite' ? ' scalar-slider-row--dim' : ''}`}>
+                  <span className="scalar-slider-bound">{Math.min(anim.min, anim.max)}</span>
                   <input
                     type="range"
                     className="scalar-slider"
@@ -530,18 +544,20 @@ export default function ExpressionPanel() {
                     }}
                     tabIndex={-1}
                   />
+                  <span className="scalar-slider-bound">{Math.max(anim.min, anim.max)}</span>
                 </div>
               )}
 
-              {/* Interval sub-row — scalar only */}
-              {isScalar && (
+              {/* Interval sub-row — scalar only, shown while editing the expression */}
+              {isScalar && editingId === item.id && (
                 <div className={`sub-row${animMode === 'infinite' ? ' sub-row-dim' : ''}`}>
                   <span className="sub-label">interval</span>
                   <input
                     className={`sub-input${isPlaying ? ' sub-input-active' : ''}`}
                     value={animTexts[item.id] ?? formatInterval(anim)}
                     onChange={(e) => setAnimTexts((p) => ({ ...p, [item.id]: e.target.value }))}
-                    onBlur={() => commitAnimText(item.id)}
+                    onFocus={() => handleEditFocus(item.id)}
+                    onBlur={() => { commitAnimText(item.id); handleEditBlur(); }}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                     tabIndex={-1}
                     spellCheck={false}

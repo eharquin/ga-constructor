@@ -151,4 +151,6 @@ A chronological log of all prompts given to Claude in this project.
 
 79. **Variable references in appearance fields** — Opacity, size, label angle, and label font-size inputs now accept scalar variable names (e.g., `t`). Typing a variable name stores it as a string in `item.opacity`/`item.scale`/`labelOpts.orientation`/`labelOpts.fontSize`. Canvas resolves via `resolveField(raw, values, fallback)`. AppearancePanel shows variable name in italic with resolved value as tooltip; `+/-` buttons disabled when a variable is active.
 
+80. **Scalar interval-editor visibility + slider bounds** — Interval sub-row (`(min, max, step)` input) now appears only while the scalar's expression input (or the interval input itself) has focus; tracked via `editingId` state with a 0-tick blur timer so focus can move between expression ↔ interval inputs without flicker. Slider row now shows min on the left and max on the right of the track (`scalar-slider-bound` spans).
+
 ---

@@ -477,6 +477,7 @@
   padding: 0 8px 4px 68px;
   display: flex;
   align-items: center;
+  gap: 6px;
 }
 
 .scalar-slider-row--dim {
@@ -489,6 +490,15 @@
   min-width: 0;
   cursor: pointer;
   accent-color: var(--accent2);
+}
+
+.scalar-slider-bound {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 10px;
+  min-width: 14px;
+  text-align: center;
 }
 
 /* ---- Anim sub-row (interval input) ---- */
