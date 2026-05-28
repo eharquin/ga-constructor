@@ -175,7 +175,7 @@ const fmtSpeed = (s) => `${s}x`;
 
 // ── Interval helpers (scalars) ────────────────────────────────────────────────
 
-const DEFAULT_ANIM = { min: 0, max: 10, step: 1 };
+const DEFAULT_ANIM = { min: -10, max: 10, step: 0.1 };
 
 function formatInterval({ min, max, step }) { return `(${min}, ${max}, ${step})`; }
 
