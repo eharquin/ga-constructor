@@ -232,7 +232,7 @@ export function useGraph(algebra) {
         const node = parseExpression(item.text);
         if (!node || node.type !== 'scalar') return;
 
-        const { min = 0, max = 10, step = 1 } = item.anim ?? {};
+        const { min = -10, max = 10, step = 0.1 } = item.anim ?? {};
         const absStep = Math.abs(step);
         let val = Math.round(node.params.value * 1e10) / 1e10;
 
@@ -272,7 +272,7 @@ export function useGraph(algebra) {
       const item = items.find((it) => it.id === id);
       const node = item && parseExpression(item.text);
       if (node?.type === 'scalar') {
-        const { min = 0, max = 10 } = item.anim ?? {};
+        const { min = -10, max = 10 } = item.anim ?? {};
         if (node.params.value >= max) {
           dispatch({ type: 'SET_TEXT', id, text: `${node.id} = ${min}` });
         }
