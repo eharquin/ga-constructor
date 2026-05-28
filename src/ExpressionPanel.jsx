@@ -297,7 +297,7 @@ function parseRef(str) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function ExpressionPanel() {
+export default function ExpressionPanel({ onHide }) {
   const { algebra } = useAlgebra();
   const { settings } = useSettings();
   const { parseExpression, classifyMV } = algebra;
@@ -397,6 +397,15 @@ export default function ExpressionPanel() {
 
   return (
     <aside className="expr-panel">
+      {onHide && (
+        <button
+          className="panel-hide-btn"
+          onClick={onHide}
+          tabIndex={-1}
+          title="Hide panel"
+          aria-label="Hide panel"
+        >«</button>
+      )}
       <div className="expr-list">
         {items.map((item, index) => {
           const node      = parseExpression(item.text);

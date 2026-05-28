@@ -245,6 +245,7 @@ function AlgebraSelect() {
 
 function AppShell() {
   const [panelWidth, setPanelWidth] = useState(300);
+  const [panelHidden, setPanelHidden] = useState(() => localStorage.getItem('ga-panel-hidden') === '1');
   const [theme, setTheme]           = useState(() => localStorage.getItem('ga-theme') || 'light');
   const { undo, redo, canUndo, canRedo } = useGraphContext();
   const dragRef = useRef(null);
@@ -260,6 +261,10 @@ function AppShell() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('ga-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('ga-panel-hidden', panelHidden ? '1' : '0');
+  }, [panelHidden]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -314,17 +319,29 @@ function AppShell() {
         >{theme === 'dark' ? '☀' : '☾'}</button>
       </header>
       <div className="workspace">
-        <div className="panel-wrapper" style={{ width: panelWidth }}>
-          <ExpressionPanel />
-        </div>
-        <div
-          className="panel-resize"
-          onMouseDown={(e) => {
-            dragRef.current = { startX: e.clientX, startW: panelWidth };
-            e.preventDefault();
-          }}
-        />
+        {!panelHidden && (
+          <>
+            <div className="panel-wrapper" style={{ width: panelWidth }}>
+              <ExpressionPanel onHide={() => setPanelHidden(true)} />
+            </div>
+            <div
+              className="panel-resize"
+              onMouseDown={(e) => {
+                dragRef.current = { startX: e.clientX, startW: panelWidth };
+                e.preventDefault();
+              }}
+            />
+          </>
+        )}
         <div className="canvas-area">
+          {panelHidden && (
+            <button
+              className="panel-show-btn"
+              onClick={() => setPanelHidden(false)}
+              title="Show expression panel"
+              aria-label="Show expression panel"
+            >»</button>
+          )}
           <Canvas />
         </div>
       </div>
