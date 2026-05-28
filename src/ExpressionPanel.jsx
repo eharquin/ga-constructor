@@ -306,6 +306,7 @@ export default function ExpressionPanel({ onHide }) {
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
     setItemOpacity, setItemScale, setItemPointShape, setListShowPoints, setListShowOutline, setListShowFill,
+    addFolder, setFolderName, setFolderCollapsed,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
     undo, redo, canUndo, canRedo,
@@ -441,6 +442,13 @@ export default function ExpressionPanel({ onHide }) {
             title="Redo (Ctrl/Cmd+Shift+Z)"
             aria-label="Redo"
           >↷</button>
+          <button
+            className="panel-hdr-btn"
+            onClick={() => addFolder()}
+            tabIndex={-1}
+            title="New folder"
+            aria-label="New folder"
+          >📁</button>
         </div>
         {onHide && (
           <button
@@ -453,7 +461,103 @@ export default function ExpressionPanel({ onHide }) {
         )}
       </div>
       <div className="expr-list">
-        {items.map((item, index) => {
+        {(() => {
+        // Precompute folder lookup + dragged-kind once per render.
+        const folderCollapsed = new Map();
+        for (const it of items) {
+          if (it.kind === 'folder') folderCollapsed.set(it.id, !!it.collapsed);
+        }
+        const isDraggingFolder = items.find((it) => it.id === dragId)?.kind === 'folder';
+        const computeDropPos = (e, currentTarget, targetItem) => {
+          const rect = currentTarget.getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          if (targetItem.kind === 'folder' && !isDraggingFolder) {
+            if (y < rect.height * 0.25) return 'before';
+            if (y > rect.height * 0.75) return 'after';
+            return 'inside';
+          }
+          return y < rect.height / 2 ? 'before' : 'after';
+        };
+        return items.map((item, index) => {
+          // Children of a collapsed folder don't render in the panel (but still
+          // contribute to the graph + canvas).
+          if (item.parentId && folderCollapsed.get(item.parentId)) return null;
+          const depth = (item.parentId && folderCollapsed.has(item.parentId)) ? 1 : 0;
+
+          const isDragging   = dragId === item.id;
+          const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
+          const isDropAfter  = dropTarget?.id === item.id && dropTarget.position === 'after';
+          const isDropInside = dropTarget?.id === item.id && dropTarget.position === 'inside';
+          const entryClass = `expr-entry${depth > 0 ? ' expr-entry--child' : ''}${item.kind === 'folder' ? ' expr-entry--folder' : ''}${isDragging ? ' dragging' : ''}${isDropBefore ? ' drop-before' : ''}${isDropAfter ? ' drop-after' : ''}${isDropInside ? ' drop-inside' : ''}`;
+
+          const dragHandlers = {
+            onDragOver: (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              const pos = computeDropPos(e, e.currentTarget, item);
+              setDropTarget((prev) =>
+                prev?.id === item.id && prev?.position === pos ? prev : { id: item.id, position: pos }
+              );
+            },
+            onDragLeave: (e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget(null);
+            },
+            onDrop: (e) => {
+              e.preventDefault();
+              if (dragId && dragId !== item.id && dropTarget?.id === item.id) {
+                reorderItem(dragId, item.id, dropTarget.position);
+              }
+              setDragId(null);
+              setDropTarget(null);
+            },
+          };
+
+          // Folder rows: simple header (collapse toggle | 📁 | name input | ×).
+          if (item.kind === 'folder') {
+            const isCollapsed = !!item.collapsed;
+            return (
+              <div key={item.id} className={entryClass} {...dragHandlers}>
+                <div className="expr-row folder-row">
+                  <div
+                    className="drag-handle"
+                    draggable
+                    onDragStart={(e) => {
+                      setDragId(item.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', item.id);
+                    }}
+                    onDragEnd={() => { setDragId(null); setDropTarget(null); }}
+                    aria-hidden="true"
+                  >⠿</div>
+                  <button
+                    type="button"
+                    className="folder-collapse"
+                    tabIndex={-1}
+                    onClick={() => setFolderCollapsed(item.id, !isCollapsed)}
+                    aria-label={isCollapsed ? 'Expand folder' : 'Collapse folder'}
+                  >{isCollapsed ? '▸' : '▾'}</button>
+                  <span className="folder-icon" aria-hidden="true">📁</span>
+                  <input
+                    type="text"
+                    className="folder-name-input"
+                    value={item.folderName ?? ''}
+                    placeholder="Folder"
+                    spellCheck={false}
+                    autoComplete="off"
+                    onChange={(e) => setFolderName(item.id, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                  />
+                  <button
+                    className="expr-delete"
+                    tabIndex={-1}
+                    onClick={() => deleteItem(item.id)}
+                    aria-label="Delete folder"
+                  >×</button>
+                </div>
+              </div>
+            );
+          }
+
           const node       = parseExpression(item.text);
           const isInvalid  = item.text.trim() !== '' && !node;
           const isDupLabel = duplicateLabelIds.has(item.id);
@@ -504,34 +608,11 @@ export default function ExpressionPanel({ onHide }) {
           const animConf  = animSettings[item.id] ?? {};
           const animMode  = animConf.mode  ?? 'pingpong';
 
-          const isDragging  = dragId === item.id;
-          const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
-          const isDropAfter  = dropTarget?.id === item.id && dropTarget.position === 'after';
-
           return (
             <div
               key={item.id}
-              className={`expr-entry${isDragging ? ' dragging' : ''}${isDropBefore ? ' drop-before' : ''}${isDropAfter ? ' drop-after' : ''}`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pos  = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-                setDropTarget((prev) =>
-                  prev?.id === item.id && prev?.position === pos ? prev : { id: item.id, position: pos }
-                );
-              }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget(null);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragId && dragId !== item.id && dropTarget?.id === item.id) {
-                  reorderItem(dragId, item.id, dropTarget.position);
-                }
-                setDragId(null);
-                setDropTarget(null);
-              }}
+              className={entryClass}
+              {...dragHandlers}
             >
               <div className={`expr-row${(isInvalid || isDupLabel) ? ' expr-invalid' : ''}`}>
 
@@ -770,7 +851,8 @@ export default function ExpressionPanel({ onHide }) {
               )}
             </div>
           );
-        })}
+        });
+        })()}
       </div>
 
       <button className="expr-clear-btn" onClick={() => { if (window.confirm('Clear all expressions?')) clearAll(); }}>

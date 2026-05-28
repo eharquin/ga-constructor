@@ -12,8 +12,16 @@ const ITEM = (id, text, extra = {}) => ({
   visible: true, movable: true, normalizeMode: null,
   opacity: null, scale: null, pointShape: null,
   showPoints: null, showOutline: null, showFill: null,
+  parentId: null, kind: null, folderName: null, collapsed: false,
   ...extra,
 });
+
+function nextFolderName(items) {
+  const used = new Set(items.filter((it) => it.kind === 'folder').map((it) => it.folderName));
+  let i = 1;
+  while (used.has(`Folder ${i}`)) i++;
+  return `Folder ${i}`;
+}
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
 
@@ -61,6 +69,12 @@ function itemsReducer(items, action) {
       return items.map((it) => it.id === action.id ? { ...it, showOutline: action.show } : it);
     case 'SET_LIST_SHOW_FILL':
       return items.map((it) => it.id === action.id ? { ...it, showFill: action.show } : it);
+    case 'ADD_FOLDER':
+      return [...items, ITEM(action.id, '', { kind: 'folder', folderName: action.name, parentId: null })];
+    case 'SET_FOLDER_NAME':
+      return items.map((it) => it.id === action.id ? { ...it, folderName: action.name } : it);
+    case 'SET_FOLDER_COLLAPSED':
+      return items.map((it) => it.id === action.id ? { ...it, collapsed: action.collapsed } : it);
     case 'INSERT_AFTER': {
       const idx = items.findIndex((it) => it.id === action.afterId);
       const newItem = ITEM(action.newId, '');
@@ -72,19 +86,49 @@ function itemsReducer(items, action) {
       if (idx === -1) return [...action.newItems, ...items];
       return [...items.slice(0, idx), ...action.newItems, ...items.slice(idx)];
     }
-    case 'DELETE':
+    case 'DELETE': {
+      const victim = items.find((it) => it.id === action.id);
+      if (victim?.kind === 'folder') {
+        return items
+          .filter((it) => it.id !== action.id)
+          .map((it) => it.parentId === action.id ? { ...it, parentId: null } : it);
+      }
       return items.filter((it) => it.id !== action.id);
+    }
     case 'CLEAR_ALL':
       return [];
     case 'REORDER': {
       const from = items.findIndex((it) => it.id === action.dragId);
       const to   = items.findIndex((it) => it.id === action.targetId);
       if (from === -1 || to === -1 || from === to) return items;
+      const dragged = items[from];
+      const target  = items[to];
+
+      // Drop INTO a folder: only valid for non-folder items and only if target is a folder.
+      if (action.position === 'inside') {
+        if (target.kind !== 'folder' || dragged.kind === 'folder') return items;
+        // Find the index just after the last child of this folder, so the new
+        // child joins the end of the folder's children block in source order.
+        let endOfChildren = to;
+        for (let i = to + 1; i < items.length; i++) {
+          if (items[i].parentId === target.id) endOfChildren = i;
+          else break;
+        }
+        let insertAt = endOfChildren + 1;
+        const next = [...items];
+        const [moved] = next.splice(from, 1);
+        if (from < insertAt) insertAt--;
+        next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, { ...moved, parentId: target.id });
+        return next;
+      }
+
+      // Sibling drop: new parent = target's parent (folders themselves stay at root).
+      const newParentId = dragged.kind === 'folder' ? null : (target.parentId ?? null);
       let insertAt = action.position === 'before' ? to : to + 1;
       if (from < to) insertAt--;
       const next = [...items];
       const [moved] = next.splice(from, 1);
-      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, moved);
+      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, { ...moved, parentId: newParentId });
       return next;
     }
     case 'LOAD_ITEMS':
@@ -105,6 +149,10 @@ function itemsReducer(items, action) {
         showPoints: it.showPoints ?? null,
         showOutline: it.showOutline ?? null,
         showFill: it.showFill ?? null,
+        parentId: it.parentId ?? null,
+        kind: it.kind ?? null,
+        folderName: it.folderName ?? null,
+        collapsed: it.collapsed ?? false,
       }));
     default:
       return items;
@@ -120,7 +168,7 @@ function itemsReducer(items, action) {
 
 const HISTORY_CAP    = 100;
 const COALESCE_MS    = 400;
-const COALESCING_ACTIONS = new Set(['SET_TEXT', 'SET_DRAW_POS']);
+const COALESCING_ACTIONS = new Set(['SET_TEXT', 'SET_DRAW_POS', 'SET_FOLDER_NAME']);
 
 function pushPast(past, items) {
   const next = past.length >= HISTORY_CAP ? past.slice(past.length - HISTORY_CAP + 1) : past;
@@ -717,6 +765,12 @@ export function useGraph(algebra) {
     dispatch({ type: 'REORDER', dragId, targetId, position });
   };
 
+  const addFolder = () => {
+    const id = `folder_${nextId.current++}`;
+    dispatch({ type: 'ADD_FOLDER', id, name: nextFolderName(items) });
+    return id;
+  };
+
   const addFreePoint = (x, y) => {
     const usedIds = new Set(items.map((it) => parseExpression(it.text)?.id).filter(Boolean));
     const name  = pickPointName(usedIds);
@@ -760,6 +814,9 @@ export function useGraph(algebra) {
     setListShowPoints:    (id, show)    => dispatch({ type: 'SET_LIST_SHOW_POINTS',  id, show }),
     setListShowOutline:   (id, show)    => dispatch({ type: 'SET_LIST_SHOW_OUTLINE', id, show }),
     setListShowFill:      (id, show)    => dispatch({ type: 'SET_LIST_SHOW_FILL',    id, show }),
+    setFolderName:        (id, name)    => dispatch({ type: 'SET_FOLDER_NAME',       id, name }),
+    setFolderCollapsed:   (id, collapsed) => dispatch({ type: 'SET_FOLDER_COLLAPSED', id, collapsed }),
+    addFolder,
     normalizeMap,
     movableMap,
     reorderItem,
