@@ -29,38 +29,42 @@
 \headcommand {\beamer@framepages {10}{10}}
 \headcommand {\slideentry {3}{0}{3}{11/11}{}{0}}
 \headcommand {\beamer@framepages {11}{11}}
-\headcommand {\beamer@sectionpages {9}{11}}
-\headcommand {\beamer@subsectionpages {9}{11}}
-\headcommand {\sectionentry {4}{Features (today)}{12}{Features (today)}{0}}
-\headcommand {\slideentry {4}{0}{1}{12/12}{}{0}}
+\headcommand {\slideentry {3}{0}{4}{12/12}{}{0}}
 \headcommand {\beamer@framepages {12}{12}}
-\headcommand {\slideentry {4}{0}{2}{13/13}{}{0}}
+\headcommand {\beamer@sectionpages {9}{12}}
+\headcommand {\beamer@subsectionpages {9}{12}}
+\headcommand {\sectionentry {4}{Features (today)}{13}{Features (today)}{0}}
+\headcommand {\slideentry {4}{0}{1}{13/13}{}{0}}
 \headcommand {\beamer@framepages {13}{13}}
-\headcommand {\slideentry {4}{0}{3}{14/14}{}{0}}
+\headcommand {\slideentry {4}{0}{2}{14/14}{}{0}}
 \headcommand {\beamer@framepages {14}{14}}
-\headcommand {\slideentry {4}{0}{4}{15/15}{}{0}}
+\headcommand {\slideentry {4}{0}{3}{15/15}{}{0}}
 \headcommand {\beamer@framepages {15}{15}}
-\headcommand {\slideentry {4}{0}{5}{16/16}{}{0}}
+\headcommand {\slideentry {4}{0}{4}{16/16}{}{0}}
 \headcommand {\beamer@framepages {16}{16}}
-\headcommand {\slideentry {4}{0}{6}{17/17}{}{0}}
+\headcommand {\slideentry {4}{0}{5}{17/17}{}{0}}
 \headcommand {\beamer@framepages {17}{17}}
-\headcommand {\beamer@sectionpages {12}{17}}
-\headcommand {\beamer@subsectionpages {12}{17}}
-\headcommand {\sectionentry {5}{Why this matters for the PhD}{18}{Why this matters for the PhD}{0}}
-\headcommand {\slideentry {5}{0}{1}{18/18}{}{0}}
+\headcommand {\slideentry {4}{0}{6}{18/18}{}{0}}
 \headcommand {\beamer@framepages {18}{18}}
-\headcommand {\slideentry {5}{0}{2}{19/19}{}{0}}
+\headcommand {\slideentry {4}{0}{7}{19/19}{}{0}}
 \headcommand {\beamer@framepages {19}{19}}
-\headcommand {\slideentry {5}{0}{3}{20/20}{}{0}}
+\headcommand {\beamer@sectionpages {13}{19}}
+\headcommand {\beamer@subsectionpages {13}{19}}
+\headcommand {\sectionentry {5}{Why this matters for the PhD}{20}{Why this matters for the PhD}{0}}
+\headcommand {\slideentry {5}{0}{1}{20/20}{}{0}}
 \headcommand {\beamer@framepages {20}{20}}
-\headcommand {\slideentry {5}{0}{4}{21/21}{}{0}}
+\headcommand {\slideentry {5}{0}{2}{21/21}{}{0}}
 \headcommand {\beamer@framepages {21}{21}}
-\headcommand {\slideentry {5}{0}{5}{22/22}{}{0}}
+\headcommand {\slideentry {5}{0}{3}{22/22}{}{0}}
 \headcommand {\beamer@framepages {22}{22}}
-\headcommand {\slideentry {5}{0}{6}{23/23}{}{0}}
+\headcommand {\slideentry {5}{0}{4}{23/23}{}{0}}
 \headcommand {\beamer@framepages {23}{23}}
-\headcommand {\beamer@partpages {1}{23}}
-\headcommand {\beamer@subsectionpages {18}{23}}
-\headcommand {\beamer@sectionpages {18}{23}}
-\headcommand {\beamer@documentpages {23}}
-\headcommand {\gdef \inserttotalframenumber {16}}
+\headcommand {\slideentry {5}{0}{5}{24/24}{}{0}}
+\headcommand {\beamer@framepages {24}{24}}
+\headcommand {\slideentry {5}{0}{6}{25/25}{}{0}}
+\headcommand {\beamer@framepages {25}{25}}
+\headcommand {\beamer@partpages {1}{25}}
+\headcommand {\beamer@subsectionpages {20}{25}}
+\headcommand {\beamer@sectionpages {20}{25}}
+\headcommand {\beamer@documentpages {25}}
+\headcommand {\gdef \inserttotalframenumber {18}}

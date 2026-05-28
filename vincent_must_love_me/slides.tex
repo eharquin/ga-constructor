@@ -11,6 +11,8 @@
 \usepackage{tikz}
 \usepackage{amsmath, amssymb}
 \usepackage{booktabs}
+\usepackage{graphicx}
+\graphicspath{{img/}}
 
 % ─── Theme ────────────────────────────────────────────────────────────────
 \usetheme{metropolis}
@@ -95,6 +97,7 @@
     \end{tikzpicture}
   \end{center}
 
+  \vspace{-2pt}
   \begin{itemize}
     \item One language, many algebras.
     \item Expressions \emph{are} the construction — drag a point, every
@@ -107,32 +110,16 @@
 \section{What it is}
 
 \begin{frame}{In one screenshot}
-  \begin{columns}[T]
-    \column{0.55\textwidth}
-      A web application (React + Vite, SVG-rendered, \texttt{ganja.js}
-      for GA primitives) where the entire construction lives in a
-      left-hand expression panel.
-      \begin{itemize}
-        \item Type an expression \(\Rightarrow\) object appears.
-        \item Drag the object \(\Rightarrow\) the expression updates.
-        \item Edit the expression \(\Rightarrow\) the canvas redraws.
-        \item Persistent: \texttt{localStorage} + named saved graphs.
-      \end{itemize}
-
-    \column{0.45\textwidth}
-      \begin{center}
-        \begin{tikzpicture}[scale=0.55]
-          \fill[soft] (-2,-2) rectangle (4,3);
-          \draw[muted,very thin] (-2,-2) grid (4,3);
-          \draw[accent3, line width=1pt] (-2,1.2) -- (4,-0.3);
-          \draw[accent, line width=1pt] (-1.3,3) -- (3.3,-2);
-          \filldraw[accent2] (0.6, 0.6) circle (4pt) node[above right]{P};
-          \filldraw[accent3] (2.4,-1.1) circle (4pt) node[below right]{Q};
-          \filldraw[accent]  (-1.0, 2.0) circle (4pt) node[above]{R};
-        \end{tikzpicture}\\[4pt]
-        \footnotesize Canvas (SVG, dark/light themed)
-      \end{center}
-  \end{columns}
+  \begin{center}
+    \includegraphics[width=0.95\textwidth]{pga_motor}
+  \end{center}
+  \vspace{-4pt}
+  \footnotesize
+  Left: live expression panel. Right: SVG canvas — points, vectors,
+  rotors, translators, sandwich transforms — all classified from
+  their multivector value. Drag \texttt{P} or move the
+  \texttt{t} / \texttt{a} sliders; every dependent updates in
+  lock-step.
 \end{frame}
 
 \begin{frame}[fragile]{The expression language}
@@ -211,6 +198,29 @@ T = exp(t * (e01 + e02))   # translator parameterised by t
   \textbf{Already shipping:} PGA(2,0,1), VGA(2,0,0), R(0,1,0).
 \end{frame}
 
+\begin{frame}{Two algebras today, more tomorrow}
+  \begin{columns}[T]
+    \column{0.55\textwidth}
+      \textbf{VGA(2,0,0) — vectorial 2D}\\[2pt]
+      Same expression language, same UI. Vectors, dot, wedge
+      (bivector), exponential (rotor), sandwich.
+
+      \medskip
+      Adding this algebra was \emph{one file}
+      (\texttt{src/algebras/vga200/}) — no changes to parser,
+      evaluator, panel, canvas.
+
+      \medskip
+      The same recipe will host CGA, 3D~PGA, STA — limited only by
+      what ganja.js supports.
+
+    \column{0.45\textwidth}
+      \begin{center}
+        \includegraphics[width=\textwidth]{vga}
+      \end{center}
+  \end{columns}
+\end{frame}
+
 \begin{frame}{Ganja delegation, single sign convention}
   Every GA primitive routes through ganja's built-in:
 
@@ -276,6 +286,18 @@ d2 = 2 * dist(P, Q) + 1      # nested in arithmetic
   Functions are values — captured globals propagate reactively,
   recursion is allowed with a depth cap, builtin-name collisions are
   rejected at parse time.
+\end{frame}
+
+\begin{frame}{User functions, live}
+  \begin{center}
+    \includegraphics[width=0.93\textwidth]{pga_fn}
+  \end{center}
+  \vspace{-6pt}
+  \footnotesize
+  \texttt{dist(A, B) = |A \& B|} and \texttt{ln(A, B) = A \& B} are
+  user-defined (note the green~\textit{\textbf{ƒ}}~badge). The call
+  \texttt{d~=~dist(P,~Q)} evaluates to~$6$; \texttt{L~=~ln(P,~Q)}
+  draws the join line; \texttt{T~=~[P,~Q,~R]} renders the triangle.
 \end{frame}
 
 \begin{frame}{Animation + interactivity}
