@@ -416,29 +416,23 @@ export default function ExpressionPanel() {
                   aria-hidden="true"
                 >⠿</div>
 
-                {/* Settings button — scalar only */}
+                {/* Color swatch or play+anim-mode stack (scalars) */}
                 {isScalar ? (
                   <div className="play-area">
+                    <button
+                      type="button"
+                      className={`play-btn-swatch${isPlaying ? ' playing' : ''}`}
+                      tabIndex={-1}
+                      onClick={() => togglePlay(item.id)}
+                      aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >{isPlaying ? '⏸' : '▶'}</button>
                     <button
                       className={`anim-cfg-btn${animMenuIds.has(item.id) ? ' active' : ''}`}
                       tabIndex={-1}
                       onClick={() => toggleAnimMenu(item.id)}
-                      title="Animation settings"
-                    >⚙</button>
+                      title={`Animation mode: ${ANIM_MODES.find((m) => m.id === animMode)?.label ?? animMode}`}
+                    >{ANIM_MODES.find((m) => m.id === animMode)?.icon ?? '⚙'}</button>
                   </div>
-                ) : (
-                  <div className="play-btn-gap" />
-                )}
-
-                {/* Color swatch or play button (scalars) */}
-                {isScalar ? (
-                  <button
-                    type="button"
-                    className={`play-btn-swatch${isPlaying ? ' playing' : ''}`}
-                    tabIndex={-1}
-                    onClick={() => togglePlay(item.id)}
-                    aria-label={isPlaying ? 'Pause' : 'Play'}
-                  >{isPlaying ? '⏸' : '▶'}</button>
                 ) : (
                   <button
                     type="button"
