@@ -220,7 +220,7 @@ export function useGraph(algebra) {
 
     for (const itemId of playingIds) {
       const conf  = animSettings[itemId] ?? {};
-      const mode  = conf.mode  ?? 'repeat';
+      const mode  = conf.mode  ?? 'pingpong';
       const speed = conf.speed ?? 1;
       const ms    = mode === 'infinite' ? 16 : Math.max(16, Math.round(50 / speed));
 
@@ -267,7 +267,7 @@ export function useGraph(algebra) {
 
   const togglePlay = (id) => {
     const conf = animSettings[id] ?? {};
-    const mode = conf.mode ?? 'repeat';
+    const mode = conf.mode ?? 'pingpong';
     if (mode === 'once') {
       const item = items.find((it) => it.id === id);
       const node = item && parseExpression(item.text);

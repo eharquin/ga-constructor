@@ -444,7 +444,7 @@ export default function ExpressionPanel() {
             : [];
 
           const animConf  = animSettings[item.id] ?? {};
-          const animMode  = animConf.mode  ?? 'repeat';
+          const animMode  = animConf.mode  ?? 'pingpong';
 
           const isDragging  = dragId === item.id;
           const isDropBefore = dropTarget?.id === item.id && dropTarget.position === 'before';
@@ -924,7 +924,7 @@ export default function ExpressionPanel() {
       {animMenuOpenId != null && (
         <AnimMenuPopover
           anchorEl={animBtnRefs.current[animMenuOpenId]}
-          animMode={animSettings[animMenuOpenId]?.mode ?? 'repeat'}
+          animMode={animSettings[animMenuOpenId]?.mode ?? 'pingpong'}
           animSpeed={animSettings[animMenuOpenId]?.speed ?? 1}
           onModeChange={(m) => setAnimMode(animMenuOpenId, m)}
           onSpeedChange={(s) => setAnimSpeed(animMenuOpenId, s)}
