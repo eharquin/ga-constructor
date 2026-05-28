@@ -149,26 +149,6 @@ function ShareButton() {
   );
 }
 
-function UndoRedoControls() {
-  const { undo, redo, canUndo, canRedo } = useGraphContext();
-  return (
-    <>
-      <button
-        className="app-icon-btn"
-        onClick={undo}
-        disabled={!canUndo}
-        title="Undo (Ctrl/Cmd+Z)"
-      >↶</button>
-      <button
-        className="app-icon-btn"
-        onClick={redo}
-        disabled={!canRedo}
-        title="Redo (Ctrl/Cmd+Shift+Z)"
-      >↷</button>
-    </>
-  );
-}
-
 function OptionsMenu() {
   const { settings, setSetting } = useSettings();
   const [open, setOpen] = useState(false);
@@ -308,7 +288,6 @@ function AppShell() {
         <span className="app-title">multiVector.net</span>
         <AlgebraSelect />
         <span className="app-header-spacer" />
-        <UndoRedoControls />
         <ShareButton />
         <SavedGraphsControls />
         <OptionsMenu />

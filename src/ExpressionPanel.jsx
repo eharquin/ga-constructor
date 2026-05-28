@@ -308,6 +308,7 @@ export default function ExpressionPanel({ onHide }) {
     setItemOpacity, setItemScale, setItemPointShape, setListShowOutline, setListShowFill, toggleListElement,
     reorderItem, insertItemAfter, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
+    undo, redo, canUndo, canRedo,
   } = useGraphContext();
 
   const inputRefs    = useRef({});
@@ -397,15 +398,42 @@ export default function ExpressionPanel({ onHide }) {
 
   return (
     <aside className="expr-panel">
-      {onHide && (
+      <div className="expr-panel-header">
         <button
-          className="panel-hide-btn"
-          onClick={onHide}
+          className="panel-hdr-btn"
+          onClick={() => { focus(insertItemAfter(items[items.length - 1]?.id)); }}
           tabIndex={-1}
-          title="Hide panel"
-          aria-label="Hide panel"
-        >«</button>
-      )}
+          title="Add expression"
+          aria-label="Add expression"
+        >+</button>
+        <div className="expr-panel-header-mid">
+          <button
+            className="panel-hdr-btn"
+            onClick={undo}
+            disabled={!canUndo}
+            tabIndex={-1}
+            title="Undo (Ctrl/Cmd+Z)"
+            aria-label="Undo"
+          >↶</button>
+          <button
+            className="panel-hdr-btn"
+            onClick={redo}
+            disabled={!canRedo}
+            tabIndex={-1}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+            aria-label="Redo"
+          >↷</button>
+        </div>
+        {onHide && (
+          <button
+            className="panel-hdr-btn"
+            onClick={onHide}
+            tabIndex={-1}
+            title="Hide panel"
+            aria-label="Hide panel"
+          >«</button>
+        )}
+      </div>
       <div className="expr-list">
         {items.map((item, index) => {
           const node      = parseExpression(item.text);
@@ -713,13 +741,6 @@ export default function ExpressionPanel({ onHide }) {
           );
         })}
       </div>
-
-      <button
-        className="expr-add"
-        onClick={() => { focus(insertItemAfter(items[items.length - 1]?.id)); }}
-      >
-        + Add expression
-      </button>
 
       <button className="expr-clear-btn" onClick={() => { if (window.confirm('Clear all expressions?')) clearAll(); }}>
         ✕ Clear all
