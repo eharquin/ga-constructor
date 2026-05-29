@@ -287,10 +287,10 @@ function AppShell() {
       const dx = e.clientX - dragRef.current.startX;
       const workspace = document.querySelector('.workspace');
       const wsWidth = workspace?.getBoundingClientRect().width ?? MAX_PANEL;
-      // Allow expanding nearly to the workspace edge (leave room for the
-      // resize handle + a tiny canvas sliver); MAX_PANEL would otherwise
+      // Allow expanding to the workspace edge (leave only the resize handle
+      // itself so the user can still grab it back). MAX_PANEL would otherwise
       // cap mid-screen on wide monitors.
-      const upper = Math.max(MIN_PANEL, wsWidth - 5 - 20);
+      const upper = Math.max(MIN_PANEL, wsWidth - 5);
       setPanelWidth(Math.max(MIN_PANEL, Math.min(upper, dragRef.current.startW + dx)));
     };
     const onUp = () => { dragRef.current = null; };
