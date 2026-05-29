@@ -52,6 +52,7 @@ export const reverseOp = (mv) => mv && typeof mv.length === 'number' && mv.lengt
 //   rotor      — even grade: scalar + e12
 //   mixed      — anything else (grade 0 + grade 1, etc.)
 export function classifyMV(val) {
+  if (typeof val === 'number') return { kind: 'scalar' };
   if (!val || typeof val.length !== 'number' || val.length < ARRAY_SIZE) return null;
   const eps = 1e-10;
   const g0 = Math.abs(val[0]) > eps;

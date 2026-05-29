@@ -163,4 +163,6 @@ A chronological log of all prompts given to Claude in this project.
 
 85. **`pi` constant** — Lowercase `pi` (= `Math.PI`) is now usable in both scalar and MV expressions. New `SCALAR_CONSTS = { pi: Math.PI }` table in `evalMVArith.js`, merged into `fullEnv` alongside `COLOR_CONSTS` and excluded from `extractMVDeps`'s dep-collection scan. `evalExpr.js`'s `MATH` map gains `pi` so it's also filtered out of `MATH_NAMES` (and therefore `extractVarNames`). Examples: `R = exp(pi*e12)`, `t = pi/2`. Existing uppercase `PI` still works in scalar contexts; the MV side now resolves both via the merged env.
 
+86. **Plain numbers classify as `scalar`** — `r = 2*pi` parses as an `mvExpr` (the scalar form only accepts a single literal number) and evaluates to `6.283…`, but the panel was rendering it with a swatch + norm/inorm buttons because `classifyMV(number)` returned `null` (falling back to grey "unknown"). Updated `classifyMV` in PGA and VGA to return `{ kind: 'scalar' }` for any plain JS number; `r010` (complex-plane algebra) keeps its `finitePoint` semantics. Tightened the panel's `canUnitize` guard with `cls_?.kind !== 'scalar'`, so derived scalar values (`r = 2*pi`, `a = sin(t)`, …) no longer show meaningless norm buttons and pick up the green scalar color via `KIND_COLOR.scalar`.
+
 ---

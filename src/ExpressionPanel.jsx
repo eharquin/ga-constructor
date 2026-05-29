@@ -633,7 +633,7 @@ export default function ExpressionPanel({ onHide }) {
           const isList      = !!val_?.list;
           const DRAWABLE_KINDS = new Set(['finitePoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
-          const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList;
+          const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
           const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)

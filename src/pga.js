@@ -69,6 +69,7 @@ export const toIdealVector = (p) => {
 //   'reflector'   — odd-grade: grade-1 + grade-3 (glide reflection: R·Motor)
 //   'mixed'       — anything else
 export const classifyMV = (val) => {
+  if (typeof val === 'number') return { kind: 'scalar' };
   if (!val || typeof val.length !== 'number' || val.length < 8) return null;
 
   const eps = 1e-10;
