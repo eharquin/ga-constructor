@@ -165,4 +165,6 @@ A chronological log of all prompts given to Claude in this project.
 
 86. **Plain numbers classify as `scalar`** — `r = 2*pi` parses as an `mvExpr` (the scalar form only accepts a single literal number) and evaluates to `6.283…`, but the panel was rendering it with a swatch + norm/inorm buttons because `classifyMV(number)` returned `null` (falling back to grey "unknown"). Updated `classifyMV` in PGA and VGA to return `{ kind: 'scalar' }` for any plain JS number; `r010` (complex-plane algebra) keeps its `finitePoint` semantics. Tightened the panel's `canUnitize` guard with `cls_?.kind !== 'scalar'`, so derived scalar values (`r = 2*pi`, `a = sin(t)`, …) no longer show meaningless norm buttons and pick up the green scalar color via `KIND_COLOR.scalar`.
 
+87. **Canvas recenter button** — Floating top-left button in the Canvas (inline SVG crosshair icon) resets the viewport offset so the world origin sits at the canvas centre. Zoom is preserved — only `offsetX`/`offsetY` are reset to `size.w/2`, `size.h/2`. Positioned at `top: 8px, left: 42px` so it sits to the right of the panel-show button (which only appears when the expression panel is hidden), styled to match (`.canvas-recenter-btn` mirrors `.panel-show-btn`).
+
 ---

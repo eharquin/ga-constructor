@@ -786,6 +786,10 @@ export default function Canvas() {
     addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
 
+  function recenter() {
+    setVp(v => ({ ...v, offsetX: size.w / 2, offsetY: size.h / 2 }));
+  }
+
   // Build SVG objects split into two layers: back (lines/triangles) then front (points).
   // This ensures points are always rendered on top of lines regardless of expression order.
   const backLayer = [];
@@ -968,7 +972,21 @@ export default function Canvas() {
   }
 
   return (
-    <div ref={wrapperRef} style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden', userSelect: 'none' }}>
+    <div ref={wrapperRef} style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden', userSelect: 'none', position: 'relative' }}>
+      <button
+        className="canvas-recenter-btn"
+        onClick={recenter}
+        title="Center on origin"
+        aria-label="Center on origin"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <line x1="8" y1="1.5" x2="8" y2="14.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <line x1="1.5" y1="8" x2="14.5" y2="8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <polygon points="8,1 6.5,3.6 9.5,3.6" fill="currentColor" />
+          <polygon points="15,8 12.4,6.5 12.4,9.5" fill="currentColor" />
+          <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+        </svg>
+      </button>
       <svg
         ref={svgRef}
         width={size.w}
