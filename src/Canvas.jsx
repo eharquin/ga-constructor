@@ -79,9 +79,15 @@ function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadi
   return best;
 }
 
-function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra) {
+function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds) {
   const { classifyMV, toEuclidean } = algebra;
-  for (const [id, node] of Object.entries(nodes)) {
+  // Iterate in reverse list-order so the topmost-drawn (last in expr list)
+  // item wins when several share the same hit area.
+  const order = orderedNodeIds ?? Object.keys(nodes);
+  for (let i = order.length - 1; i >= 0; i--) {
+    const id = order[i];
+    const node = nodes[id];
+    if (!node) continue;
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
@@ -661,7 +667,7 @@ export default function Canvas({ onSquareCanvas }) {
 
   const snap = useRef(null);
   snap.current = {
-    nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap,
+    nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
     updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
@@ -715,8 +721,8 @@ export default function Canvas({ onSquareCanvas }) {
     if (e.button !== 0) return;
     svgRef.current.setPointerCapture(e.pointerId);
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap } = snap.current;
-    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra);
+    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, orderedNodeIds } = snap.current;
+    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds);
     if (hit) {
       ptDragRef.current = hit;
       setCursor('crosshair');
@@ -759,7 +765,7 @@ export default function Canvas({ onSquareCanvas }) {
       setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
     } else {
-      const hit         = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap, algebra);
+      const hit         = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap, algebra, snap.current.orderedNodeIds);
       const hitId       = hit?.id       ?? null;
       const hitDragType = hit?.dragType ?? null;
       const newCursor = hitId ? 'pointer' : 'grab';
@@ -780,8 +786,8 @@ export default function Canvas({ onSquareCanvas }) {
 
   function handleDoubleClick(e) {
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, addFreePoint } = snap.current;
-    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra)) return;
+    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, orderedNodeIds, addFreePoint } = snap.current;
+    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds)) return;
     const { x, y } = c2w(mx, my, vp);
     addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
@@ -790,10 +796,11 @@ export default function Canvas({ onSquareCanvas }) {
     setVp(v => ({ ...v, offsetX: size.w / 2, offsetY: size.h / 2 }));
   }
 
-  // Build SVG objects split into two layers: back (lines/triangles) then front (points).
-  // This ensures points are always rendered on top of lines regardless of expression order.
-  const backLayer = [];
-  const frontLayer = [];
+  // Single render layer — draw order is strict expression-list order:
+  // top of the list renders first (bottom of z-stack), bottom of the list
+  // renders last (on top). Hit-testing iterates this list in reverse so the
+  // topmost-drawn item wins when several share a hit area.
+  const layers = [];
 
   // Ideal-line ellipse + ideal-point markers are PGA-only (kind === 'idealLine'
   // exists for that algebra). VGA never emits idealLine, so this stays false.
@@ -836,7 +843,7 @@ export default function Canvas({ onSquareCanvas }) {
     if (isHidden) {
       if (plan.kind === 'finitePoint' && label) {
         const { cx, cy } = w2c(plan.x, plan.y, vp);
-        frontLayer.push(<g key={`${id}-lbl`}>{renderLabel(label, cx, cy, opts)}</g>);
+        layers.push(<g key={`${id}-lbl`}>{renderLabel(label, cx, cy, opts)}</g>);
       }
       continue;
     }
@@ -861,7 +868,7 @@ export default function Canvas({ onSquareCanvas }) {
           switch (elem.kind) {
             case 'finitePoint':
               if (showPoints) {
-                frontLayer.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} draggable={false} />);
+                layers.push(<SvgPoint key={ekey} x={elem.x} y={elem.y} label={null} color={color} vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight} shape={shape} scale={scale} draggable={false} />);
               }
               break;
             case 'line': {
@@ -876,7 +883,7 @@ export default function Canvas({ onSquareCanvas }) {
           }
         });
         if (listChildren.length > 0) {
-          backLayer.push(opacity < 1
+          layers.push(opacity < 1
             ? <g key={`${id}-list`} opacity={opacity}>{listChildren}</g>
             : <g key={`${id}-list`}>{listChildren}</g>
           );
@@ -888,13 +895,13 @@ export default function Canvas({ onSquareCanvas }) {
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
         const tipDraggable = (plan.tipDraggable ?? true) && node.type === 'vector';
-        backLayer.push(
+        layers.push(
           <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
             label={label} color={color} vp={vp} tailHovered={tailHovered} tipHovered={tipHovered} linked={pos.linked}
             tipDraggable={tipDraggable} opts={opts} />
         );
         if (hasIdealLine && plan.ringMarker !== false) {
-          backLayer.push(
+          layers.push(
             <SvgIdealPointMarker key={`${id}-inf`} vx={plan.vx} vy={plan.vy}
               color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />
           );
@@ -919,17 +926,17 @@ export default function Canvas({ onSquareCanvas }) {
           return false;
         })();
         const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} />;
-        frontLayer.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
+        layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
         break;
       }
       case 'line': {
         // PGA-only — algebra.getRenderPlan returns the line MV; resolve its base+dir here.
         const bd = algebra.lineBaseAndDir?.(plan.L);
-        backLayer.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        layers.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
       }
       case 'idealLine':
-        backLayer.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        layers.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
         break;
       case 'bivector': {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
@@ -944,7 +951,7 @@ export default function Canvas({ onSquareCanvas }) {
             const b = values[m[2]];
             if (a && typeof a === 'object' && 'vx' in a &&
                 b && typeof b === 'object' && 'vx' in b) {
-              backLayer.push(
+              layers.push(
                 <SvgWedgeParallelogram key={id} v1={a} v2={b} value={plan.value}
                   label={label} color={color} vp={vp} opts={opts}
                   px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked}
@@ -955,7 +962,7 @@ export default function Canvas({ onSquareCanvas }) {
           }
         }
         if (!drewWedge) {
-          backLayer.push(
+          layers.push(
             <SvgBivector key={id} value={plan.value} label={label} color={color} vp={vp} opts={opts}
               px={pos.x} py={pos.y} hovered={hovered} linked={pos.linked}
               showAnchor={settings.alwaysShowAnchors} />
@@ -964,7 +971,7 @@ export default function Canvas({ onSquareCanvas }) {
         break;
       }
       case 'rotor':
-        backLayer.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
+        layers.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
         break;
       default:
         break;
@@ -1014,8 +1021,7 @@ export default function Canvas({ onSquareCanvas }) {
       >
         <rect width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
         {settings.showGrid && <SvgGrid vp={vp} W={size.w} H={size.h} />}
-        {backLayer}
-        {frontLayer}
+        {layers}
       </svg>
     </div>
   );
