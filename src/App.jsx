@@ -274,11 +274,11 @@ function AppShell() {
     const ws = workspace.getBoundingClientRect();
     const resizeW = 5;
     const target = ws.width - resizeW - ws.height;
-    // Bypass MAX_PANEL — squaring needs whatever width the geometry demands.
-    // Still respect MIN_PANEL and cap below ws.width so the panel can't push
-    // the canvas off-screen.
-    const upper = Math.max(MIN_PANEL, ws.width - resizeW - 50);
-    setPanelWidth(Math.max(MIN_PANEL, Math.min(upper, target)));
+    // Bypass MIN_PANEL/MAX_PANEL — squaring needs the exact width the geometry
+    // demands. Only floor at 0 (negative widths invalid) and cap at workspace
+    // width minus the resize handle (otherwise the canvas would have negative
+    // width).
+    setPanelWidth(Math.max(0, Math.min(ws.width - resizeW, target)));
   };
 
   useEffect(() => {
