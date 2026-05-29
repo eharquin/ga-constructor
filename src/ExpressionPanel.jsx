@@ -92,6 +92,7 @@ const KIND_LABELS = {
   rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
   reflector: 'Reflector', mixed: 'Mixed',
   vector: 'Vector', bivector: 'Bivector',
+  circle: 'Circle', pointPair: 'Point pair',
 };
 
 function describeListItem(item, algebra, decimals) {
