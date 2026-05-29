@@ -118,14 +118,28 @@ export const reverseOp = (mv) =>
 
 const EPS = 1e-10;
 
+// Per-grade L2 norms. Used to detect grade purity even when ganja's products
+// leak tiny numerical noise into "wrong" grades (e.g. Wedge introducing 1e-12
+// scalar on a pure bivector).
+function gradeNorms(val) {
+  let n0 = Math.abs(val[0] || 0);
+  let n1sq = 0, n2sq = 0, n3sq = 0;
+  for (let i = 1;  i <= 4;  i++) n1sq += (val[i] || 0) ** 2;
+  for (let i = 5;  i <= 10; i++) n2sq += (val[i] || 0) ** 2;
+  for (let i = 11; i <= 14; i++) n3sq += (val[i] || 0) ** 2;
+  const n4 = Math.abs(val[15] || 0);
+  return [n0, Math.sqrt(n1sq), Math.sqrt(n2sq), Math.sqrt(n3sq), n4];
+}
+
+// A grade is "present" iff its norm is non-trivial both in absolute terms
+// (> EPS) AND relative to the dominant grade (> 1e-8 × maxNorm). This lets
+// the classifier ignore floating-point noise from ganja's binary products.
 function gradeFlags(val) {
-  const g = [false, false, false, false, false];
-  if (Math.abs(val[0]) > EPS) g[0] = true;
-  for (let i = 1; i <= 4;  i++) if (Math.abs(val[i]) > EPS) g[1] = true;
-  for (let i = 5; i <= 10; i++) if (Math.abs(val[i]) > EPS) g[2] = true;
-  for (let i = 11; i <= 14; i++) if (Math.abs(val[i]) > EPS) g[3] = true;
-  if (Math.abs(val[15]) > EPS) g[4] = true;
-  return g;
+  const n = gradeNorms(val);
+  const maxN = Math.max(...n);
+  if (maxN < EPS) return [false, false, false, false, false];
+  const threshold = Math.max(EPS, maxN * 1e-8);
+  return n.map((x) => x > threshold);
 }
 
 // A grade-1 vector P represents a point iff it is null (P² ≈ 0).
