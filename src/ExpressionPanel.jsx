@@ -431,12 +431,16 @@ export default function ExpressionPanel({ onHide }) {
   const commitPosText = (itemId, nodeId) => {
     const str = posTxts[itemId];
     if (str != null) {
-      const ref = parseRef(str);
-      if (ref) {
-        setDrawPosRef(nodeId, ref.ref, ref.anchor);
+      if (str.trim() === '') {
+        setDrawPos(nodeId, 0, 0);
       } else {
-        const parsed = parsePos(str);
-        if (parsed) setDrawPos(nodeId, parsed.x, parsed.y);
+        const ref = parseRef(str);
+        if (ref) {
+          setDrawPosRef(nodeId, ref.ref, ref.anchor);
+        } else {
+          const parsed = parsePos(str);
+          if (parsed) setDrawPos(nodeId, parsed.x, parsed.y);
+        }
       }
       setPosTxts((p) => { const n = { ...p }; delete n[itemId]; return n; });
     }
