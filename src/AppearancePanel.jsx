@@ -12,6 +12,7 @@ const KIND_LABEL = {
   reflector: 'Reflector', bivector: 'Bivector', vector: 'Vector',
   pseudoscalar: 'Pseudoscalar', scalar: 'Scalar',
   list: 'List', mixed: 'Mixed', color: 'Color',
+  circle: 'Circle', pointPair: 'Point pair',
 };
 
 const RAMP_ORDER = ['red', 'blue', 'green', 'yellow'];
@@ -92,8 +93,8 @@ export default function AppearancePanel({
   itemColor,
   kind, isList,
   // appearance
-  opacity, scale, pointShape,
-  onOpacityChange, onScaleChange, onPointShapeChange,
+  opacity, scale, pointShape, strokeStyle,
+  onOpacityChange, onScaleChange, onPointShapeChange, onStrokeStyleChange,
   // color picker
   customColors,
   onColorPick,
@@ -147,6 +148,7 @@ export default function AppearancePanel({
   const custSel    = (c) => isRef ? (c.label === curRef || c.id === curRef) : c.color.toLowerCase() === curHex;
 
   const isPointKind  = kind === 'finitePoint' || kind === 'idealPoint';
+  const isStrokeKind = kind === 'line' || kind === 'idealLine' || kind === 'circle';
   const showAppearance = isPointKind || isList;
   const lo          = labelOpts ?? {};
   const fontSize    = lo.fontSize    ?? 13;
@@ -219,6 +221,36 @@ export default function AppearancePanel({
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {/* ── Stroke ── (lines, ideal lines, circles) */}
+      {isStrokeKind && (
+        <section className="ap-section">
+          <div className="ap-section-title">Stroke</div>
+          <div className="ap-row">
+            <span className="ap-row-label">Style</span>
+            <div className="ap-shape-btns">
+              <button
+                type="button"
+                className={`ap-shape-btn${(strokeStyle ?? 'solid') === 'solid' ? ' active' : ''}`}
+                onClick={() => onStrokeStyleChange('solid')}
+                title="Solid"
+              >─</button>
+              <button
+                type="button"
+                className={`ap-shape-btn${strokeStyle === 'dashed' ? ' active' : ''}`}
+                onClick={() => onStrokeStyleChange('dashed')}
+                title="Dashed"
+              >┄</button>
+              <button
+                type="button"
+                className={`ap-shape-btn${strokeStyle === 'dotted' ? ' active' : ''}`}
+                onClick={() => onStrokeStyleChange('dotted')}
+                title="Dotted"
+              >┈</button>
+            </div>
+          </div>
         </section>
       )}
 

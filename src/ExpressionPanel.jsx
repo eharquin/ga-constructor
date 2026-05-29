@@ -321,7 +321,7 @@ export default function ExpressionPanel({ onHide }) {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
-    setItemOpacity, setItemScale, setItemPointShape, setListShowPoints, setListShowOutline, setListShowFill,
+    setItemOpacity, setItemScale, setItemPointShape, setItemStrokeStyle, setListShowPoints, setListShowOutline, setListShowFill,
     addFolder, setFolderName, setFolderCollapsed, toggleFolderChildrenVisible,
     reorderItem, insertItemAfter, insertChildInFolder, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
@@ -1097,9 +1097,11 @@ export default function ExpressionPanel({ onHide }) {
             scale={openItem.scale ?? 1}
             resolveScalar={resolveScalar}
             pointShape={openItem.pointShape ?? 'circle'}
+            strokeStyle={openItem.strokeStyle ?? 'solid'}
             onOpacityChange={(v) => setItemOpacity(pickerOpenId, v)}
             onScaleChange={(v) => setItemScale(pickerOpenId, v)}
             onPointShapeChange={(s) => setItemPointShape(pickerOpenId, s)}
+            onStrokeStyleChange={(s) => setItemStrokeStyle(pickerOpenId, s)}
             customColors={customColors}
             onColorPick={(val) => { setItemColor(pickerOpenId, val); setPickerOpenId(null); }}
             labelOpts={openLabelOpts}

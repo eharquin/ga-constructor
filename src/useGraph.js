@@ -10,7 +10,7 @@ const FALLBACK_COLOR = '#6c7086';
 const ITEM = (id, text, extra = {}) => ({
   id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null,
   visible: true, movable: true, normalizeMode: null,
-  opacity: null, scale: null, pointShape: null,
+  opacity: null, scale: null, pointShape: null, strokeStyle: null,
   showPoints: null, showOutline: null, showFill: null,
   parentId: null, kind: null, folderName: null, collapsed: false,
   ...extra,
@@ -63,6 +63,8 @@ function itemsReducer(items, action) {
       return items.map((it) => it.id === action.id ? { ...it, scale: action.scale } : it);
     case 'SET_POINT_SHAPE':
       return items.map((it) => it.id === action.id ? { ...it, pointShape: action.shape } : it);
+    case 'SET_STROKE_STYLE':
+      return items.map((it) => it.id === action.id ? { ...it, strokeStyle: action.style } : it);
     case 'SET_LIST_SHOW_POINTS':
       return items.map((it) => it.id === action.id ? { ...it, showPoints: action.show } : it);
     case 'SET_LIST_SHOW_OUTLINE':
@@ -150,6 +152,7 @@ function itemsReducer(items, action) {
         opacity: it.opacity ?? null,
         scale: it.scale ?? null,
         pointShape: it.pointShape ?? null,
+        strokeStyle: it.strokeStyle ?? null,
         showPoints: it.showPoints ?? null,
         showOutline: it.showOutline ?? null,
         showFill: it.showFill ?? null,
@@ -821,6 +824,7 @@ export function useGraph(algebra) {
     setItemOpacity:       (id, opacity) => dispatch({ type: 'SET_OPACITY',        id, opacity }),
     setItemScale:         (id, scale)   => dispatch({ type: 'SET_SCALE',          id, scale }),
     setItemPointShape:    (id, shape)   => dispatch({ type: 'SET_POINT_SHAPE',    id, shape }),
+    setItemStrokeStyle:   (id, style)   => dispatch({ type: 'SET_STROKE_STYLE',   id, style }),
     setListShowPoints:    (id, show)    => dispatch({ type: 'SET_LIST_SHOW_POINTS',  id, show }),
     setListShowOutline:   (id, show)    => dispatch({ type: 'SET_LIST_SHOW_OUTLINE', id, show }),
     setListShowFill:      (id, show)    => dispatch({ type: 'SET_LIST_SHOW_FILL',    id, show }),

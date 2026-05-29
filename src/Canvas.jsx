@@ -314,14 +314,17 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
 // Line at infinity (pure e0): drawn as a dashed ellipse inscribed in the canvas,
 // since the ideal line has no Euclidean position — it's the boundary of the
 // projective plane. The visual is screen-space (doesn't move with pan/zoom).
-function SvgIdealLine({ label, color, W, H, opts, weight = 1 }) {
+function SvgIdealLine({ label, color, W, H, opts, weight = 1, strokeStyle = null }) {
   const cx = W / 2, cy = H / 2;
   const rx = Math.max(8, W / 2 - 6);
   const ry = Math.max(8, H / 2 - 6);
   return (
     <g pointerEvents="none">
       <ellipse cx={cx} cy={cy} rx={rx} ry={ry}
-        fill="none" stroke={color} strokeWidth={2 * weight} strokeDasharray="6 4" strokeOpacity={0.7} />
+        fill="none" stroke={color} strokeWidth={2 * weight}
+        strokeDasharray={resolveStrokeDash(strokeStyle, '6 4')}
+        strokeLinecap={strokeStyle === 'dotted' ? 'round' : undefined}
+        strokeOpacity={0.7} />
       {renderLabel(label, cx, cy - ry + 14, opts)}
     </g>
   );
@@ -351,7 +354,7 @@ function SvgIdealPointMarker({ vx, vy, color, W, H, hovered, weight = 1 }) {
 }
 
 // CGA circle — outline only (no fill). Radius scales with viewport zoom.
-function SvgCircle({ cx, cy, r, label, color, vp, W, H, opts, weight = 1 }) {
+function SvgCircle({ cx, cy, r, label, color, vp, W, H, opts, weight = 1, strokeStyle = null }) {
   const c = w2c(cx, cy, vp);
   const rPx = r * vp.scale;
   // Cull when the bounding box is entirely off-screen.
@@ -363,7 +366,9 @@ function SvgCircle({ cx, cy, r, label, color, vp, W, H, opts, weight = 1 }) {
   return (
     <g>
       <circle cx={c.cx} cy={c.cy} r={rPx}
-              fill="none" stroke={color} strokeWidth={2.5 * weight} />
+              fill="none" stroke={color} strokeWidth={2.5 * weight}
+              strokeDasharray={resolveStrokeDash(strokeStyle, undefined)}
+              strokeLinecap={strokeStyle === 'dotted' ? 'round' : undefined} />
       {renderLabel(label, lx, ly, opts)}
     </g>
   );
@@ -388,7 +393,17 @@ function SvgPointPair({ p1, p2, label, color, vp, W, H, opts, weight = 1 }) {
   );
 }
 
-function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
+// Map a user stroke-style choice to the corresponding SVG strokeDasharray
+// value. `defaultDash` is the dash to use when the user hasn't picked one
+// (typically `undefined` for solid lines, `'6 4'` for the ideal-line ellipse).
+function resolveStrokeDash(strokeStyle, defaultDash) {
+  if (strokeStyle === 'dashed') return '8 4';
+  if (strokeStyle === 'dotted') return '1 4';
+  if (strokeStyle === 'solid')  return undefined;
+  return defaultDash;
+}
+
+function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1, strokeStyle = null }) {
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
   // FAR must be large enough to extend the line endpoints past all screen corners,
@@ -408,7 +423,9 @@ function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
   return (
     <g>
       <line x1={p1.cx} y1={p1.cy} x2={p2.cx} y2={p2.cy}
-            stroke={color} strokeWidth={2.5 * weight} strokeLinecap="round" />
+            stroke={color} strokeWidth={2.5 * weight}
+            strokeLinecap="round"
+            strokeDasharray={resolveStrokeDash(strokeStyle, undefined)} />
       {renderLabel(label, lx, ly, opts)}
     </g>
   );
@@ -684,6 +701,7 @@ export default function Canvas({ onSquareCanvas }) {
         opacity:        it.opacity        ?? 1,
         scale:          it.scale          ?? 1,
         pointShape:     it.pointShape     ?? 'circle',
+        strokeStyle:    it.strokeStyle    ?? null,
         showPoints:     it.showPoints     ?? true,
         showOutline:    it.showOutline    ?? true,
         showFill:       it.showFill       ?? true,
@@ -877,6 +895,7 @@ export default function Canvas({ onSquareCanvas }) {
     const opacity = resolveField(appear.opacity, values, 1);
     const scale   = resolveField(appear.scale,   values, 1);
     const shape   = appear.pointShape ?? 'circle';
+    const strokeStyle = appear.strokeStyle;   // 'solid' | 'dashed' | 'dotted' | null (= default)
 
     // Scalar-valued nodes (triangle, meetChain) have no canvas presence.
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
@@ -979,11 +998,11 @@ export default function Canvas({ onSquareCanvas }) {
       case 'line': {
         // PGA-only — algebra.getRenderPlan returns the line MV; resolve its base+dir here.
         const bd = algebra.lineBaseAndDir?.(plan.L);
-        layers.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        layers.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} strokeStyle={strokeStyle} />);
         break;
       }
       case 'idealLine':
-        layers.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        layers.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} strokeStyle={strokeStyle} />);
         break;
       case 'bivector': {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
@@ -1024,7 +1043,7 @@ export default function Canvas({ onSquareCanvas }) {
         layers.push(
           <SvgCircle key={id} cx={plan.cx} cy={plan.cy} r={plan.r}
             label={label} color={color} vp={vp} W={size.w} H={size.h}
-            opts={opts} weight={weight} />
+            opts={opts} weight={weight} strokeStyle={strokeStyle} />
         );
         break;
       case 'pointPair':
