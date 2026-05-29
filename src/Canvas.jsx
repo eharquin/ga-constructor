@@ -609,7 +609,7 @@ function SvgPolygon({ points, label, color, vp, opts }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function Canvas() {
+export default function Canvas({ onSquareCanvas }) {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
   const { algebra } = useAlgebra();
@@ -987,6 +987,18 @@ export default function Canvas() {
           <circle cx="8" cy="8" r="1.6" fill="currentColor" />
         </svg>
       </button>
+      {onSquareCanvas && (
+        <button
+          className="canvas-square-btn"
+          onClick={onSquareCanvas}
+          title="Make canvas square (expand panel)"
+          aria-label="Make canvas square"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="2.5" y="2.5" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          </svg>
+        </button>
+      )}
       <svg
         ref={svgRef}
         width={size.w}

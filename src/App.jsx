@@ -267,6 +267,16 @@ function AppShell() {
     setTimeout(() => document.documentElement.classList.remove('theme-fade'), 350);
   };
 
+  const squareCanvas = () => {
+    if (panelHidden) setPanelHidden(false);
+    const workspace = document.querySelector('.workspace');
+    if (!workspace) return;
+    const ws = workspace.getBoundingClientRect();
+    const resizeW = 5;
+    const target = ws.width - resizeW - ws.height;
+    setPanelWidth(Math.max(MIN_PANEL, Math.min(MAX_PANEL, target)));
+  };
+
   useEffect(() => {
     const onMove = (e) => {
       if (!dragRef.current) return;
@@ -321,7 +331,7 @@ function AppShell() {
               aria-label="Show expression panel"
             >»</button>
           )}
-          <Canvas />
+          <Canvas onSquareCanvas={squareCanvas} />
         </div>
       </div>
     </div>
