@@ -103,6 +103,7 @@ export function createEvalMVArith(algebra) {
         continue;
       }
       if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
+      if (c === '<' && str[i+1] === '<') { raw.push({ type: 'op', val: '<<' }); i += 2; continue; }
       if ('+-*/()!~^&|.§[],'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
       if (c === ':') { raw.push({ type: 'op', val: ':' }); i++; continue; }
       return null;
@@ -174,7 +175,7 @@ export function createEvalMVArith(algebra) {
     // being consumed as a binary inner-product by grade().
     let absDepth = 0;
 
-    const GRADE_OPS = new Set(['^', '&', '|', '§']);
+    const GRADE_OPS = new Set(['^', '&', '|', '§', '<<']);
 
     function grade() {
       if (!factor()) return false;
@@ -400,7 +401,8 @@ export function createEvalMVArith(algebra) {
       if (typeof Algebra.Vee !== 'function') return null;
       return Algebra.Vee(toMV(left), toMV(right));
     }
-    if (op === '|') return Algebra.LDot(toMV(left), toMV(right));
+    if (op === '|')  return Algebra.Dot(toMV(left), toMV(right));   // symmetric inner product
+    if (op === '<<') return Algebra.LDot(toMV(left), toMV(right));  // left contraction A⌋B
     if (op === '§') {
       const a = toMV(left), b = toMV(right);
       if (!a || !b) return null;
@@ -475,7 +477,7 @@ export function createEvalMVArith(algebra) {
       return left;
     }
 
-    const GRADE_OPS = new Set(['^', '&', '|', '§']);
+    const GRADE_OPS = new Set(['^', '&', '|', '§', '<<']);
     let evalAbsDepth = 0;
 
     function parseGrade() {

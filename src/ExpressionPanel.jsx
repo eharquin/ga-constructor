@@ -1007,7 +1007,7 @@ export default function ExpressionPanel({ onHide }) {
                     <tr><td><code>A + B</code>, <code>A - B</code></td><td>Additive (loosest).</td></tr>
                     <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich <code>A·B·Ã</code>.</td></tr>
                     <tr><td><code>A * B</code>, <code>A / B</code></td><td>Geometric product / division.</td></tr>
-                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A § B</code></td><td>Outer, regressive, inner, commutator (tightest binary).</td></tr>
+                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A &lt;&lt; B</code>, <code>A § B</code></td><td>Outer (wedge), regressive (vee), inner (symmetric), left contraction, commutator (tightest binary).</td></tr>
                     <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Dual, reverse, negate (unary — tightest).</td></tr>
                     <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
                     <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
