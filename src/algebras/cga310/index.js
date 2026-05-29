@@ -142,10 +142,17 @@ function gradeFlags(val) {
   return n.map((x) => x > threshold);
 }
 
-// A grade-1 vector P represents a point iff it is null (P² ≈ 0).
+// A grade-1 vector P represents a point iff it is null (P² ≈ 0). Uses a
+// relative threshold against ‖v‖² because ganja stores MVs as Float32Array —
+// the scalar part of P·P for a point with components ~5 can drift to ~1e-5,
+// well above a fixed 1e-6 cutoff. 1e-5 × ‖v‖² gives plenty of headroom for
+// the float-32 noise floor while still rejecting genuine non-null vectors.
 function isNullVector(v) {
   const sq = CGA.Mul(v, v);
-  return Math.abs(sq[0] || 0) < 1e-6;
+  const scalar = Math.abs(sq[0] || 0);
+  let norm2 = 0;
+  for (let i = 1; i <= 4; i++) norm2 += (v[i] || 0) ** 2;
+  return scalar < Math.max(1e-6, norm2 * 1e-5);
 }
 
 export function classifyMV(val) {
