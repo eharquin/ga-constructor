@@ -68,6 +68,18 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
     case 'translator':  return 'Translator';
     case 'motor':       return 'Motor';
     case 'reflector':   return 'Reflector';
+    case 'circle': {
+      const plan = algebra.getRenderPlan?.(val);
+      return plan?.kind === 'circle'
+        ? `Circle (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=${fmtC(plan.r)}`
+        : 'Circle';
+    }
+    case 'pointPair': {
+      const plan = algebra.getRenderPlan?.(val);
+      return plan?.kind === 'pointPair'
+        ? `Point pair (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})`
+        : 'Point pair';
+    }
     default:            return '—';
   }
 }
