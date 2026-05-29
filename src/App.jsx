@@ -184,6 +184,7 @@ function OptionsMenu() {
           <Toggle label="Show grid + axes"                 k="showGrid" />
           <Toggle label="Snap to nearby anchors on drag"   k="snapOnDrag" />
           <Toggle label="Always show anchor handles"       k="alwaysShowAnchors" />
+          <Toggle label="CGA: null basis (e0, einf)"        k="cgaNullBasisDisplay" />
           <label className="options-row">
             <span>Decimals</span>
             <select

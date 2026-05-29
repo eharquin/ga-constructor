@@ -297,6 +297,45 @@ export function getRenderPlan(val) {
   }
 }
 
+// ─── Alternative display basis using the null vectors e0, einf ─────────────
+// CGA values become much easier to read when expressed in the conformal basis
+// instead of raw e3/e4. The 16 standard blades transform into 16 display
+// blades through the change-of-variable e3 = (einf − 2·e0)/2, e4 = (einf + 2·e0)/2.
+// For each pair (b∧e3, b∧e4): display coeffs are (e4 − e3) and (e3 + e4)/2;
+// blades containing both e3 AND e4 collapse to a single display blade with
+// sign flip (e3∧e4 = −e0∧einf).
+
+export const DISPLAY_BLADE_NAMES = [
+  '1',
+  'e1', 'e2', 'e0', 'einf',
+  'e12', 'e1e0', 'e1einf', 'e2e0', 'e2einf', 'e0einf',
+  'e12e0', 'e12einf', 'e1e0einf', 'e2e0einf',
+  'e12e0einf',
+];
+
+export function toDisplayCoeffs(mv) {
+  if (!mv || typeof mv.length !== 'number' || mv.length < ARRAY_SIZE) return null;
+  const s = (i) => mv[i] || 0;
+  const d = new Array(ARRAY_SIZE).fill(0);
+  d[0]  = s(0);                       // 1
+  d[1]  = s(1);                       // e1
+  d[2]  = s(2);                       // e2
+  d[3]  = s(4) - s(3);                // e0   = std[e4] − std[e3]
+  d[4]  = (s(3) + s(4)) / 2;          // einf = (std[e3] + std[e4]) / 2
+  d[5]  = s(5);                       // e12
+  d[6]  = s(7) - s(6);                // e1e0  from (e13, e14)
+  d[7]  = (s(6) + s(7)) / 2;          // e1einf
+  d[8]  = s(9) - s(8);                // e2e0  from (e23, e24)
+  d[9]  = (s(8) + s(9)) / 2;          // e2einf
+  d[10] = -s(10);                     // e0einf = −e34
+  d[11] = s(12) - s(11);              // e12e0   from (e123, e124)
+  d[12] = (s(11) + s(12)) / 2;        // e12einf
+  d[13] = -s(13);                     // e1e0einf = −e134
+  d[14] = -s(14);                     // e2e0einf = −e234
+  d[15] = -s(15);                     // e12e0einf = −e1234
+  return d;
+}
+
 // ─── Drag-hooks for the freePoint / multivector node types ─────────────────
 // CGA points have variable spatial coefficients on e1 (idx 1) and e2 (idx 2)
 // — different indices from PGA's e01/e02 = [4]/[5], so we override the default.
@@ -385,6 +424,10 @@ export const spec = {
   hasDepPointCoeffs,
   getRenderPlan,
   mvConsts: { e0: E0, einf: EINF },
+  // Conformal-basis display: ExpressionPanel re-expresses MV components
+  // using these names + coefficient transform when the user opts in.
+  displayBladeNames: DISPLAY_BLADE_NAMES,
+  toDisplayCoeffs,
   supportedNodeTypes: SUPPORTED_NODE_TYPES,
   KIND_COLOR, TYPE_COLOR_FALLBACK,
   INITIAL_ITEMS,

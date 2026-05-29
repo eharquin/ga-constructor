@@ -109,13 +109,16 @@ function describeListItem(item, algebra, decimals) {
   return { kindLabel, mvStr };
 }
 
-function formatMV(val, algebra, decimals = 4) {
+function formatMV(val, algebra, decimals = 4, useDisplayBasis = false) {
   if (val == null || typeof val === 'number') return null;
   if (val?.list) {
     const parts = val.items.map((item) => { const { kindLabel } = describeListItem(item, algebra, decimals); return kindLabel; });
     return `[${parts.join(', ')}]`;
   }
-  const bladeNames = algebra?.bladeNames;
+  // Pick basis: optional algebra-specific alternative (e.g. CGA null basis)
+  // when both the algebra opts in and the user setting requests it.
+  const useAlt = useDisplayBasis && algebra?.displayBladeNames && algebra?.toDisplayCoeffs;
+  const bladeNames = useAlt ? algebra.displayBladeNames : algebra?.bladeNames;
   const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
   if (!bladeNames) return null;
 
@@ -133,7 +136,7 @@ function formatMV(val, algebra, decimals = 4) {
       arr[idx.e2] = val.vy;
     }
   } else if (val.length >= arraySize) {
-    arr = Array.from(val);
+    arr = useAlt ? algebra.toDisplayCoeffs(val) : Array.from(val);
   } else {
     return null;
   }
@@ -645,7 +648,7 @@ export default function ExpressionPanel({ onHide }) {
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values, algebra, items);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra, settings.decimals) : null;
-          const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals) : null;
+          const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals, settings.cgaNullBasisDisplay) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense
