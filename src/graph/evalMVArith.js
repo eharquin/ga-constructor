@@ -62,6 +62,9 @@ const TRIG_FNS = {
 
 export function createEvalMVArith(algebra) {
   const { Algebra, arraySize, bladeIndex, parseBladeName, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
+  // Algebra-specific named MV constants (e.g. CGA's e0 and einf). Resolved as
+  // ordinary identifiers in expressions; never collected as graph dependencies.
+  const MV_CONSTS = algebra.mvConsts || {};
 
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
@@ -276,7 +279,7 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !seen.has(t.val)) {
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -420,7 +423,7 @@ export function createEvalMVArith(algebra) {
     if (!tokens) return null;
 
     // Merge order: user env takes priority over constants, but only when defined.
-    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS };
+    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS, ...MV_CONSTS };
     for (const [k, v] of Object.entries(env)) { if (v !== undefined) fullEnv[k] = v; }
     let pos = 0;
     const peek = () => tokens[pos];

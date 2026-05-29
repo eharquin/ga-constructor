@@ -350,6 +350,44 @@ function SvgIdealPointMarker({ vx, vy, color, W, H, hovered, weight = 1 }) {
   );
 }
 
+// CGA circle — outline only (no fill). Radius scales with viewport zoom.
+function SvgCircle({ cx, cy, r, label, color, vp, W, H, opts, weight = 1 }) {
+  const c = w2c(cx, cy, vp);
+  const rPx = r * vp.scale;
+  // Cull when the bounding box is entirely off-screen.
+  if (c.cx + rPx < -20 || c.cx - rPx > W + 20 ||
+      c.cy + rPx < -20 || c.cy - rPx > H + 20) return null;
+  // Anchor the label near the top-right of the circle for visibility.
+  const lx = c.cx + rPx * Math.SQRT1_2;
+  const ly = c.cy - rPx * Math.SQRT1_2;
+  return (
+    <g>
+      <circle cx={c.cx} cy={c.cy} r={rPx}
+              fill="none" stroke={color} strokeWidth={2.5 * weight} />
+      {renderLabel(label, lx, ly, opts)}
+    </g>
+  );
+}
+
+// CGA point pair — two dots connected by a faint dashed line.
+function SvgPointPair({ p1, p2, label, color, vp, W, H, opts, weight = 1 }) {
+  const a = w2c(p1.x, p1.y, vp);
+  const b = w2c(p2.x, p2.y, vp);
+  const r_dot = 4.5 * weight;
+  const lx = (a.cx + b.cx) / 2;
+  const ly = (a.cy + b.cy) / 2;
+  return (
+    <g>
+      <line x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy}
+            stroke={color} strokeOpacity={0.4} strokeWidth={1.5}
+            strokeDasharray="4 3" />
+      <circle cx={a.cx} cy={a.cy} r={r_dot} fill={color} />
+      <circle cx={b.cx} cy={b.cy} r={r_dot} fill={color} />
+      {renderLabel(label, lx, ly, opts)}
+    </g>
+  );
+}
+
 function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
@@ -981,6 +1019,20 @@ export default function Canvas({ onSquareCanvas }) {
       }
       case 'rotor':
         layers.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
+        break;
+      case 'circle':
+        layers.push(
+          <SvgCircle key={id} cx={plan.cx} cy={plan.cy} r={plan.r}
+            label={label} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} />
+        );
+        break;
+      case 'pointPair':
+        layers.push(
+          <SvgPointPair key={id} p1={plan.p1} p2={plan.p2}
+            label={label} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} />
+        );
         break;
       default:
         break;
