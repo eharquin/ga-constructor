@@ -786,8 +786,17 @@ export default function Canvas({ onSquareCanvas }) {
 
   function handleDoubleClick(e) {
     const { mx, my } = svgPt(e, svgRef.current);
-    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, orderedNodeIds, addFreePoint } = snap.current;
-    if (hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds)) return;
+    const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, orderedNodeIds, addFreePoint, setDrawPos } = snap.current;
+    const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds);
+    if (hit) {
+      // Unlink a vector whose tail anchor is bound to another node's tip/tail.
+      // Snapshot current resolved (x, y) so the vector stays in place visually.
+      if (hit.dragType === 'vector') {
+        const pos = vectorPositions[hit.id];
+        if (pos?.linked) setDrawPos(hit.id, pos.x, pos.y);
+      }
+      return;
+    }
     const { x, y } = c2w(mx, my, vp);
     addFreePoint(roundToScale(x, vp.scale), roundToScale(y, vp.scale));
   }
