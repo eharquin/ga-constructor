@@ -240,6 +240,9 @@ export function lineBaseAndDir(X) {
 
 // Circle: IPNS dual is a sphere vector S = w·e0 + cx·e1 + cy·e2 + ½(p²−r²)·einf.
 //   Normalize by w (the e0 coefficient); read centre + radius.
+// When r² < 0 the result is an "imaginary" (a.k.a. ideal) circle — it has no
+// real points but is geometrically meaningful (e.g. carrier of an inversion).
+// We render it with the real radius √|r²| and flag it for the renderer.
 function extractCircle(X) {
   const S = CGA.Dual(X);
   const w = e0Coeff(S);
@@ -248,8 +251,8 @@ function extractCircle(X) {
   const cy = (S[2] || 0) / w;
   const cinfNorm = einfCoeff(S) / w;        // = ½(cx² + cy² − r²)
   const r2 = cx * cx + cy * cy - 2 * cinfNorm;
-  if (r2 < 1e-12) return null;
-  return { cx, cy, r: Math.sqrt(r2) };
+  if (Math.abs(r2) < 1e-12) return null;    // degenerate (point)
+  return { cx, cy, r: Math.sqrt(Math.abs(r2)), imaginary: r2 < 0 };
 }
 
 // Point pair: extract two points from a grade-2 blade via
@@ -308,7 +311,7 @@ export function getRenderPlan(val) {
     case 'line': return { kind: 'line', L: val };
     case 'circle': {
       const c = extractCircle(val);
-      return c ? { kind: 'circle', cx: c.cx, cy: c.cy, r: c.r } : null;
+      return c ? { kind: 'circle', cx: c.cx, cy: c.cy, r: c.r, imaginary: c.imaginary } : null;
     }
     case 'pointPair': {
       const pp = extractPointPair(val);

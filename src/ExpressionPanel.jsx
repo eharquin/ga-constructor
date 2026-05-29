@@ -70,9 +70,9 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
     case 'reflector':   return 'Reflector';
     case 'circle': {
       const plan = algebra.getRenderPlan?.(val);
-      return plan?.kind === 'circle'
-        ? `Circle (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=${fmtC(plan.r)}`
-        : 'Circle';
+      if (plan?.kind !== 'circle') return 'Circle';
+      const lbl = plan.imaginary ? 'Imaginary circle' : 'Circle';
+      return `${lbl} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=${fmtC(plan.r)}`;
     }
     case 'pointPair': {
       const plan = algebra.getRenderPlan?.(val);

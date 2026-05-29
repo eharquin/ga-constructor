@@ -1039,13 +1039,17 @@ export default function Canvas({ onSquareCanvas }) {
       case 'rotor':
         layers.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
         break;
-      case 'circle':
+      case 'circle': {
+        // Imaginary circle (r² < 0): default to dashed when the user hasn't
+        // explicitly picked a stroke style.
+        const effStyle = strokeStyle ?? (plan.imaginary ? 'dashed' : null);
         layers.push(
           <SvgCircle key={id} cx={plan.cx} cy={plan.cy} r={plan.r}
             label={label} color={color} vp={vp} W={size.w} H={size.h}
-            opts={opts} weight={weight} strokeStyle={strokeStyle} />
+            opts={opts} weight={weight} strokeStyle={effStyle} />
         );
         break;
+      }
       case 'pointPair':
         layers.push(
           <SvgPointPair key={id} p1={plan.p1} p2={plan.p2}
