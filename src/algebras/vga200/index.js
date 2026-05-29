@@ -208,6 +208,27 @@ export const spec = {
   supportedNodeTypes: SUPPORTED_NODE_TYPES,
   KIND_COLOR, TYPE_COLOR_FALLBACK,
   INITIAL_ITEMS,
+  info: {
+    fullName: 'Vectorial Geometric Algebra ℝ(2,0,0)',
+    signature: { p: 2, q: 0, r: 0 },
+    description: 'Vector-based 2D geometry: scalars, vectors, bivectors (oriented areas), rotors. No points or lines — only directions and rotations.',
+    geometry: [
+      { label: 'vectors',      formula: 'a·e1 + b·e2  (free arrows from origin)' },
+      { label: 'bivectors',    formula: 's·e12  (oriented area, signed)' },
+      { label: 'wedge',        formula: 'V ∧ W = (vx·wy − vy·wx)·e12  (signed parallelogram)' },
+      { label: 'inner',        formula: 'V · W = vx·wx + vy·wy  (scalar dot product)' },
+      { label: 'rotors',       formula: 'exp((α/2)·e12) = cos(α/2) + sin(α/2)·e12' },
+      { label: 'rotation',     formula: 'V′ = R V R̃   (sandwich product)' },
+    ],
+    subalgebras: [
+      { name: 'Scalars',                    blades: '1' },
+      { name: 'Even sub-algebra ℝ(2,0,0)⁺', blades: '1, e12  (≅ complex numbers ℂ)' },
+    ],
+    notes: [
+      'The even sub-algebra {1, e12} is isomorphic to the complex numbers ℂ, with e12 playing the role of the imaginary unit.',
+      'No projective representation: VGA cannot encode points or lines, only directions and areas.',
+    ],
+  },
 };
 
 // Bind parser + evaluator + node types in dependency order.

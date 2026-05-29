@@ -192,6 +192,31 @@ export const spec = {
   supportedNodeTypes: SUPPORTED_NODE_TYPES,
   KIND_COLOR, TYPE_COLOR_FALLBACK,
   INITIAL_ITEMS,
+  info: {
+    fullName: 'Projective Geometric Algebra ℝ(2,0,1)',
+    signature: { p: 2, q: 0, r: 1 },
+    description: 'Plane-based 2D geometry: uniform algebra of points, ideal points (directions), lines, and Euclidean rigid motions.',
+    geometry: [
+      { label: 'origin',       formula: 'e12' },
+      { label: 'points',       formula: 'e12 + x·e01 + y·e02' },
+      { label: 'ideal points', formula: 'x·e01 + y·e02' },
+      { label: 'lines',        formula: 'a·e1 + b·e2 + c·e0' },
+      { label: 'join',         formula: 'p1 ∨ p2  (line through two points)' },
+      { label: 'meet',         formula: 'l1 ∧ l2  (intersection of two lines)' },
+      { label: 'rotors',       formula: 'exp((α/2)·B) = cos(α/2) + sin(α/2)·B' },
+      { label: 'motors',       formula: 'exp((δ/2)·B) = 1 + (δ/2)·B  (translators)' },
+    ],
+    subalgebras: [
+      { name: 'Scalars',                       blades: '1' },
+      { name: 'Complex numbers',               blades: '1, e12' },
+      { name: 'Hyperbolic numbers',            blades: '1, e1   or   1, e2' },
+      { name: 'Dual numbers',                  blades: '1, e0   or   1, e01   or   1, e02   or   1, e012' },
+      { name: 'Even sub-algebra ℝ(2,0,1)⁺',    blades: '1, e01, e02, e12' },
+    ],
+    notes: [
+      '2D PGA is the smallest algebra to contain (as even sub-algebra) natural representations of all Euclidean distance-preserving transformations SE(2), as well as natural representations of points, ideal points (free vectors), and lines.',
+    ],
+  },
 };
 
 // Bind parser + evaluator + node types in dependency order.

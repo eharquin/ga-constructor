@@ -245,6 +245,28 @@ export const spec = {
   supportedNodeTypes: SUPPORTED_NODE_TYPES,
   KIND_COLOR, TYPE_COLOR_FALLBACK,
   INITIAL_ITEMS,
+  info: {
+    fullName: 'Complex Numbers ℝ(0,1,0) ≅ ℂ',
+    signature: { p: 0, q: 1, r: 0 },
+    description: 'One-generator Clifford algebra with e1² = −1. Isomorphic to the complex numbers: scalar = real part, e1 = imaginary unit i.',
+    geometry: [
+      { label: 'real',          formula: 'a · 1' },
+      { label: 'imaginary',     formula: 'b · e1   (b · i)' },
+      { label: 'complex',       formula: 'a + b · e1   (rendered as point (a, b))' },
+      { label: 'modulus',       formula: '|z| = √(a² + b²)' },
+      { label: 'conjugate',     formula: '~z = a − b · e1' },
+      { label: 'Euler rotor',   formula: 'exp(θ·e1) = cos θ + sin θ · e1' },
+      { label: 'rotation',      formula: 'z′ = R · z   (left-multiplication)' },
+    ],
+    subalgebras: [
+      { name: 'Scalars (real line ℝ)', blades: '1' },
+      { name: 'Full algebra ≅ ℂ',      blades: '1, e1' },
+    ],
+    notes: [
+      'Every value classifies as a finite point in the complex plane — scalars sit on the real axis, e1 multiples on the imaginary axis.',
+      'Reverse maps to complex conjugate (the GA reverse leaves grade-1 alone for this signature, so the adapter uses Conjugate instead).',
+    ],
+  },
 };
 
 const _evaluator = createEvalMVArith(spec);

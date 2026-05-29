@@ -1014,33 +1014,8 @@ export default function ExpressionPanel({ onHide }) {
               </section>
 
               <section className="help-section">
-                <h3>PGA(2,0,1) basis — 8 blades</h3>
-                <table className="help-table help-table-basis">
-                  <tbody>
-                    <tr><td><code>1</code></td><td>scalar (grade 0)</td><td><code>e01</code></td><td>ideal y-dir (grade 2)</td></tr>
-                    <tr><td><code>e0</code></td><td>ideal line (grade 1)</td><td><code>e02</code></td><td>ideal x-dir (grade 2)</td></tr>
-                    <tr><td><code>e1</code></td><td>y-axis line (grade 1)</td><td><code>e12</code></td><td>point weight / origin (grade 2)</td></tr>
-                    <tr><td><code>e2</code></td><td>x-axis line (grade 1)</td><td><code>e012</code></td><td>pseudoscalar (grade 3)</td></tr>
-                  </tbody>
-                </table>
-                <p className="help-note">Permuted blade names are supported: <code>e21 = −e12</code>, <code>e10 = −e01</code>, <code>e120 = e012</code>, etc.</p>
-              </section>
-
-              <section className="help-section">
-                <h3>Object types</h3>
-                <table className="help-table">
-                  <tbody>
-                    <tr><td><b style={{color:'#1482C8'}}>●</b> Finite point</td><td>Grade-2 with e12 ≠ 0. Drawn as a dot.</td></tr>
-                    <tr><td><b style={{color:'#E8A000'}}>●</b> Ideal point</td><td>Grade-2 with e12 = 0. Drawn as a vector from origin.</td></tr>
-                    <tr><td><b style={{color:'#C30A3A'}}>●</b> Line / Reflector</td><td>Grade-1. Drawn as an infinite line.</td></tr>
-                    <tr><td><b style={{color:'#55ABDF'}}>●</b> Rotor / Translator</td><td>Even-grade motor. Not drawn on canvas.</td></tr>
-                    <tr><td><b style={{color:'#AA7500'}}>●</b> Motor</td><td>General even-grade element. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#92072B'}}>●</b> Reflector</td><td>Odd-grade (grade-1 + grade-3). Glide reflection.</td></tr>
-                    <tr><td><b style={{color:'#4E5668'}}>●</b> Pseudoscalar</td><td>Grade-3 (e012). Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#0F9D57'}}>●</b> Scalar</td><td>Grade-0 real number. Not drawn.</td></tr>
-                    <tr><td><b style={{color:'#41BF82'}}>●</b> List</td><td><code>[A, B, …]</code> — any object types. Polygon outline when all elements are finite points. Expand with ▸ in the panel.</td></tr>
-                  </tbody>
-                </table>
+                <h3>Permuted blades</h3>
+                <p className="help-note">Permuted blade names equal up to sign: <code>e21 = −e12</code>, <code>e10 = −e01</code>, etc. The basis listing and metric for the active algebra live in the <b>ℹ Algebra info</b> menu in the header.</p>
               </section>
 
               <section className="help-section">

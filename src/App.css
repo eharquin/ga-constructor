@@ -347,3 +347,38 @@
   color: var(--accent);
   background: var(--bg-active);
 }
+
+/* Algebra Info modal — basis line + Cayley grid. Sits inside the existing
+   .help-overlay / .help-modal scaffold, reusing .help-section for typography. */
+.algebra-info-grid {
+  border-collapse: collapse;
+  font-family: monospace;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.algebra-info-grid th,
+.algebra-info-grid td {
+  border: 1px solid var(--border-divider);
+  padding: 4px 8px;
+  text-align: center;
+  min-width: 36px;
+  color: var(--text);
+  background: var(--bg-panel);
+}
+.algebra-info-grid th {
+  font-weight: bold;
+  color: var(--text-strong);
+  background: var(--bg-code);
+}
+.algebra-info-zero {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+.algebra-info-cayley {
+  /* Cayley grids can be 8×8 — let the table size to its content but cap with
+     horizontal scroll so it never blows out the modal width. */
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: nowrap;
+}

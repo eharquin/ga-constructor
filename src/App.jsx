@@ -5,6 +5,7 @@ import { SettingsProvider, useSettings } from './SettingsContext.jsx';
 import { encodeGraph } from './urlHash.js';
 import ExpressionPanel from './ExpressionPanel.jsx';
 import Canvas from './Canvas.jsx';
+import AlgebraInfoModal from './AlgebraInfoModal.jsx';
 import './App.css';
 
 const MIN_PANEL = 220;
@@ -227,6 +228,7 @@ function AppShell() {
   const [panelWidth, setPanelWidth] = useState(300);
   const [panelHidden, setPanelHidden] = useState(() => localStorage.getItem('ga-panel-hidden') === '1');
   const [theme, setTheme]           = useState(() => localStorage.getItem('ga-theme') || 'light');
+  const [algebraInfoOpen, setAlgebraInfoOpen] = useState(false);
   const { undo, redo, canUndo, canRedo } = useGraphContext();
   const dragRef = useRef(null);
 
@@ -307,6 +309,12 @@ function AppShell() {
       <header className="app-header">
         <span className="app-title">multiVector.net</span>
         <AlgebraSelect />
+        <button
+          className="app-icon-btn"
+          onClick={() => setAlgebraInfoOpen(true)}
+          title="Algebra info — basis, metric, Cayley table"
+          aria-label="Algebra info"
+        >ℹ</button>
         <span className="app-header-spacer" />
         <ShareButton />
         <SavedGraphsControls />
@@ -317,6 +325,7 @@ function AppShell() {
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         >{theme === 'dark' ? '☀' : '☾'}</button>
       </header>
+      {algebraInfoOpen && <AlgebraInfoModal onClose={() => setAlgebraInfoOpen(false)} />}
       <div className="workspace">
         {!panelHidden && (
           <>
