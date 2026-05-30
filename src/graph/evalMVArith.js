@@ -69,7 +69,7 @@ export function createEvalMVArith(algebra) {
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
   // Property names accepted after '.' that are not blade names.
-  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b']);
+  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b', 'inverse']);
 
   // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
   const BASIS_ENV = (() => {
@@ -121,7 +121,10 @@ export function createEvalMVArith(algebra) {
       const rightId   = next.type === 'id';
       const rightNum  = next.type === 'num';
       const rightBar  = next.type === 'op' && next.val === '|';
-      if ((leftNum || leftClose) && (rightOpen || rightId || rightNum || rightBar)) tokens.push(MUL);
+      // rightBar (|) only triggers implicit mul after a number (2|A| → 2*|A|),
+      // not after ) — that would break (A|B)|C by inserting a spurious *.
+      if ((leftNum || leftClose) && (rightOpen || rightId || rightNum)) tokens.push(MUL);
+      else if (leftNum && rightBar) tokens.push(MUL);
     }
     return tokens;
   }
@@ -218,6 +221,8 @@ export function createEvalMVArith(algebra) {
           }
           if (!peek() || peek().val !== ']') return false;
           eat();
+        } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
+          eat(); eat(); eat(); // ^, -, 1
         } else { break; }
       }
       return true;
@@ -394,6 +399,20 @@ export function createEvalMVArith(algebra) {
     }
     if (op === '/') {
       if (rNum && right !== 0) return scaleMV(toMV(left), 1 / right);
+      const rMV = toMV(right);
+      if (!rMV) return null;
+      // Fast path: pure scalar MV (only component [0] non-zero)
+      let isPureScalar = true;
+      for (let i = 1; i < arraySize; i++) { if (Math.abs(rMV[i] || 0) > 1e-10) { isPureScalar = false; break; } }
+      if (isPureScalar) {
+        const s = rMV[0] || 0;
+        return Math.abs(s) > 1e-15 ? scaleMV(toMV(left), 1 / s) : null;
+      }
+      // General MV inverse: A / B = A * B^{-1} via ganja (Inverse is a getter)
+      if ('Inverse' in rMV) {
+        const inv = rMV.Inverse;
+        return inv ? Algebra.Mul(toMV(left), inv) : null;
+      }
       return null;
     }
     if (op === '^') return Algebra.Wedge(toMV(left), toMV(right));
@@ -627,6 +646,13 @@ export function createEvalMVArith(algebra) {
             val = applyNorm(val);
           } else if (prop.val === 'inorm') {
             val = applyINorm(val);
+          } else if (prop.val === 'inverse') {
+            const applyInv = (v) => {
+              if (typeof v === 'number') return Math.abs(v) > 1e-15 ? 1 / v : null;
+              const mv = toMV(v);
+              return mv && 'Inverse' in mv ? mv.Inverse : null;
+            };
+            val = val?.list ? mapList(val, applyInv) : applyInv(val);
           } else if (prop.val === 'r' || prop.val === 'g' || prop.val === 'b') {
             val = (val && typeof val === 'object' && typeof val.color === 'string')
               ? (val[prop.val] ?? null)
@@ -677,6 +703,14 @@ export function createEvalMVArith(algebra) {
           } else {
             val = null;
           }
+        } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
+          eat(); eat(); eat(); // ^, -, 1
+          const applyInverse = (v) => {
+            if (typeof v === 'number') return Math.abs(v) > 1e-15 ? 1 / v : null;
+            const mv = toMV(v);
+            return mv && 'Inverse' in mv ? mv.Inverse : null;
+          };
+          val = val?.list ? mapList(val, applyInverse) : applyInverse(val);
         } else { break; }
       }
 
