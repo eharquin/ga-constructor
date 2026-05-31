@@ -60,7 +60,7 @@ function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadi
       const { cx, cy } = w2c(eu.x, eu.y, vp);
       const d = (mx - cx) ** 2 + (my - cy) ** 2;
       if (d <= bestDist) { bestDist = d; best = { id, anchor: 'tip' }; }
-    } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
+    } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'idealFlatPoint' ||
                (val && typeof val === 'object' && 'vx' in val)) {
       const tail = vectorPositions[id] ?? { x: 0, y: 0 };
       let vx, vy;
@@ -91,7 +91,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint' && valKind !== 'idealFlatPoint') continue;
     if (node.type === 'freePoint') {
       if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
@@ -157,7 +157,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     // bivector) allows anchor dragging via vectorPositions. Covers derived
     // vectors (`U = V + W`), PGA `D = !L`, and bivectors (`B = V ^ W`, `B = 5*e12`).
     const val_ = values[id];
-    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' ||
+    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' || valKind === 'idealFlatPoint' ||
                             (val_ && typeof val_ === 'object' && 'vx' in val_);
     const isAnchorableBivec = valKind === 'bivector';
     if (node.type !== 'vector' && (isVectorLikeVal || isAnchorableBivec)) {
@@ -404,19 +404,22 @@ function SvgCircle({ cx, cy, r, label, color, vp, W, H, opts, weight = 1, stroke
 }
 
 // CGA point pair — two dots connected by a faint dashed line.
-function SvgPointPair({ p1, p2, label, color, vp, W, H, opts, weight = 1 }) {
+function SvgPointPair({ p1, p2, label, color, vp, W, H, opts, weight = 1, imaginary = false }) {
   const a = w2c(p1.x, p1.y, vp);
   const b = w2c(p2.x, p2.y, vp);
   const r_dot = 4.5 * weight;
   const lx = (a.cx + b.cx) / 2;
   const ly = (a.cy + b.cy) / 2;
+  const dot = imaginary
+    ? (cx, cy) => <circle cx={cx} cy={cy} r={r_dot} fill="none" stroke={color} strokeWidth={1.5} />
+    : (cx, cy) => <circle cx={cx} cy={cy} r={r_dot} fill={color} />;
   return (
     <g>
       <line x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy}
             stroke={color} strokeOpacity={0.4} strokeWidth={1.5}
             strokeDasharray="4 3" />
-      <circle cx={a.cx} cy={a.cy} r={r_dot} fill={color} />
-      <circle cx={b.cx} cy={b.cy} r={r_dot} fill={color} />
+      {dot(a.cx, a.cy)}
+      {dot(b.cx, b.cy)}
       {renderLabel(label, lx, ly, opts)}
     </g>
   );
@@ -1130,7 +1133,7 @@ export default function Canvas({ onSquareCanvas }) {
         layers.push(
           <SvgPointPair key={id} p1={plan.p1} p2={plan.p2}
             label={label} color={color} vp={vp} W={size.w} H={size.h}
-            opts={opts} weight={weight} />
+            opts={opts} weight={weight} imaginary={plan.imaginary} />
         );
         break;
       default:

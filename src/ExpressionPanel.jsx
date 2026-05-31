@@ -57,7 +57,12 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
   const toI = algebra.toIdealVector;
   switch (cls.kind) {
     case 'scalar':      return fmtN(val[0]);
-    case 'finitePoint': { const eu = toE?.(val); return eu ? `Point (${fmtC(eu.x)}, ${fmtC(eu.y)})` : '—'; }
+    case 'finitePoint': {
+      const eu = toE?.(val);
+      if (!eu) return '—';
+      const tag = algebra.flatPoint2D ? 'Round point' : 'Point';
+      return `${tag} (${fmtC(eu.x)}, ${fmtC(eu.y)})`;
+    }
     case 'roundPoint': {
       const plan = algebra.getRenderPlan?.(val);
       if (plan?.kind !== 'roundPoint') return 'Round point';
@@ -87,11 +92,17 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
         ? `Flat point (${fmtC(plan.x)}, ${fmtC(plan.y)})`
         : 'Flat point';
     }
+    case 'idealFlatPoint': {
+      const plan = algebra.getRenderPlan?.(val);
+      return plan?.kind === 'idealFlatPoint'
+        ? `Ideal flat point (${fmtC(plan.vx)}, ${fmtC(plan.vy)})`
+        : 'Ideal flat point';
+    }
     case 'pointPair': {
       const plan = algebra.getRenderPlan?.(val);
-      return plan?.kind === 'pointPair'
-        ? `Point pair (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})`
-        : 'Point pair';
+      if (plan?.kind !== 'pointPair') return 'Point pair';
+      const lbl = plan.imaginary ? 'Imaginary point pair' : 'Point pair';
+      return `${lbl} (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})  r=${fmtC(plan.r)}`;
     }
     default:            return '—';
   }
@@ -112,7 +123,7 @@ function fmtCoeff(c, decimals = 4) {
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
 const KIND_LABELS = {
-  scalar: 'Scalar', finitePoint: 'Point', roundPoint: 'Round point', flatPoint: 'Flat point', idealPoint: 'Ideal point',
+  scalar: 'Scalar', finitePoint: 'Point', roundPoint: 'Round point', flatPoint: 'Flat point', idealFlatPoint: 'Ideal flat point', idealPoint: 'Ideal point',
   line: 'Line', idealLine: 'Ideal line', pseudoscalar: 'Pseudoscalar',
   rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
   reflector: 'Reflector', mixed: 'Mixed',
@@ -648,7 +659,7 @@ export default function ExpressionPanel({ onHide }) {
           const positionKind = node ? classifyMV(values[node.id])?.kind : null;
           const hasPosition = node?.type === 'vector' ||
                               positionKind === 'idealPoint' || positionKind === 'vector' ||
-                              positionKind === 'bivector' ||
+                              positionKind === 'idealFlatPoint' || positionKind === 'bivector' ||
                               !!(values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
           const isDraggable = (() => {
             if (!node) return false;
@@ -664,7 +675,7 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);

@@ -228,9 +228,12 @@ export function classifyMV(val) {
     return { kind: 'roundPoint', rSq: rp.rSq };
   }
 
-  // Pure grade-2: flat point (contains einf) or general point pair
+  // Pure grade-2: flat point, ideal flat point, or general point pair
   if (!g[0] && !g[1] && g[2] && !g[3] && !g[4]) {
-    if (isFlatPoint(val)) return { kind: 'flatPoint' };
+    if (isFlatPoint(val)) {
+      const w = -(val[10] || 0);
+      return Math.abs(w) > EPS ? { kind: 'flatPoint' } : { kind: 'idealFlatPoint' };
+    }
     return { kind: 'pointPair' };
   }
 
@@ -313,14 +316,14 @@ function extractCircle(X) {
   return { cx, cy, r: Math.sqrt(Math.abs(r2)), imaginary: r2 < 0 };
 }
 
-// Point pair: extract two points from a grade-2 blade via
-//   P± = m⁻¹ · (pp ± √(pp²))     where  m = (pp · einf), m⁻¹ = m / (m·m).
-// (Standard 2D-CGA formula; works when pp² ≥ 0, i.e. pp is real-decomposable.)
+// Point pair: extract geometric properties from a grade-2 blade.
+//   Real pair (ppSq ≥ 0): P± = m⁻¹ · (pp ± √(pp²))  where m = (pp · einf), m⁻¹ = m / (m·m).
+//   Imaginary pair (ppSq < 0): no real points — return center + imaginary radius only.
+//   rSq = ppSq / mSq is the signed radius² (half-chord² for real, negative for imaginary).
+//   Center = toEuclidean(m⁻¹ · pp) is real in both cases.
 function extractPointPair(pp) {
   const ppSqMV = CGA.Mul(pp, pp);
   const ppSq = ppSqMV[0] || 0;
-  if (ppSq < -1e-8) return null;            // imaginary pair
-  const sqrtK = Math.sqrt(Math.max(0, ppSq));
 
   // m = grade-1 part of (pp * einf)
   const prod = CGA.Mul(pp, EINF);
@@ -334,20 +337,40 @@ function extractPointPair(pp) {
   const mInv = zeroMV();
   for (let i = 0; i < ARRAY_SIZE; i++) mInv[i] = m[i] / mSq;
 
-  // pp ± sqrtK = grade-2 with a scalar offset
-  const ppPlus  = zeroMV();
-  const ppMinus = zeroMV();
-  for (let i = 0; i < ARRAY_SIZE; i++) { ppPlus[i] = pp[i] || 0; ppMinus[i] = pp[i] || 0; }
-  ppPlus[0]  =  sqrtK;
-  ppMinus[0] = -sqrtK;
+  const rSq = ppSq / mSq;
+  const r = Math.sqrt(Math.abs(rSq));
+  const imaginary = rSq < -1e-10;
 
-  const P1 = CGA.Mul(mInv, ppPlus);
-  const P2 = CGA.Mul(mInv, ppMinus);
-
-  const e1 = toEuclidean(P1);
-  const e2 = toEuclidean(P2);
-  if (!e1 || !e2) return null;
-  return { p1: e1, p2: e2 };
+  if (!imaginary) {
+    // Real pair: extract the two Euclidean points
+    const sqrtK = Math.sqrt(Math.max(0, ppSq));
+    const ppPlus  = zeroMV();
+    const ppMinus = zeroMV();
+    for (let i = 0; i < ARRAY_SIZE; i++) { ppPlus[i] = pp[i] || 0; ppMinus[i] = pp[i] || 0; }
+    ppPlus[0]  =  sqrtK;
+    ppMinus[0] = -sqrtK;
+    const P1 = CGA.Mul(mInv, ppPlus);
+    const P2 = CGA.Mul(mInv, ppMinus);
+    const e1 = toEuclidean(P1);
+    const e2 = toEuclidean(P2);
+    if (!e1 || !e2) return null;
+    return { p1: e1, p2: e2, cx: (e1.x + e2.x) / 2, cy: (e1.y + e2.y) / 2, r, imaginary: false };
+  } else {
+    // Imaginary pair: center is real, direction comes from the e1/e2 part of m.
+    // The two "imaginary" points are center ± r·direction (displayed as real dots).
+    const centerMV = CGA.Mul(mInv, pp);
+    const center = toEuclidean(centerMV);
+    if (!center) return null;
+    const mxy = Math.sqrt((m[1] || 0) ** 2 + (m[2] || 0) ** 2);
+    if (mxy < 1e-10) return null;
+    const nx = (m[1] || 0) / mxy;
+    const ny = (m[2] || 0) / mxy;
+    return {
+      p1: { x: center.x + r * nx, y: center.y + r * ny },
+      p2: { x: center.x - r * nx, y: center.y - r * ny },
+      cx: center.x, cy: center.y, r, imaginary: true,
+    };
+  }
 }
 
 export function getRenderPlan(val) {
@@ -379,9 +402,17 @@ export function getRenderPlan(val) {
       const fp = extractFlatPoint(val);
       return fp ? { kind: 'flatPoint', x: fp.x, y: fp.y } : null;
     }
+    case 'idealFlatPoint': {
+      // Direction from e14/e24 (e1inf/e2inf) components — rendered as a positioned vector.
+      const vx = (val[7] || 0), vy = (val[9] || 0);
+      const len = Math.sqrt(vx * vx + vy * vy);
+      if (len < EPS) return null;
+      return { kind: 'positionedVector', vx: vx / len, vy: vy / len };
+    }
     case 'pointPair': {
       const pp = extractPointPair(val);
-      return pp ? { kind: 'pointPair', p1: pp.p1, p2: pp.p2 } : null;
+      if (!pp) return null;
+      return { kind: 'pointPair', p1: pp.p1, p2: pp.p2, cx: pp.cx, cy: pp.cy, r: pp.r, imaginary: pp.imaginary };
     }
     default: return null;
   }
@@ -453,7 +484,8 @@ export const KIND_COLOR = {
   scalar:      '#0F9D57',
   finitePoint: '#1482C8',
   roundPoint:  '#1482C8',
-  flatPoint:   '#1482C8',
+  flatPoint:      '#1482C8',
+  idealFlatPoint: '#E8A000',
   idealPoint:  '#E8A000',
   vector:      '#E8A000',
   line:        '#C30A3A',
