@@ -29,7 +29,7 @@ import { COLOR_CONSTS, BUILTIN_FN_NAMES } from './evalMVArith.js';
 // Top-level constructor names (parser handles these specially — defining a
 // user function with one of these names would shadow the builtin form).
 const BUILTIN_CONSTRUCTOR_NAMES = new Set([
-  'point', 'line', 'vector', 'color', 'triangle', 'exp',
+  'point', 'flatPoint', 'line', 'vector', 'color', 'triangle', 'exp',
 ]);
 
 const ID  = /[A-Za-z_][A-Za-z0-9_]*/;
@@ -261,8 +261,14 @@ export function createParseExpression(algebra, evaluator) {
       return { id, label, type: 'scalar', deps: [], params: { value: +scalar[1] } };
     }
 
-    // point(xExpr, yExpr) — PGA-only
+    // point(xExpr, yExpr[, rExpr]) — PGA/CGA-only
     if (accepts('freePoint')) {
+      const pt3Coords = parse3Call(expr, 'point');
+      if (pt3Coords?.[0] && pt3Coords?.[1] && pt3Coords?.[2]) {
+        const [xExpr, yExpr, zExpr] = pt3Coords;
+        const deps = uniqueDeps(xExpr, yExpr, zExpr);
+        return { id, label, type: 'freePoint', deps, params: { xExpr, yExpr, zExpr, deps } };
+      }
       const ptCoords = parse2DCall(expr, 'point') ?? (() => {
         if (!expr.startsWith('(') || !expr.endsWith(')')) return null;
         return splitTopLevelComma(expr.slice(1, -1).trim());
@@ -271,6 +277,16 @@ export function createParseExpression(algebra, evaluator) {
         const [xExpr, yExpr] = ptCoords;
         const deps = uniqueDeps(xExpr, yExpr);
         return { id, label, type: 'freePoint', deps, params: { xExpr, yExpr, deps } };
+      }
+    }
+
+    // flatPoint(xExpr, yExpr) — CGA-only draggable flat point
+    if (accepts('freeFlatPoint')) {
+      const fpCoords = parse2DCall(expr, 'flatPoint');
+      if (fpCoords && fpCoords[0] && fpCoords[1]) {
+        const [xExpr, yExpr] = fpCoords;
+        const deps = uniqueDeps(xExpr, yExpr);
+        return { id, label, type: 'freeFlatPoint', deps, params: { xExpr, yExpr, deps } };
       }
     }
 

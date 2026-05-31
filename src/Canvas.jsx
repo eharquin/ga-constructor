@@ -91,7 +91,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
     if (node.type === 'freePoint') {
       if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
@@ -99,6 +99,13 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       const { cx, cy } = w2c(eu.x, eu.y, vp);
       if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'freePoint' };
+    }
+    if (node.type === 'freeFlatPoint') {
+      const plan = algebra.getRenderPlan?.(values[id]);
+      if (!plan || plan.kind !== 'flatPoint') continue;
+      const { cx, cy } = w2c(plan.x, plan.y, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'freeFlatPoint' };
     }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
       const eu = toEuclidean?.(values[id]);
@@ -267,7 +274,7 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1, draggable = true }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1, draggable = true, ringVisible = false }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
   const r_dot  = 4.5 * weight * scale;
@@ -296,10 +303,32 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
     );
   }
 
+  if (shape === 'square') {
+    const r_sq = 5.5 * weight * scale;
+    const sqScale = hovered ? r_ring / r_sq : 1;
+    const pts = `${cx},${cy - r_sq} ${cx + r_sq},${cy} ${cx},${cy + r_sq} ${cx - r_sq},${cy}`;
+    return (
+      <g>
+        {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
+        <polygon points={pts} fill={color}
+          style={{
+            transformOrigin: `${cx}px ${cy}px`,
+            transform: `scale(${sqScale})`,
+            transition: 'transform 0.35s ease',
+          }} />
+        {renderLabel(label, cx, cy, opts)}
+      </g>
+    );
+  }
+
   const dotScale = hovered ? r_ring / r_dot : 1;
   return (
     <g>
-      {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
+      {(draggable || ringVisible) && (
+        <circle cx={cx} cy={cy} r={r_ring}
+          fill={color} fillOpacity={draggable ? 0.2 : 0}
+          stroke={ringVisible ? color : 'none'} strokeOpacity={0.45} strokeWidth={1.5} />
+      )}
       <circle cx={cx} cy={cy} r={r_dot} fill={color}
         style={{
           transformOrigin: `${cx}px ${cy}px`,
@@ -678,7 +707,7 @@ export default function Canvas({ onSquareCanvas }) {
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
-    updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   } = useGraphContext();
@@ -724,7 +753,7 @@ export default function Canvas({ onSquareCanvas }) {
   const snap = useRef(null);
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
-    updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   };
@@ -797,7 +826,8 @@ export default function Canvas({ onSquareCanvas }) {
       const { id, dragType } = ptDragRef.current;
       const rx = roundToScale(x, vp.scale);
       const ry = roundToScale(y, vp.scale);
-      if (dragType === 'freePoint')    updateFreePoint(id, rx, ry);
+      if (dragType === 'freePoint')     updateFreePoint(id, rx, ry);
+      if (dragType === 'freeFlatPoint') snap.current.updateFreeFlatPoint?.(id, rx, ry);
       if (dragType === 'scalarPoint')  snap.current.updateScalarAsComplexPoint?.(id, rx, ry);
       if (dragType === 'depPoint')     snap.current.updateDepPoint(id, rx, ry);
       if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
@@ -907,7 +937,7 @@ export default function Canvas({ onSquareCanvas }) {
 
     // Hidden items: only finitePoints with a label get a label-only pass.
     if (isHidden) {
-      if (plan.kind === 'finitePoint' && label) {
+      if ((plan.kind === 'finitePoint' || plan.kind === 'roundPoint' || plan.kind === 'flatPoint') && label) {
         const { cx, cy } = w2c(plan.x, plan.y, vp);
         layers.push(<g key={`${id}-lbl`}>{renderLabel(label, cx, cy, opts)}</g>);
       }
@@ -988,6 +1018,52 @@ export default function Canvas({ onSquareCanvas }) {
             return !dual && (algebra.isLitMVPoint
               ? algebra.isLitMVPoint(components, val)
               : Math.abs(components?.[6] ?? 0) > 1e-10);
+          }
+          return false;
+        })();
+        const ringVisible = !!algebra.flatPoint2D;
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} ringVisible={ringVisible} />;
+        layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
+        break;
+      }
+      case 'roundPoint': {
+        const isDragEligible = movableMap[id] !== false && (() => {
+          if (node.type === 'freePoint') return true;
+          if (node.type === 'scalar') return true;
+          if (node.type === 'multivector') {
+            const { coeffExprs, components, dual } = node.params ?? {};
+            const hasVar = algebra.hasDepPointCoeffs
+              ? algebra.hasDepPointCoeffs(coeffExprs)
+              : (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined);
+            if (hasVar) return true;
+            if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) return true;
+            return !dual && (algebra.isLitMVPoint
+              ? algebra.isLitMVPoint(components, val)
+              : Math.abs(components?.[6] ?? 0) > 1e-10);
+          }
+          return false;
+        })();
+        const rVal = Math.sqrt(Math.abs(plan.rSq));
+        const rImaginary = plan.rSq < 0;
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} />;
+        const circleEl = (
+          <SvgCircle key={`${id}-r`} cx={plan.x} cy={plan.y} r={rVal}
+            label={null} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (rImaginary ? 'dashed' : null)} />
+        );
+        const inner = <>{ptEl}{circleEl}</>;
+        layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{inner}</g> : inner);
+        break;
+      }
+      case 'flatPoint': {
+        const isDragEligible = movableMap[id] !== false && (() => {
+          if (node.type === 'freePoint' || node.type === 'freeFlatPoint') return true;
+          if (node.type === 'multivector') {
+            const { coeffExprs, components, dual } = node.params ?? {};
+            const hasVar = algebra.hasDepPointCoeffs
+              ? algebra.hasDepPointCoeffs(coeffExprs)
+              : (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined);
+            if (hasVar) return true;
           }
           return false;
         })();

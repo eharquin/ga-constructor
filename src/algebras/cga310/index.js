@@ -7,7 +7,8 @@
 // Satisfy e0² = einf² = 0 and e0·einf = -1.
 //
 // Conformal point embedding:
-//   P(x,y) = e0 + x·e1 + y·e2 + ½(x²+y²)·einf    (always null: P² = 0)
+//   P(x,y,r) = e0 + x·e1 + y·e2 + ½(x²+y²+r²)·einf
+//   r=0 → null point (P²=0); r≠0 → round point (P²=−r²).
 //
 // OPNS object representation (wedge of points):
 //   point pair  B = P1 ∧ P2                       (grade 2)
@@ -83,18 +84,29 @@ function einfCoeff(v) { return ((v[3] || 0) + (v[4] || 0)) / 2; }
 function e0Coeff(v)   { return  (v[4] || 0) - (v[3] || 0); }
 
 // ─── Conformal point embedding ─────────────────────────────────────────────
-// P(x, y) = e0 + x·e1 + y·e2 + ½(x²+y²)·einf
-// Expanded in MV components: P[1] = x, P[2] = y,
-//   P[3] = (e0's e3 coeff) + ½r²·(einf's e3 coeff) = -½ + ½r²
-//   P[4] = (e0's e4 coeff) + ½r²·(einf's e4 coeff) = +½ + ½r²
-export function point2D(x, y) {
-  const half_r2 = 0.5 * (x * x + y * y);
+// P(x, y, r) = e0 + x·e1 + y·e2 + ½(x²+y²+r²)·einf
+// r=0 (default) → null point (P²=0). r≠0 → round point (P²=−r²).
+// Expanded in MV components: P[1]=x, P[2]=y,
+//   P[3] = -½ + ½(x²+y²+r²),  P[4] = +½ + ½(x²+y²+r²).
+export function point2D(x, y, r = 0) {
+  // r>0 → real round point; r<0 → imaginary (r*|r| keeps the sign of r²).
+  const half_r2 = 0.5 * (x * x + y * y + r * Math.abs(r));
   const p = zeroMV();
   p[1] = x;
   p[2] = y;
   p[3] = -0.5 + half_r2;
   p[4] =  0.5 + half_r2;
   return p;
+}
+
+// Flat point constructor: F(x, y) = x·e1inf + y·e2inf + e0inf
+//   = x*(e13+e14) + y*(e23+e24) - e34  (w=1, normalized weight)
+export function flatPoint2D(x, y) {
+  const f = zeroMV();
+  f[6] = x; f[7] = x;   // e1inf = e13+e14
+  f[8] = y; f[9] = y;   // e2inf = e23+e24
+  f[10] = -1;            // e0inf = −e34
+  return f;
 }
 
 // Extract Euclidean (x, y) from a conformal point. Returns null for ideal
@@ -106,6 +118,29 @@ export function toEuclidean(p) {
   return { x: (p[1] || 0) / w, y: (p[2] || 0) / w };
 }
 
+// Extract (x, y, rSq) from any grade-1 conformal embedding.
+// rSq = -(P·P)/w²  where  P·P = P[1]²+P[2]²+P[3]²-P[4]²  (metric +,+,+,-).
+// rSq≈0 → null point; rSq>0 → real round point (radius √rSq);
+// rSq<0 → imaginary round point (radius √|rSq|, drawn dashed).
+// Returns null for ideal vectors (w≈0).
+function extractRoundPoint(p) {
+  if (!p || typeof p.length !== 'number' || p.length < ARRAY_SIZE) return null;
+  const w = e0Coeff(p);
+  if (Math.abs(w) < EPS) return null;
+  const x = (p[1] || 0) / w, y = (p[2] || 0) / w;
+  const dotPP = (p[1]||0)**2 + (p[2]||0)**2 + (p[3]||0)**2 - (p[4]||0)**2;
+  const rSq = -dotPP / (w * w);
+  return { x, y, rSq };
+}
+
+// ─── Flat point null-basis constants ──────────────────────────────────────
+// e1inf = e1∧einf = e13+e14  (P[6]=P[7]=1)
+// e2inf = e2∧einf = e23+e24  (P[8]=P[9]=1)
+// e0inf = e0∧einf = −e34     (P[10]=−1)
+const E1INF = zeroMV(); E1INF[6] = 1; E1INF[7] = 1;
+const E2INF = zeroMV(); E2INF[8] = 1; E2INF[9] = 1;
+const E0INF = zeroMV(); E0INF[10] = -1;
+
 // ─── Generic GA ops via ganja ──────────────────────────────────────────────
 
 export const dualOp = (mv) =>
@@ -113,6 +148,27 @@ export const dualOp = (mv) =>
 
 export const reverseOp = (mv) =>
   (mv && typeof mv.length === 'number' && mv.length >= ARRAY_SIZE) ? CGA.Reverse(mv) : mv;
+
+// ─── Flat point helpers ────────────────────────────────────────────────────
+// A flat point is a grade-2 blade of the form x·e1inf + y·e2inf + w·e0inf.
+// In raw Cl(3,1) this expands to: P[6]=P[7]=x, P[8]=P[9]=y, P[10]=−w, P[5]=0.
+// Detection: |e12|≈0 AND |e13−e14|≈0 AND |e23−e24|≈0 (relative threshold).
+function isFlatPoint(p) {
+  let norm2 = 0;
+  for (let i = 5; i <= 10; i++) norm2 += (p[i] || 0) ** 2;
+  if (norm2 < 1e-12) return false;
+  const thr = Math.max(1e-6, Math.sqrt(norm2) * 1e-5);
+  return Math.abs(p[5] || 0) < thr &&
+         Math.abs((p[6] || 0) - (p[7] || 0)) < thr &&
+         Math.abs((p[8] || 0) - (p[9] || 0)) < thr;
+}
+
+// Extract Euclidean (x, y) from a flat point (normalize by w = −e34 = −P[10]).
+function extractFlatPoint(p) {
+  const w = -(p[10] || 0);
+  if (Math.abs(w) < EPS) return null;
+  return { x: (p[7] || 0) / w, y: (p[9] || 0) / w };
+}
 
 // ─── Classifier ────────────────────────────────────────────────────────────
 
@@ -164,17 +220,19 @@ export function classifyMV(val) {
   if (!anyGrade) return { kind: 'scalar' };       // zero MV
   if (g[0] && !g[1] && !g[2] && !g[3] && !g[4]) return { kind: 'scalar' };
 
-  // Pure grade-1: point (null) or free vector / IPNS sphere (not null)
+  // Pure grade-1: null point, round point (non-null with finite e0), or ideal.
   if (!g[0] && g[1] && !g[2] && !g[3] && !g[4]) {
-    if (isNullVector(val)) {
-      const w = e0Coeff(val);
-      return { kind: Math.abs(w) > EPS ? 'finitePoint' : 'idealPoint' };
-    }
-    return { kind: 'vector' };
+    const rp = extractRoundPoint(val);
+    if (!rp) return { kind: 'idealPoint' };
+    if (Math.abs(rp.rSq) < 1e-6) return { kind: 'finitePoint' };
+    return { kind: 'roundPoint', rSq: rp.rSq };
   }
 
-  // Pure grade-2: point pair
-  if (!g[0] && !g[1] && g[2] && !g[3] && !g[4]) return { kind: 'pointPair' };
+  // Pure grade-2: flat point (contains einf) or general point pair
+  if (!g[0] && !g[1] && g[2] && !g[3] && !g[4]) {
+    if (isFlatPoint(val)) return { kind: 'flatPoint' };
+    return { kind: 'pointPair' };
+  }
 
   // Pure grade-3: line (IPNS-dual has zero e0 component) or circle
   if (!g[0] && !g[1] && !g[2] && g[3] && !g[4]) {
@@ -296,7 +354,7 @@ export function getRenderPlan(val) {
   if (val == null) return null;
   if (val?.list) {
     const elements = val.items.map(getRenderPlan).filter(Boolean);
-    const allPoints = elements.length > 0 && elements.every((e) => e.kind === 'finitePoint');
+    const allPoints = elements.length > 0 && elements.every((e) => e.kind === 'finitePoint' || e.kind === 'roundPoint');
     const outline = allPoints ? elements.map((e) => ({ x: e.x, y: e.y })) : null;
     return { kind: 'list', elements, outline };
   }
@@ -308,10 +366,18 @@ export function getRenderPlan(val) {
       const eu = toEuclidean(val);
       return eu ? { kind: 'finitePoint', x: eu.x, y: eu.y } : null;
     }
+    case 'roundPoint': {
+      const rp = extractRoundPoint(val);
+      return rp ? { kind: 'roundPoint', x: rp.x, y: rp.y, rSq: rp.rSq } : null;
+    }
     case 'line': return { kind: 'line', L: val };
     case 'circle': {
       const c = extractCircle(val);
       return c ? { kind: 'circle', cx: c.cx, cy: c.cy, r: c.r, imaginary: c.imaginary } : null;
+    }
+    case 'flatPoint': {
+      const fp = extractFlatPoint(val);
+      return fp ? { kind: 'flatPoint', x: fp.x, y: fp.y } : null;
     }
     case 'pointPair': {
       const pp = extractPointPair(val);
@@ -376,7 +442,7 @@ export const geomToMV = null;
 // Start conservative: support points, motors, wedge/meet, list, color, funcDef.
 // Skip PGA-specific types (joinLine/meetPoint use PGA conventions for lines).
 export const SUPPORTED_NODE_TYPES = new Set([
-  'scalar', 'freePoint',
+  'scalar', 'freePoint', 'freeFlatPoint',
   'motorExp', 'motorApply',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
   'color', 'funcDef',
@@ -386,6 +452,8 @@ export const SUPPORTED_NODE_TYPES = new Set([
 export const KIND_COLOR = {
   scalar:      '#0F9D57',
   finitePoint: '#1482C8',
+  roundPoint:  '#1482C8',
+  flatPoint:   '#1482C8',
   idealPoint:  '#E8A000',
   vector:      '#E8A000',
   line:        '#C30A3A',
@@ -443,11 +511,12 @@ export const spec = {
   classifyMV, objectWeight,
   normalizeMV, normalizeMVFinit, normalizeMVIdeal,
   point2D,
+  flatPoint2D,
   toEuclidean,
   lineBaseAndDir,
   hasDepPointCoeffs,
   getRenderPlan,
-  mvConsts: { e0: E0, einf: EINF },
+  mvConsts: { e0: E0, einf: EINF, e1inf: E1INF, e2inf: E2INF, e0inf: E0INF },
   // Conformal-basis display: ExpressionPanel re-expresses MV components
   // using these names + coefficient transform when the user opts in.
   displayBladeNames: DISPLAY_BLADE_NAMES,
@@ -463,6 +532,7 @@ export const spec = {
       { label: 'origin (e0)',     formula: 'e0 = (e4 − e3) / 2     (null: e0² = 0)' },
       { label: 'infinity (einf)', formula: 'einf = e4 + e3         (null: einf² = 0,  e0·einf = −1)' },
       { label: 'point',           formula: 'P = e0 + x·e1 + y·e2 + ½(x²+y²)·einf' },
+      { label: 'flat point',       formula: 'F = P ∧ einf  =  x·e1inf + y·e2inf + e0inf' },
       { label: 'point pair',      formula: 'B = P1 ∧ P2' },
       { label: 'line',            formula: 'L = P1 ∧ P2 ∧ einf' },
       { label: 'circle',          formula: 'C = P1 ∧ P2 ∧ P3' },

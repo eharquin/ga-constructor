@@ -608,15 +608,38 @@ export function useGraph(algebra) {
     if (!item) return;
     const node = parseExpression(item.text);
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
-    const { xExpr, yExpr } = node.params;
+    const { xExpr, yExpr, zExpr } = node.params;
     const xHandled = tryUpdateScalar(xExpr, x);
     const yHandled = tryUpdateScalar(yExpr, y);
     if (!xHandled || !yHandled) {
       const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
       const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
       const text = algebra.freePointText
-        ? algebra.freePointText(node.label !== null ? nodeId : null, xPart, yPart)
-        : (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart})` : `point(${xPart}, ${yPart})`);
+        ? algebra.freePointText(node.label !== null ? nodeId : null, xPart, yPart, zExpr)
+        : zExpr !== undefined
+          ? (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart}, ${zExpr})` : `point(${xPart}, ${yPart}, ${zExpr})`)
+          : (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart})` : `point(${xPart}, ${yPart})`);
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
+    }
+  };
+
+  const updateFreeFlatPoint = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'freeFlatPoint';
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
+    const { xExpr, yExpr } = node.params;
+    const xHandled = tryUpdateScalar(xExpr, x);
+    const yHandled = tryUpdateScalar(yExpr, y);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
+      const text = node.label !== null
+        ? `${nodeId} = flatPoint(${xPart}, ${yPart})`
+        : `flatPoint(${xPart}, ${yPart})`;
       dispatch({ type: 'SET_TEXT', id: item.id, text });
     }
   };
@@ -841,6 +864,7 @@ export function useGraph(algebra) {
     clearAll,
     loadItems,
     updateFreePoint,
+    updateFreeFlatPoint,
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,

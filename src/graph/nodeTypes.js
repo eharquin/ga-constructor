@@ -15,6 +15,7 @@ export function createNodeTypes(algebra, evaluator) {
   const expFn = algebra.expFn ?? ((mv) => mv.Exp());
   // PGA-only helpers (null on VGA) — used to guard the PGA-specific nodes.
   const point2D        = algebra.point2D        ?? null;
+  const flatPoint2D    = algebra.flatPoint2D    ?? null;
   const line2D         = algebra.line2D         ?? null;
   const toEuclidean    = algebra.toEuclidean    ?? null;
   const lineBaseAndDir = algebra.lineBaseAndDir ?? null;
@@ -242,10 +243,27 @@ export function createNodeTypes(algebra, evaluator) {
       compute: (depValues, params) => {
         const { vx: cx, vy: cy } = evalCoords(depValues, params);
         if (isNaN(cx) || isNaN(cy)) return null;
+        if (params.zExpr !== undefined) {
+          const scalars = Object.fromEntries((params.deps ?? []).map((d, i) => [d, depValues[i]]));
+          const cz = scalar(params.zExpr, scalars);
+          if (isNaN(cz)) return null;
+          return point2D(cx, cy, cz);
+        }
         return point2D(cx, cy);
       },
     };
   }
+  if (flatPoint2D) {
+    types.freeFlatPoint = {
+      label: 'Flat Point',
+      compute: (depValues, params) => {
+        const { vx: cx, vy: cy } = evalCoords(depValues, params);
+        if (isNaN(cx) || isNaN(cy)) return null;
+        return flatPoint2D(cx, cy);
+      },
+    };
+  }
+
   if (line2D) {
     types.freeLine = {
       label: 'Free Line',
