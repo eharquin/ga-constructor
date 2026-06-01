@@ -83,6 +83,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
     case 'circle': {
       const plan = algebra.getRenderPlan?.(val);
       if (plan?.kind !== 'circle') return 'Circle';
+      if (plan.r === 0) return `Point circle (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=0`;
       const lbl = plan.imaginary ? 'Imaginary circle' : 'Circle';
       return `${lbl} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=${fmtC(plan.r)}`;
     }

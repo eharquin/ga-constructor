@@ -1151,6 +1151,19 @@ export default function Canvas({ onSquareCanvas }) {
         layers.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
         break;
       case 'circle': {
+        // Zero-radius circle (the dual of a point) collapses to a point — draw
+        // it as a filled dot in the circle color so it stays visible at any zoom.
+        if (plan.r === 0) {
+          const { cx, cy } = w2c(plan.cx, plan.cy, vp);
+          const rDot = 4 * weight;
+          layers.push(
+            <g key={id}>
+              <circle cx={cx} cy={cy} r={rDot} fill={color} />
+              {renderLabel(label, cx + rDot + 2, cy - rDot - 2, opts)}
+            </g>
+          );
+          break;
+        }
         // Imaginary circle (r² < 0): default to dashed when the user hasn't
         // explicitly picked a stroke style.
         const effStyle = strokeStyle ?? (plan.imaginary ? 'dashed' : null);

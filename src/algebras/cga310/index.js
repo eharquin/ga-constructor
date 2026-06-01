@@ -363,7 +363,10 @@ function extractCircle(X) {
   const cy = (S[2] || 0) / w;
   const cinfNorm = einfCoeff(S) / w;        // = ½(cx² + cy² − r²)
   const r2 = cx * cx + cy * cy - 2 * cinfNorm;
-  if (Math.abs(r2) < 1e-12) return null;    // degenerate (point)
+  // Zero-radius circle = the dual of a null point (a "point circle"). r² is 0
+  // analytically; the cutoff scales with the centre distance to absorb Float32
+  // noise (which grows with cx²+cy²). Reported with r=0 for a dot glyph.
+  if (Math.abs(r2) < 1e-6 * (1 + cx * cx + cy * cy)) return { cx, cy, r: 0, imaginary: false };
   return { cx, cy, r: Math.sqrt(Math.abs(r2)), imaginary: r2 < 0 };
 }
 
