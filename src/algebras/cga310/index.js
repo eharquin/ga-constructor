@@ -162,6 +162,38 @@ const E1INF = zeroMV(); E1INF[6] = 1; E1INF[7] = 1;
 const E2INF = zeroMV(); E2INF[8] = 1; E2INF[9] = 1;
 const E0INF = zeroMV(); E0INF[10] = -1;
 
+// Vector for one conformal-blade factor: '0'→e0, 'inf'→einf, '1'..'4'→eN.
+function conformalFactor(tok) {
+  const v = zeroMV();
+  if (tok === 'inf')      { v[3] = 1; v[4] = 1; }     // einf = e3+e4
+  else if (tok === '0')   { v[3] = -0.5; v[4] = 0.5; } // e0 = (e4-e3)/2
+  else                    { v[+tok] = 1; }             // e1..e4
+  return v;
+}
+
+// Resolve any conformal-blade name to its MV by wedging its factors in order —
+// e0/einf are combinations of e3/e4, so e.g. e01 = e0∧e1 = (e14−e13)/2, and the
+// wedge gives the correct sign for reorderings (e10 = −e01). Handles names built
+// from {0,1,2,3,4,inf}: e01, e10, e0inf, e12inf, einf120, e10inf, … Returns null
+// for non-blade identifiers (so they stay resolvable as variables).
+export function bladeNameToMV(name) {
+  if (typeof name !== 'string' || name[0] !== 'e' || name.length < 2) return null;
+  const s = name.slice(1);
+  const factors = [];
+  for (let i = 0; i < s.length; ) {
+    if (s.startsWith('inf', i))            { factors.push('inf'); i += 3; }
+    else if (s[i] >= '0' && s[i] <= '4')   { factors.push(s[i]);  i += 1; }
+    else return null;
+  }
+  if (!factors.length) return null;
+  let acc = null;
+  for (const f of factors) {
+    const vec = conformalFactor(f);
+    acc = acc === null ? vec : CGA.Wedge(acc, vec);
+  }
+  return acc;
+}
+
 // ─── Generic GA ops via ganja ──────────────────────────────────────────────
 
 export const dualOp = (mv) =>
@@ -602,6 +634,7 @@ export const spec = {
   bladeNames: BLADE_NAMES,
   bladePattern: BLADE_PATTERN,
   parseBladeName,
+  bladeNameToMV,
   tryVectorFromMV,
   geomToMV,
   dualOp, reverseOp,

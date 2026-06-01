@@ -61,7 +61,7 @@ const TRIG_FNS = {
 // ─── Factory ────────────────────────────────────────────────────────────────
 
 export function createEvalMVArith(algebra) {
-  const { Algebra, arraySize, bladeIndex, parseBladeName, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
+  const { Algebra, arraySize, bladeIndex, parseBladeName, bladeNameToMV, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
   // Algebra-specific named MV constants (e.g. CGA's e0 and einf). Resolved as
   // ordinary identifiers in expressions; never collected as graph dependencies.
   const MV_CONSTS = algebra.mvConsts || {};
@@ -299,7 +299,7 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTRUCTOR_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !(bladeNameToMV && bladeNameToMV(t.val)) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTRUCTOR_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -647,8 +647,9 @@ export function createEvalMVArith(algebra) {
           const v = fullEnv[t.val];
           val = v !== undefined ? v : (() => {
             const b = parseBladeName(t.val);
-            if (!b) return null;
-            const mv = new Algebra(arraySize); mv[b.index] = b.sign; return mv;
+            if (b) { const mv = new Algebra(arraySize); mv[b.index] = b.sign; return mv; }
+            // Conformal/null-basis blade names (e01, e10inf, einf120, …).
+            return bladeNameToMV ? bladeNameToMV(t.val) : null;
           })();
         }
       } else {
