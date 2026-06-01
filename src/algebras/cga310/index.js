@@ -523,10 +523,10 @@ export function getRenderPlan(val) {
 
 export const DISPLAY_BLADE_NAMES = [
   '1',
-  'e1', 'e2', 'e0', 'einf',
-  'e12', 'e1e0', 'e1einf', 'e2e0', 'e2einf', 'e0einf',
-  'e12e0', 'e12einf', 'e1e0einf', 'e2e0einf',
-  'e12e0einf',
+  'e1', 'e2', 'e0', 'inf',
+  'e12', 'e1e0', 'e1inf', 'e2e0', 'e2inf', 'e0inf',
+  'e12e0', 'e12inf', 'e1e0inf', 'e2e0inf',
+  'e12e0inf',
 ];
 
 export function toDisplayCoeffs(mv) {
@@ -536,19 +536,19 @@ export function toDisplayCoeffs(mv) {
   d[0]  = s(0);                       // 1
   d[1]  = s(1);                       // e1
   d[2]  = s(2);                       // e2
-  d[3]  = s(4) - s(3);                // e0   = std[e4] − std[e3]
-  d[4]  = (s(3) + s(4)) / 2;          // einf = (std[e3] + std[e4]) / 2
+  d[3]  = s(4) - s(3);                // e0  = std[e4] − std[e3]
+  d[4]  = (s(3) + s(4)) / 2;          // inf = (std[e3] + std[e4]) / 2
   d[5]  = s(5);                       // e12
   d[6]  = s(7) - s(6);                // e1e0  from (e13, e14)
-  d[7]  = (s(6) + s(7)) / 2;          // e1einf
+  d[7]  = (s(6) + s(7)) / 2;          // e1inf
   d[8]  = s(9) - s(8);                // e2e0  from (e23, e24)
-  d[9]  = (s(8) + s(9)) / 2;          // e2einf
-  d[10] = -s(10);                     // e0einf = −e34
+  d[9]  = (s(8) + s(9)) / 2;          // e2inf
+  d[10] = -s(10);                     // e0inf = −e34
   d[11] = s(12) - s(11);              // e12e0   from (e123, e124)
-  d[12] = (s(11) + s(12)) / 2;        // e12einf
-  d[13] = -s(13);                     // e1e0einf = −e134
-  d[14] = -s(14);                     // e2e0einf = −e234
-  d[15] = -s(15);                     // e12e0einf = −e1234
+  d[12] = (s(11) + s(12)) / 2;        // e12inf
+  d[13] = -s(13);                     // e1e0inf = −e134
+  d[14] = -s(14);                     // e2e0inf = −e234
+  d[15] = -s(15);                     // e12e0inf = −e1234
   return d;
 }
 
