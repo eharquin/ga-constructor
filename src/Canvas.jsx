@@ -416,8 +416,8 @@ function SvgPointPair({ p1, p2, label, color, vp, W, H, opts, weight = 1, imagin
   return (
     <g>
       <line x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy}
-            stroke={color} strokeOpacity={0.4} strokeWidth={1.5}
-            strokeDasharray="4 3" />
+            stroke={color} strokeOpacity={0.6} strokeWidth={1.5 * weight}
+            strokeLinecap="round" strokeDasharray="5 4" />
       {dot(a.cx, a.cy)}
       {dot(b.cx, b.cy)}
       {renderLabel(label, lx, ly, opts)}
