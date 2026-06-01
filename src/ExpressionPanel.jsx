@@ -104,6 +104,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       const lbl = plan.imaginary ? 'Imaginary point pair' : 'Point pair';
       return `${lbl} (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})  r=${fmtC(plan.r)}`;
     }
+    case 'idealPointPair': return 'Ideal point pair';
     default:            return '—';
   }
 }
@@ -128,7 +129,7 @@ const KIND_LABELS = {
   rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
   reflector: 'Reflector', mixed: 'Mixed',
   vector: 'Vector', bivector: 'Bivector',
-  circle: 'Circle', pointPair: 'Point pair',
+  circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
 };
 
 function describeListItem(item, algebra, decimals) {

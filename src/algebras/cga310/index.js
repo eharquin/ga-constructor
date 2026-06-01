@@ -238,6 +238,20 @@ function isNullVector(v) {
   return scalar < Math.max(1e-6, norm2 * 1e-5);
 }
 
+// An object is "ideal" (lives at infinity) when its inner product with einf
+// vanishes — true for wedges of ideal points (e0-free vectors). This separates
+// an ideal point pair / ideal line from their finite carriers. Relative
+// threshold against ‖X‖ keeps it robust to Float32 product noise.
+function dotEinfVanishes(val) {
+  const d = CGA.Dot(val, EINF);
+  let maxD = 0, maxX = 0;
+  for (let i = 0; i < ARRAY_SIZE; i++) {
+    maxD = Math.max(maxD, Math.abs(d[i] || 0));
+    maxX = Math.max(maxX, Math.abs(val[i] || 0));
+  }
+  return maxD < Math.max(EPS, maxX * 1e-5);
+}
+
 export function classifyMV(val) {
   if (typeof val === 'number') return { kind: 'scalar' };
   if (!val || typeof val.length !== 'number' || val.length < ARRAY_SIZE) return null;
@@ -266,11 +280,16 @@ export function classifyMV(val) {
       const w = -(val[10] || 0);
       return Math.abs(w) > EPS ? { kind: 'flatPoint' } : { kind: 'idealFlatPoint' };
     }
+    // Wedge of two ideal points (e0-free) ⇒ ideal point pair: no finite carrier,
+    // so pp·einf vanishes and the standard pair extraction degenerates.
+    if (dotEinfVanishes(val)) return { kind: 'idealPointPair' };
     return { kind: 'pointPair' };
   }
 
-  // Pure grade-3: line (IPNS-dual has zero e0 component) or circle
+  // Pure grade-3: line (IPNS-dual has zero e0 component), circle, or — when it
+  // is a wedge of three ideal points — the line at infinity (e12∧einf).
   if (!g[0] && !g[1] && !g[2] && g[3] && !g[4]) {
+    if (dotEinfVanishes(val)) return { kind: 'idealLine' };
     const D = CGA.Dual(val);
     return { kind: Math.abs(e0Coeff(D)) > EPS ? 'circle' : 'line' };
   }
@@ -530,7 +549,9 @@ export const KIND_COLOR = {
   vector:      '#E8A000',
   line:        '#C30A3A',
   circle:      '#C30A3A',
+  idealLine:   '#E8A000',
   pointPair:   '#AA7500',
+  idealPointPair: '#E8A000',
   pseudoscalar:'#4E5668',
   rotor:       '#55ABDF',
   translator:  '#55ABDF',
