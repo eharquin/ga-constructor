@@ -54,6 +54,19 @@ function splitAllTopLevelCommas(str) {
   return parts;
 }
 
+// True when parens in `str` are balanced and never dip below zero — i.e. the
+// string is a self-contained interior. Used by the call-parsers to reject
+// `point(1,0) ^ point(-1,0.5)`, whose first ')' is not the call's closer, so
+// such expressions fall through to the general mvExpr / evalMVArith path.
+function balancedParens(str) {
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '(') depth++;
+    else if (str[i] === ')') { if (--depth < 0) return false; }
+  }
+  return depth === 0;
+}
+
 function splitTopLevelComma(str) {
   let depth = 0;
   for (let i = 0; i < str.length; i++) {
@@ -168,6 +181,7 @@ export function createParseExpression(algebra, evaluator) {
     const prefix = fnName + '(';
     if (!expr.startsWith(prefix) || !expr.endsWith(')')) return null;
     const inner = expr.slice(prefix.length, -1).trim();
+    if (!balancedParens(inner)) return null;   // the trailing ')' isn't this call's closer
     const coords = splitTopLevelComma(inner);
     if (!coords || !coords[0] || !coords[1]) return null;
     return coords;
@@ -177,6 +191,7 @@ export function createParseExpression(algebra, evaluator) {
     const prefix = fnName + '(';
     if (!expr.startsWith(prefix) || !expr.endsWith(')')) return null;
     const inner = expr.slice(prefix.length, -1).trim();
+    if (!balancedParens(inner)) return null;   // the trailing ')' isn't this call's closer
     const first = splitTopLevelComma(inner);
     if (!first) return null;
     const second = splitTopLevelComma(first[1]);

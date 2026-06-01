@@ -66,6 +66,20 @@ export function createEvalMVArith(algebra) {
   // ordinary identifiers in expressions; never collected as graph dependencies.
   const MV_CONSTS = algebra.mvConsts || {};
 
+  // Object constructors usable inline in expressions (e.g. `point(-4, 2) ^ einf`).
+  // Each maps a reserved name → the algebra's typed constructor; only those the
+  // algebra actually provides are registered. Args are coerced to scalars.
+  const CONSTRUCTORS = {};
+  if (algebra.point2D)     CONSTRUCTORS.point     = algebra.point2D;
+  if (algebra.flatPoint2D) CONSTRUCTORS.flatPoint = algebra.flatPoint2D;
+  if (algebra.vector2D)    CONSTRUCTORS.vector    = algebra.vector2D;
+  if (algebra.line2D)      CONSTRUCTORS.line      = algebra.line2D;
+  const CONSTRUCTOR_NAMES = new Set(Object.keys(CONSTRUCTORS));
+  const toScalarArg = (a) =>
+    typeof a === 'number' ? a
+      : (a && typeof a.length === 'number' && a.length >= arraySize) ? (a[0] || 0)
+      : NaN;
+
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
   // Property names accepted after '.' that are not blade names.
@@ -285,7 +299,7 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTRUCTOR_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -579,7 +593,13 @@ export function createEvalMVArith(algebra) {
             eat();
           }
 
-          if (BUILTIN_FN_NAMES.has(t.val)) {
+          if (CONSTRUCTOR_NAMES.has(t.val)) {
+            // Object constructor: point/flatPoint/vector/line with scalar args.
+            const nums = args.map(toScalarArg);
+            val = (args.length >= 2 && !nums.some(Number.isNaN))
+              ? CONSTRUCTORS[t.val](...nums)
+              : null;
+          } else if (BUILTIN_FN_NAMES.has(t.val)) {
             if (args.length !== 1) { val = null; }
             else {
               const arg = args[0];
