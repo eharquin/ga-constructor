@@ -509,6 +509,12 @@ export function getRenderPlan(val) {
       const rSq = 2 * einfCoeff(val) - (x * x + y * y);
       return { kind: 'positionedVector', vx: x, vy: y, rSq };
     }
+    case 'idealPointPair': {
+      // Drawn via its oriented-area (e12) part — the same bivector loop VGA uses.
+      // e12 is the unit oriented area / generator of rotation about the origin.
+      // (Any e1∞/e2∞ direction part is not drawn.)
+      return { kind: 'bivector', value: val[5] || 0 };
+    }
     default: return null;
   }
 }

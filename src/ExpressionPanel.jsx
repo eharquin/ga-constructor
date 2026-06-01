@@ -677,7 +677,7 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
