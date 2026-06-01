@@ -918,8 +918,9 @@ export default function Canvas({ onSquareCanvas }) {
   // topmost-drawn item wins when several share a hit area.
   const layers = [];
 
-  // Ideal-line ellipse + ideal-point markers are PGA-only (kind === 'idealLine'
-  // exists for that algebra). VGA never emits idealLine, so this stays false.
+  // Ideal-line ellipse + ideal-point markers: true when any visible object is
+  // the line at infinity (PGA's pure-e0 line, or CGA's e1∧e2∧einf). VGA never
+  // emits idealLine, so it stays false there.
   const hasIdealLine = orderedNodeIds.some((id) =>
     !hiddenIds.has(id) && classifyMV(values[id])?.kind === 'idealLine'
   );

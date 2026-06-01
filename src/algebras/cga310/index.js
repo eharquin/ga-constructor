@@ -445,6 +445,7 @@ export function getRenderPlan(val) {
       return rp ? { kind: 'roundPoint', x: rp.x, y: rp.y, rSq: rp.rSq } : null;
     }
     case 'line': return { kind: 'line', L: val };
+    case 'idealLine': return { kind: 'idealLine' };   // line at infinity — drawn as the boundary ellipse
     case 'circle': {
       const c = extractCircle(val);
       return c ? { kind: 'circle', cx: c.cx, cy: c.cy, r: c.r, imaginary: c.imaginary } : null;
