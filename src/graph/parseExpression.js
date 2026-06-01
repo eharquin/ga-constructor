@@ -300,6 +300,23 @@ export function createParseExpression(algebra, evaluator) {
       }
     }
 
+    // vector(xExpr, yExpr[, rExpr]) — CGA-only draggable ideal round point.
+    // Produces an MV value (so it composes with ^, &, …); renders as an arrow.
+    if (accepts('freeVector')) {
+      const v3 = parse3Call(expr, 'vector');
+      if (v3?.[0] && v3?.[1] && v3?.[2]) {
+        const [xExpr, yExpr, rExpr] = v3;
+        const deps = uniqueDeps(xExpr, yExpr, rExpr);
+        return { id, label, type: 'freeVector', deps, params: { xExpr, yExpr, rExpr, deps } };
+      }
+      const v2 = parse2DCall(expr, 'vector');
+      if (v2 && v2[0] && v2[1]) {
+        const [xExpr, yExpr] = v2;
+        const deps = uniqueDeps(xExpr, yExpr);
+        return { id, label, type: 'freeVector', deps, params: { xExpr, yExpr, deps } };
+      }
+    }
+
     // vector(xExpr, yExpr) — always supported
     const vecCoords = parse2DCall(expr, 'vector');
     if (vecCoords) {

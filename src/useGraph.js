@@ -644,6 +644,27 @@ export function useGraph(algebra) {
     }
   };
 
+  // CGA ideal round point — tip drag rewrites vector(x, y[, r]) preserving r.
+  const updateFreeVector = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'freeVector';
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
+    const { xExpr, yExpr, rExpr } = node.params;
+    const xHandled = tryUpdateScalar(xExpr, x);
+    const yHandled = tryUpdateScalar(yExpr, y);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
+      const args = rExpr !== undefined ? `${xPart}, ${yPart}, ${rExpr}` : `${xPart}, ${yPart}`;
+      const text = node.label !== null ? `${nodeId} = vector(${args})` : `vector(${args})`;
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
+    }
+  };
+
   const updateVector = (nodeId, vx, vy) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -865,6 +886,7 @@ export function useGraph(algebra) {
     loadItems,
     updateFreePoint,
     updateFreeFlatPoint,
+    updateFreeVector,
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,

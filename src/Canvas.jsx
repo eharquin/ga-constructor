@@ -107,6 +107,16 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'freeFlatPoint' };
     }
+    if (node.type === 'freeVector') {
+      // Arrow from the origin (its tail) to tail+(vx, vy); only the tip drags.
+      const plan = algebra.getRenderPlan?.(values[id]);
+      if (!plan || plan.kind !== 'positionedVector') continue;
+      const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+      const { cx, cy } = w2c(pos.x + plan.vx, pos.y + plan.vy, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'freeVectorTip' };
+      continue; // tail isn't drag-grabbable — don't fall through to tail drag
+    }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
       const eu = toEuclidean?.(values[id]);
       if (!eu) continue;
@@ -710,7 +720,7 @@ export default function Canvas({ onSquareCanvas }) {
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
-    updateFreePoint, updateFreeFlatPoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   } = useGraphContext();
@@ -756,7 +766,7 @@ export default function Canvas({ onSquareCanvas }) {
   const snap = useRef(null);
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
-    updateFreePoint, updateFreeFlatPoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   };
@@ -845,6 +855,10 @@ export default function Canvas({ onSquareCanvas }) {
       if (dragType === 'vectorTip') {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
         snap.current.updateVector(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
+      }
+      if (dragType === 'freeVectorTip') {
+        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+        snap.current.updateFreeVector?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
 
     } else if (dragRef.current) {
@@ -993,7 +1007,7 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
-        const tipDraggable = (plan.tipDraggable ?? true) && node.type === 'vector';
+        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector');
         layers.push(
           <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
             label={label} color={color} vp={vp} tailHovered={tailHovered} tipHovered={tipHovered} linked={pos.linked}

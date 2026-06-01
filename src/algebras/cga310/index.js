@@ -99,6 +99,27 @@ export function point2D(x, y, r = 0) {
   return p;
 }
 
+// Ideal round point ("conformal vector"): the round-point embedding with the
+// e0 (origin) component dropped —
+//   V(x, y, r) = x·e1 + y·e2 + ½(x²+y²+r²)·einf.
+// Grade-1 with zero e0 weight, so it classifies as an ideal point and renders
+// as an arrow from the origin to (x, y); r lives in the einf coefficient.
+export function vector2D(x, y, r = 0) {
+  const half = 0.5 * (x * x + y * y + r * r);
+  const v = zeroMV();
+  v[1] = x;
+  v[2] = y;
+  v[3] = half;   // einf = e3 + e4  ⇒  half·einf splits half into e3 and e4
+  v[4] = half;
+  return v;
+}
+
+// Euclidean direction of an ideal (e0-free) grade-1 vector — its e1/e2 part.
+export function toIdealVector(v) {
+  if (!v || typeof v.length !== 'number' || v.length < ARRAY_SIZE) return null;
+  return { vx: v[1] || 0, vy: v[2] || 0 };
+}
+
 // Flat point constructor: F(x, y) = x·e1inf + y·e2inf + e0inf
 //   = x*(e13+e14) + y*(e23+e24) - e34  (w=1, normalized weight)
 export function flatPoint2D(x, y) {
@@ -425,6 +446,11 @@ export function getRenderPlan(val) {
       if (!pp) return null;
       return { kind: 'pointPair', p1: pp.p1, p2: pp.p2, cx: pp.cx, cy: pp.cy, r: pp.r, imaginary: pp.imaginary };
     }
+    case 'idealPoint': {
+      // e0-free grade-1 vector (e.g. vector(x, y, r)) — drawn as an arrow from
+      // the origin to (x, y) given by the e1/e2 part.
+      return { kind: 'positionedVector', vx: val[1] || 0, vy: val[2] || 0 };
+    }
     default: return null;
   }
 }
@@ -484,7 +510,7 @@ export const geomToMV = null;
 // Start conservative: support points, motors, wedge/meet, list, color, funcDef.
 // Skip PGA-specific types (joinLine/meetPoint use PGA conventions for lines).
 export const SUPPORTED_NODE_TYPES = new Set([
-  'scalar', 'freePoint', 'freeFlatPoint',
+  'scalar', 'freePoint', 'freeFlatPoint', 'freeVector',
   'motorExp', 'motorApply',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
   'color', 'funcDef',
@@ -555,7 +581,9 @@ export const spec = {
   normalizeMV, normalizeMVFinit, normalizeMVIdeal,
   point2D,
   flatPoint2D,
+  vector2D,
   toEuclidean,
+  toIdealVector,
   lineBaseAndDir,
   hasDepPointCoeffs,
   getRenderPlan,

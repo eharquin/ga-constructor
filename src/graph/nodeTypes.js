@@ -16,6 +16,7 @@ export function createNodeTypes(algebra, evaluator) {
   // PGA-only helpers (null on VGA) — used to guard the PGA-specific nodes.
   const point2D        = algebra.point2D        ?? null;
   const flatPoint2D    = algebra.flatPoint2D    ?? null;
+  const vectorMV2D     = algebra.vector2D       ?? null;
   const line2D         = algebra.line2D         ?? null;
   const toEuclidean    = algebra.toEuclidean    ?? null;
   const lineBaseAndDir = algebra.lineBaseAndDir ?? null;
@@ -260,6 +261,23 @@ export function createNodeTypes(algebra, evaluator) {
         const { vx: cx, vy: cy } = evalCoords(depValues, params);
         if (isNaN(cx) || isNaN(cy)) return null;
         return flatPoint2D(cx, cy);
+      },
+    };
+  }
+  // CGA ideal round point: vector(x, y[, r]) → MV value, rendered as an arrow.
+  if (vectorMV2D) {
+    types.freeVector = {
+      label: 'Vector',
+      compute: (depValues, params) => {
+        const { vx: cx, vy: cy } = evalCoords(depValues, params);
+        if (isNaN(cx) || isNaN(cy)) return null;
+        if (params.rExpr !== undefined) {
+          const scalars = Object.fromEntries((params.deps ?? []).map((d, i) => [d, depValues[i]]));
+          const cr = scalar(params.rExpr, scalars);
+          if (isNaN(cr)) return null;
+          return vectorMV2D(cx, cy, cr);
+        }
+        return vectorMV2D(cx, cy);
       },
     };
   }
