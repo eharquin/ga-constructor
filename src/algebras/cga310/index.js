@@ -188,13 +188,19 @@ function gradeNorms(val) {
 }
 
 // A grade is "present" iff its norm is non-trivial both in absolute terms
-// (> EPS) AND relative to the dominant grade (> 1e-8 × maxNorm). This lets
+// (> EPS) AND relative to the dominant grade (> GRADE_REL × maxNorm). This lets
 // the classifier ignore floating-point noise from ganja's binary products.
+// GRADE_REL is 1e-5, not tighter: ganja stores MVs as Float32 (~1e-7 relative
+// precision), and a sandwich product (E G ~E) accumulates several multiplies,
+// so a "pure" grade-1 point can carry grade-3 noise at ~1e-8…1e-6 of the
+// dominant grade. A 1e-8 cutoff let that noise flag grade-3, misclassifying
+// E >>> G (point reflected in point) as a reflector instead of a point.
+const GRADE_REL = 1e-5;
 function gradeFlags(val) {
   const n = gradeNorms(val);
   const maxN = Math.max(...n);
   if (maxN < EPS) return [false, false, false, false, false];
-  const threshold = Math.max(EPS, maxN * 1e-8);
+  const threshold = Math.max(EPS, maxN * GRADE_REL);
   return n.map((x) => x > threshold);
 }
 
@@ -224,7 +230,12 @@ export function classifyMV(val) {
   if (!g[0] && g[1] && !g[2] && !g[3] && !g[4]) {
     const rp = extractRoundPoint(val);
     if (!rp) return { kind: 'idealPoint' };
-    if (Math.abs(rp.rSq) < 1e-6) return { kind: 'finitePoint' };
+    // rSq has units of length², so the null-point cutoff scales with the
+    // point's distance from the origin: a sandwich (E >>> G) on a far point
+    // carries Float32 rSq noise that grows with x²+y², which a fixed 1e-6
+    // would mistake for a tiny imaginary round point.
+    const nullTol = 1e-6 * (1 + rp.x * rp.x + rp.y * rp.y);
+    if (Math.abs(rp.rSq) < nullTol) return { kind: 'finitePoint' };
     return { kind: 'roundPoint', rSq: rp.rSq };
   }
 
