@@ -448,8 +448,11 @@ export function getRenderPlan(val) {
     }
     case 'idealPoint': {
       // e0-free grade-1 vector (e.g. vector(x, y, r)) — drawn as an arrow from
-      // the origin to (x, y) given by the e1/e2 part.
-      return { kind: 'positionedVector', vx: val[1] || 0, vy: val[2] || 0 };
+      // the tail to tail+(x, y). The einf coefficient ½(x²+y²+r²) recovers the
+      // round-point radius²:  rSq = 2·einf − (x²+y²), drawn as a circle at the tail.
+      const x = val[1] || 0, y = val[2] || 0;
+      const rSq = 2 * einfCoeff(val) - (x * x + y * y);
+      return { kind: 'positionedVector', vx: x, vy: y, rSq };
     }
     default: return null;
   }

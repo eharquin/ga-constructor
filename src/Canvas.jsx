@@ -108,14 +108,18 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
         return { id, dragType: 'freeFlatPoint' };
     }
     if (node.type === 'freeVector') {
-      // Arrow from the origin (its tail) to tail+(vx, vy); only the tip drags.
+      // Arrow from the tail to tail+(vx, vy). Tip drags the direction (rewrites
+      // the constructor); tail drags the anchor (drawPos, via the 'vector' path).
       const plan = algebra.getRenderPlan?.(values[id]);
       if (!plan || plan.kind !== 'positionedVector') continue;
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
-      const { cx, cy } = w2c(pos.x + plan.vx, pos.y + plan.vy, vp);
-      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+      const tip = w2c(pos.x + plan.vx, pos.y + plan.vy, vp);
+      if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'freeVectorTip' };
-      continue; // tail isn't drag-grabbable — don't fall through to tail drag
+      const tail = w2c(pos.x, pos.y, vp);
+      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'vector' };
+      continue;
     }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
       const eu = toEuclidean?.(values[id]);
@@ -935,8 +939,9 @@ export default function Canvas({ onSquareCanvas }) {
       orientation: resolveField(rawOpts.orientation, values, 0),
     } : null;
     const hovered     = id === hoveredId;
-    const tailHovered = hovered && hoveredDragType !== 'vectorTip';
-    const tipHovered  = hovered && hoveredDragType === 'vectorTip';
+    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip';
+    const tailHovered = hovered && !isTipDrag;
+    const tipHovered  = hovered && isTipDrag;
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
     const appear  = appearanceMap[id] ?? {};
     const opacity = resolveField(appear.opacity, values, 1);
@@ -1008,6 +1013,18 @@ export default function Canvas({ onSquareCanvas }) {
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
         const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector');
+        // CGA ideal round point: draw the tail as a round point — a radius
+        // circle (solid for real r², dashed for imaginary) around the tail dot.
+        if (plan.rSq !== undefined) {
+          const rVal = Math.sqrt(Math.abs(plan.rSq));
+          if (rVal > 1e-6) {
+            layers.push(
+              <SvgCircle key={`${id}-r`} cx={pos.x} cy={pos.y} r={rVal}
+                label={null} color={color} vp={vp} W={size.w} H={size.h}
+                opts={opts} weight={weight} strokeStyle={plan.rSq < 0 ? 'dashed' : null} />
+            );
+          }
+        }
         layers.push(
           <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
             label={label} color={color} vp={vp} tailHovered={tailHovered} tipHovered={tipHovered} linked={pos.linked}
