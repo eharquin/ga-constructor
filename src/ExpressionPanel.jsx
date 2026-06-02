@@ -57,7 +57,19 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
   const toI = algebra.toIdealVector;
   switch (cls.kind) {
     case 'scalar':      return fmtN(val[0]);
-    case 'finitePoint': { const eu = toE?.(val); return eu ? `Point (${fmtC(eu.x)}, ${fmtC(eu.y)})` : '—'; }
+    case 'finitePoint': {
+      const eu = toE?.(val);
+      if (!eu) return '—';
+      const tag = algebra.flatPoint2D ? 'Round point' : 'Point';
+      return `${tag} (${fmtC(eu.x)}, ${fmtC(eu.y)})`;
+    }
+    case 'roundPoint': {
+      const plan = algebra.getRenderPlan?.(val);
+      if (plan?.kind !== 'roundPoint') return 'Round point';
+      const r = Math.sqrt(Math.abs(plan.rSq));
+      const tag = plan.rSq < 0 ? 'Imaginary round point' : 'Round point';
+      return `${tag} (${fmtC(plan.x)}, ${fmtC(plan.y)})  r=${fmtC(r)}`;
+    }
     case 'idealPoint':  { const iv = toI?.(val); return iv ? `Ideal point (${fmtC(iv.vx)}, ${fmtC(iv.vy)})` : '—'; }
     case 'vector':      return `Vector (${fmtC(val[1] ?? 0)}, ${fmtC(val[2] ?? 0)})`;
     case 'bivector':    return `Bivector (${fmtN(val[3] ?? val[val.length - 1])} e12)`;
@@ -68,6 +80,32 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
     case 'translator':  return 'Translator';
     case 'motor':       return 'Motor';
     case 'reflector':   return 'Reflector';
+    case 'circle': {
+      const plan = algebra.getRenderPlan?.(val);
+      if (plan?.kind !== 'circle') return 'Circle';
+      if (plan.r === 0) return `Point circle (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=0`;
+      const lbl = plan.imaginary ? 'Imaginary circle' : 'Circle';
+      return `${lbl} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  r=${fmtC(plan.r)}`;
+    }
+    case 'flatPoint': {
+      const plan = algebra.getRenderPlan?.(val);
+      return plan?.kind === 'flatPoint'
+        ? `Flat point (${fmtC(plan.x)}, ${fmtC(plan.y)})`
+        : 'Flat point';
+    }
+    case 'idealFlatPoint': {
+      const plan = algebra.getRenderPlan?.(val);
+      return plan?.kind === 'idealFlatPoint'
+        ? `Ideal flat point (${fmtC(plan.vx)}, ${fmtC(plan.vy)})`
+        : 'Ideal flat point';
+    }
+    case 'pointPair': {
+      const plan = algebra.getRenderPlan?.(val);
+      if (plan?.kind !== 'pointPair') return 'Point pair';
+      const lbl = plan.imaginary ? 'Imaginary point pair' : 'Point pair';
+      return `${lbl} (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})  r=${fmtC(plan.r)}`;
+    }
+    case 'idealPointPair': return 'Ideal point pair';
     default:            return '—';
   }
 }
@@ -87,11 +125,12 @@ function fmtCoeff(c, decimals = 4) {
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
 const KIND_LABELS = {
-  scalar: 'Scalar', finitePoint: 'Point', idealPoint: 'Ideal point',
+  scalar: 'Scalar', finitePoint: 'Point', roundPoint: 'Round point', flatPoint: 'Flat point', idealFlatPoint: 'Ideal flat point', idealPoint: 'Ideal point',
   line: 'Line', idealLine: 'Ideal line', pseudoscalar: 'Pseudoscalar',
   rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
   reflector: 'Reflector', mixed: 'Mixed',
   vector: 'Vector', bivector: 'Bivector',
+  circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
 };
 
 function describeListItem(item, algebra, decimals) {
@@ -109,13 +148,16 @@ function describeListItem(item, algebra, decimals) {
   return { kindLabel, mvStr };
 }
 
-function formatMV(val, algebra, decimals = 4) {
+function formatMV(val, algebra, decimals = 4, useDisplayBasis = false) {
   if (val == null || typeof val === 'number') return null;
   if (val?.list) {
     const parts = val.items.map((item) => { const { kindLabel } = describeListItem(item, algebra, decimals); return kindLabel; });
     return `[${parts.join(', ')}]`;
   }
-  const bladeNames = algebra?.bladeNames;
+  // Pick basis: optional algebra-specific alternative (e.g. CGA null basis)
+  // when both the algebra opts in and the user setting requests it.
+  const useAlt = useDisplayBasis && algebra?.displayBladeNames && algebra?.toDisplayCoeffs;
+  const bladeNames = useAlt ? algebra.displayBladeNames : algebra?.bladeNames;
   const arraySize  = algebra?.arraySize ?? (val.length ?? 0);
   if (!bladeNames) return null;
 
@@ -133,7 +175,7 @@ function formatMV(val, algebra, decimals = 4) {
       arr[idx.e2] = val.vy;
     }
   } else if (val.length >= arraySize) {
-    arr = Array.from(val);
+    arr = useAlt ? algebra.toDisplayCoeffs(val) : Array.from(val);
   } else {
     return null;
   }
@@ -305,7 +347,7 @@ export default function ExpressionPanel({ onHide }) {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
     setItemText, setItemColor, setItemVisible, setItemMovable, setItemNormalizeMode, setAnim, setDrawPos, setDrawPosRef, setLabel, setLabelOpts, togglePlay,
-    setItemOpacity, setItemScale, setItemPointShape, setListShowPoints, setListShowOutline, setListShowFill,
+    setItemOpacity, setItemScale, setItemPointShape, setItemStrokeStyle, setListShowPoints, setListShowOutline, setListShowFill,
     addFolder, setFolderName, setFolderCollapsed, toggleFolderChildrenVisible,
     reorderItem, insertItemAfter, insertChildInFolder, deleteItem, clearAll, createScalarsFor,
     labelOptsMap,
@@ -619,7 +661,7 @@ export default function ExpressionPanel({ onHide }) {
           const positionKind = node ? classifyMV(values[node.id])?.kind : null;
           const hasPosition = node?.type === 'vector' ||
                               positionKind === 'idealPoint' || positionKind === 'vector' ||
-                              positionKind === 'bivector' ||
+                              positionKind === 'idealFlatPoint' || positionKind === 'bivector' ||
                               !!(values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
           const isDraggable = (() => {
             if (!node) return false;
@@ -635,7 +677,7 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
@@ -645,7 +687,7 @@ export default function ExpressionPanel({ onHide }) {
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values, algebra, items);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra, settings.decimals) : null;
-          const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals) : null;
+          const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals, settings.cgaNullBasisDisplay) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
           // Banner only for forms where creating scalars makes sense
@@ -991,7 +1033,7 @@ export default function ExpressionPanel({ onHide }) {
                     <tr><td><code>A + B</code>, <code>A - B</code></td><td>Additive (loosest).</td></tr>
                     <tr><td><code>A &gt;&gt;&gt; B</code></td><td>Sandwich <code>A·B·Ã</code>.</td></tr>
                     <tr><td><code>A * B</code>, <code>A / B</code></td><td>Geometric product / division.</td></tr>
-                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A § B</code></td><td>Outer, regressive, inner, commutator (tightest binary).</td></tr>
+                    <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A &lt;&lt; B</code>, <code>A § B</code></td><td>Outer (wedge), regressive (vee), inner (symmetric), left contraction, commutator (tightest binary).</td></tr>
                     <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Dual, reverse, negate (unary — tightest).</td></tr>
                     <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
                     <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
@@ -1081,9 +1123,11 @@ export default function ExpressionPanel({ onHide }) {
             scale={openItem.scale ?? 1}
             resolveScalar={resolveScalar}
             pointShape={openItem.pointShape ?? 'circle'}
+            strokeStyle={openItem.strokeStyle ?? 'solid'}
             onOpacityChange={(v) => setItemOpacity(pickerOpenId, v)}
             onScaleChange={(v) => setItemScale(pickerOpenId, v)}
             onPointShapeChange={(s) => setItemPointShape(pickerOpenId, s)}
+            onStrokeStyleChange={(s) => setItemStrokeStyle(pickerOpenId, s)}
             customColors={customColors}
             onColorPick={(val) => { setItemColor(pickerOpenId, val); setPickerOpenId(null); }}
             labelOpts={openLabelOpts}

@@ -60,7 +60,7 @@ function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadi
       const { cx, cy } = w2c(eu.x, eu.y, vp);
       const d = (mx - cx) ** 2 + (my - cy) ** 2;
       if (d <= bestDist) { bestDist = d; best = { id, anchor: 'tip' }; }
-    } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
+    } else if (cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'idealFlatPoint' ||
                (val && typeof val === 'object' && 'vx' in val)) {
       const tail = vectorPositions[id] ?? { x: 0, y: 0 };
       let vx, vy;
@@ -91,7 +91,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint') continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint' && valKind !== 'idealFlatPoint') continue;
     if (node.type === 'freePoint') {
       if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
@@ -99,6 +99,27 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       const { cx, cy } = w2c(eu.x, eu.y, vp);
       if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'freePoint' };
+    }
+    if (node.type === 'freeFlatPoint') {
+      const plan = algebra.getRenderPlan?.(values[id]);
+      if (!plan || plan.kind !== 'flatPoint') continue;
+      const { cx, cy } = w2c(plan.x, plan.y, vp);
+      if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'freeFlatPoint' };
+    }
+    if (node.type === 'freeVector') {
+      // Arrow from the tail to tail+(vx, vy). Tip drags the direction (rewrites
+      // the constructor); tail drags the anchor (drawPos, via the 'vector' path).
+      const plan = algebra.getRenderPlan?.(values[id]);
+      if (!plan || plan.kind !== 'positionedVector') continue;
+      const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+      const tip = w2c(pos.x + plan.vx, pos.y + plan.vy, vp);
+      if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'freeVectorTip' };
+      const tail = w2c(pos.x, pos.y, vp);
+      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'vector' };
+      continue;
     }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
       const eu = toEuclidean?.(values[id]);
@@ -150,7 +171,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     // bivector) allows anchor dragging via vectorPositions. Covers derived
     // vectors (`U = V + W`), PGA `D = !L`, and bivectors (`B = V ^ W`, `B = 5*e12`).
     const val_ = values[id];
-    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' ||
+    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' || valKind === 'idealFlatPoint' ||
                             (val_ && typeof val_ === 'object' && 'vx' in val_);
     const isAnchorableBivec = valKind === 'bivector';
     if (node.type !== 'vector' && (isVectorLikeVal || isAnchorableBivec)) {
@@ -267,7 +288,7 @@ function SvgGrid({ vp, W, H }) {
 
 // ─── Object components ────────────────────────────────────────────────────────
 
-function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1, draggable = true }) {
+function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, shape = 'circle', scale = 1, draggable = true, ringVisible = false }) {
   const { cx, cy } = w2c(x, y, vp);
   if (cx < -20 || cx > W + 20 || cy < -20 || cy > H + 20) return null;
   const r_dot  = 4.5 * weight * scale;
@@ -296,10 +317,32 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
     );
   }
 
+  if (shape === 'square') {
+    const r_sq = 5.5 * weight * scale;
+    const sqScale = hovered ? r_ring / r_sq : 1;
+    const pts = `${cx},${cy - r_sq} ${cx + r_sq},${cy} ${cx},${cy + r_sq} ${cx - r_sq},${cy}`;
+    return (
+      <g>
+        {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
+        <polygon points={pts} fill={color}
+          style={{
+            transformOrigin: `${cx}px ${cy}px`,
+            transform: `scale(${sqScale})`,
+            transition: 'transform 0.35s ease',
+          }} />
+        {renderLabel(label, cx, cy, opts)}
+      </g>
+    );
+  }
+
   const dotScale = hovered ? r_ring / r_dot : 1;
   return (
     <g>
-      {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
+      {(draggable || ringVisible) && (
+        <circle cx={cx} cy={cy} r={r_ring}
+          fill={color} fillOpacity={draggable ? 0.2 : 0}
+          stroke={ringVisible ? color : 'none'} strokeOpacity={0.45} strokeWidth={1.5} />
+      )}
       <circle cx={cx} cy={cy} r={r_dot} fill={color}
         style={{
           transformOrigin: `${cx}px ${cy}px`,
@@ -314,14 +357,17 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
 // Line at infinity (pure e0): drawn as a dashed ellipse inscribed in the canvas,
 // since the ideal line has no Euclidean position — it's the boundary of the
 // projective plane. The visual is screen-space (doesn't move with pan/zoom).
-function SvgIdealLine({ label, color, W, H, opts, weight = 1 }) {
+function SvgIdealLine({ label, color, W, H, opts, weight = 1, strokeStyle = null }) {
   const cx = W / 2, cy = H / 2;
   const rx = Math.max(8, W / 2 - 6);
   const ry = Math.max(8, H / 2 - 6);
   return (
     <g pointerEvents="none">
       <ellipse cx={cx} cy={cy} rx={rx} ry={ry}
-        fill="none" stroke={color} strokeWidth={2 * weight} strokeDasharray="6 4" strokeOpacity={0.7} />
+        fill="none" stroke={color} strokeWidth={2 * weight}
+        strokeDasharray={resolveStrokeDash(strokeStyle, '6 4')}
+        strokeLinecap={strokeStyle === 'dotted' ? 'round' : undefined}
+        strokeOpacity={0.7} />
       {renderLabel(label, cx, cy - ry + 14, opts)}
     </g>
   );
@@ -350,7 +396,60 @@ function SvgIdealPointMarker({ vx, vy, color, W, H, hovered, weight = 1 }) {
   );
 }
 
-function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
+// CGA circle — outline only (no fill). Radius scales with viewport zoom.
+function SvgCircle({ cx, cy, r, label, color, vp, W, H, opts, weight = 1, strokeStyle = null }) {
+  const c = w2c(cx, cy, vp);
+  const rPx = r * vp.scale;
+  // Cull when the bounding box is entirely off-screen.
+  if (c.cx + rPx < -20 || c.cx - rPx > W + 20 ||
+      c.cy + rPx < -20 || c.cy - rPx > H + 20) return null;
+  // Anchor the label near the top-right of the circle for visibility.
+  const lx = c.cx + rPx * Math.SQRT1_2;
+  const ly = c.cy - rPx * Math.SQRT1_2;
+  return (
+    <g>
+      <circle cx={c.cx} cy={c.cy} r={rPx}
+              fill="none" stroke={color} strokeWidth={2.5 * weight}
+              strokeDasharray={resolveStrokeDash(strokeStyle, undefined)}
+              strokeLinecap={strokeStyle === 'dotted' ? 'round' : undefined} />
+      {renderLabel(label, lx, ly, opts)}
+    </g>
+  );
+}
+
+// CGA point pair — two dots connected by a faint dashed line.
+function SvgPointPair({ p1, p2, label, color, vp, W, H, opts, weight = 1, imaginary = false }) {
+  const a = w2c(p1.x, p1.y, vp);
+  const b = w2c(p2.x, p2.y, vp);
+  const r_dot = 4.5 * weight;
+  const lx = (a.cx + b.cx) / 2;
+  const ly = (a.cy + b.cy) / 2;
+  const dot = imaginary
+    ? (cx, cy) => <circle cx={cx} cy={cy} r={r_dot} fill="none" stroke={color} strokeWidth={1.5} />
+    : (cx, cy) => <circle cx={cx} cy={cy} r={r_dot} fill={color} />;
+  return (
+    <g>
+      <line x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy}
+            stroke={color} strokeOpacity={0.6} strokeWidth={1.5 * weight}
+            strokeLinecap="round" strokeDasharray="5 4" />
+      {dot(a.cx, a.cy)}
+      {dot(b.cx, b.cy)}
+      {renderLabel(label, lx, ly, opts)}
+    </g>
+  );
+}
+
+// Map a user stroke-style choice to the corresponding SVG strokeDasharray
+// value. `defaultDash` is the dash to use when the user hasn't picked one
+// (typically `undefined` for solid lines, `'6 4'` for the ideal-line ellipse).
+function resolveStrokeDash(strokeStyle, defaultDash) {
+  if (strokeStyle === 'dashed') return '8 4';
+  if (strokeStyle === 'dotted') return '1 4';
+  if (strokeStyle === 'solid')  return undefined;
+  return defaultDash;
+}
+
+function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1, strokeStyle = null }) {
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
   // FAR must be large enough to extend the line endpoints past all screen corners,
@@ -370,7 +469,9 @@ function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1 }) {
   return (
     <g>
       <line x1={p1.cx} y1={p1.cy} x2={p2.cx} y2={p2.cy}
-            stroke={color} strokeWidth={2.5 * weight} strokeLinecap="round" />
+            stroke={color} strokeWidth={2.5 * weight}
+            strokeLinecap="round"
+            strokeDasharray={resolveStrokeDash(strokeStyle, undefined)} />
       {renderLabel(label, lx, ly, opts)}
     </g>
   );
@@ -623,7 +724,7 @@ export default function Canvas({ onSquareCanvas }) {
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
-    updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   } = useGraphContext();
@@ -646,6 +747,7 @@ export default function Canvas({ onSquareCanvas }) {
         opacity:        it.opacity        ?? 1,
         scale:          it.scale          ?? 1,
         pointShape:     it.pointShape     ?? 'circle',
+        strokeStyle:    it.strokeStyle    ?? null,
         showPoints:     it.showPoints     ?? true,
         showOutline:    it.showOutline    ?? true,
         showFill:       it.showFill       ?? true,
@@ -668,7 +770,7 @@ export default function Canvas({ onSquareCanvas }) {
   const snap = useRef(null);
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
-    updateFreePoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   };
@@ -741,7 +843,8 @@ export default function Canvas({ onSquareCanvas }) {
       const { id, dragType } = ptDragRef.current;
       const rx = roundToScale(x, vp.scale);
       const ry = roundToScale(y, vp.scale);
-      if (dragType === 'freePoint')    updateFreePoint(id, rx, ry);
+      if (dragType === 'freePoint')     updateFreePoint(id, rx, ry);
+      if (dragType === 'freeFlatPoint') snap.current.updateFreeFlatPoint?.(id, rx, ry);
       if (dragType === 'scalarPoint')  snap.current.updateScalarAsComplexPoint?.(id, rx, ry);
       if (dragType === 'depPoint')     snap.current.updateDepPoint(id, rx, ry);
       if (dragType === 'dualDepPoint') snap.current.updateDualDepPoint(id, rx, ry);
@@ -756,6 +859,10 @@ export default function Canvas({ onSquareCanvas }) {
       if (dragType === 'vectorTip') {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
         snap.current.updateVector(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
+      }
+      if (dragType === 'freeVectorTip') {
+        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+        snap.current.updateFreeVector?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
 
     } else if (dragRef.current) {
@@ -811,8 +918,9 @@ export default function Canvas({ onSquareCanvas }) {
   // topmost-drawn item wins when several share a hit area.
   const layers = [];
 
-  // Ideal-line ellipse + ideal-point markers are PGA-only (kind === 'idealLine'
-  // exists for that algebra). VGA never emits idealLine, so this stays false.
+  // Ideal-line ellipse + ideal-point markers: true when any visible object is
+  // the line at infinity (PGA's pure-e0 line, or CGA's e1∧e2∧einf). VGA never
+  // emits idealLine, so it stays false there.
   const hasIdealLine = orderedNodeIds.some((id) =>
     !hiddenIds.has(id) && classifyMV(values[id])?.kind === 'idealLine'
   );
@@ -832,13 +940,15 @@ export default function Canvas({ onSquareCanvas }) {
       orientation: resolveField(rawOpts.orientation, values, 0),
     } : null;
     const hovered     = id === hoveredId;
-    const tailHovered = hovered && hoveredDragType !== 'vectorTip';
-    const tipHovered  = hovered && hoveredDragType === 'vectorTip';
+    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip';
+    const tailHovered = hovered && !isTipDrag;
+    const tipHovered  = hovered && isTipDrag;
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
     const appear  = appearanceMap[id] ?? {};
     const opacity = resolveField(appear.opacity, values, 1);
     const scale   = resolveField(appear.scale,   values, 1);
     const shape   = appear.pointShape ?? 'circle';
+    const strokeStyle = appear.strokeStyle;   // 'solid' | 'dashed' | 'dotted' | null (= default)
 
     // Scalar-valued nodes (triangle, meetChain) have no canvas presence.
     if (node.type === 'triangle' || node.type === 'meetChain') continue;
@@ -850,7 +960,7 @@ export default function Canvas({ onSquareCanvas }) {
 
     // Hidden items: only finitePoints with a label get a label-only pass.
     if (isHidden) {
-      if (plan.kind === 'finitePoint' && label) {
+      if ((plan.kind === 'finitePoint' || plan.kind === 'roundPoint' || plan.kind === 'flatPoint') && label) {
         const { cx, cy } = w2c(plan.x, plan.y, vp);
         layers.push(<g key={`${id}-lbl`}>{renderLabel(label, cx, cy, opts)}</g>);
       }
@@ -903,7 +1013,19 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
-        const tipDraggable = (plan.tipDraggable ?? true) && node.type === 'vector';
+        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector');
+        // CGA ideal round point: draw the tail as a round point — a radius
+        // circle (solid for real r², dashed for imaginary) around the tail dot.
+        if (plan.rSq !== undefined) {
+          const rVal = Math.sqrt(Math.abs(plan.rSq));
+          if (rVal > 1e-6) {
+            layers.push(
+              <SvgCircle key={`${id}-r`} cx={pos.x} cy={pos.y} r={rVal}
+                label={null} color={color} vp={vp} W={size.w} H={size.h}
+                opts={opts} weight={weight} strokeStyle={plan.rSq < 0 ? 'dashed' : null} />
+            );
+          }
+        }
         layers.push(
           <SvgVector key={id} vx={plan.vx} vy={plan.vy} px={pos.x} py={pos.y}
             label={label} color={color} vp={vp} tailHovered={tailHovered} tipHovered={tipHovered} linked={pos.linked}
@@ -934,6 +1056,52 @@ export default function Canvas({ onSquareCanvas }) {
           }
           return false;
         })();
+        const ringVisible = !!algebra.flatPoint2D;
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} ringVisible={ringVisible} />;
+        layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
+        break;
+      }
+      case 'roundPoint': {
+        const isDragEligible = movableMap[id] !== false && (() => {
+          if (node.type === 'freePoint') return true;
+          if (node.type === 'scalar') return true;
+          if (node.type === 'multivector') {
+            const { coeffExprs, components, dual } = node.params ?? {};
+            const hasVar = algebra.hasDepPointCoeffs
+              ? algebra.hasDepPointCoeffs(coeffExprs)
+              : (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined);
+            if (hasVar) return true;
+            if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) return true;
+            return !dual && (algebra.isLitMVPoint
+              ? algebra.isLitMVPoint(components, val)
+              : Math.abs(components?.[6] ?? 0) > 1e-10);
+          }
+          return false;
+        })();
+        const rVal = Math.sqrt(Math.abs(plan.rSq));
+        const rImaginary = plan.rSq < 0;
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} />;
+        const circleEl = (
+          <SvgCircle key={`${id}-r`} cx={plan.x} cy={plan.y} r={rVal}
+            label={null} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (rImaginary ? 'dashed' : null)} />
+        );
+        const inner = <>{ptEl}{circleEl}</>;
+        layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{inner}</g> : inner);
+        break;
+      }
+      case 'flatPoint': {
+        const isDragEligible = movableMap[id] !== false && (() => {
+          if (node.type === 'freePoint' || node.type === 'freeFlatPoint') return true;
+          if (node.type === 'multivector') {
+            const { coeffExprs, components, dual } = node.params ?? {};
+            const hasVar = algebra.hasDepPointCoeffs
+              ? algebra.hasDepPointCoeffs(coeffExprs)
+              : (coeffExprs?.[4] !== undefined || coeffExprs?.[5] !== undefined);
+            if (hasVar) return true;
+          }
+          return false;
+        })();
         const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} />;
         layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
         break;
@@ -941,11 +1109,11 @@ export default function Canvas({ onSquareCanvas }) {
       case 'line': {
         // PGA-only — algebra.getRenderPlan returns the line MV; resolve its base+dir here.
         const bd = algebra.lineBaseAndDir?.(plan.L);
-        layers.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        layers.push(<SvgLine key={id} bd={bd} label={label} color={color} vp={vp} W={size.w} H={size.h} opts={opts} weight={weight} strokeStyle={strokeStyle} />);
         break;
       }
       case 'idealLine':
-        layers.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} />);
+        layers.push(<SvgIdealLine key={id} label={label} color={color} W={size.w} H={size.h} opts={opts} weight={weight} strokeStyle={strokeStyle} />);
         break;
       case 'bivector': {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
@@ -981,6 +1149,37 @@ export default function Canvas({ onSquareCanvas }) {
       }
       case 'rotor':
         layers.push(<SvgRotor key={id} angle={plan.angle} label={label} color={color} vp={vp} opts={opts} weight={weight} />);
+        break;
+      case 'circle': {
+        // Zero-radius circle (the dual of a point) collapses to a point — draw
+        // it as a filled dot in the circle color so it stays visible at any zoom.
+        if (plan.r === 0) {
+          const { cx, cy } = w2c(plan.cx, plan.cy, vp);
+          const rDot = 4 * weight;
+          layers.push(
+            <g key={id}>
+              <circle cx={cx} cy={cy} r={rDot} fill={color} />
+              {renderLabel(label, cx + rDot + 2, cy - rDot - 2, opts)}
+            </g>
+          );
+          break;
+        }
+        // Imaginary circle (r² < 0): default to dashed when the user hasn't
+        // explicitly picked a stroke style.
+        const effStyle = strokeStyle ?? (plan.imaginary ? 'dashed' : null);
+        layers.push(
+          <SvgCircle key={id} cx={plan.cx} cy={plan.cy} r={plan.r}
+            label={label} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} strokeStyle={effStyle} />
+        );
+        break;
+      }
+      case 'pointPair':
+        layers.push(
+          <SvgPointPair key={id} p1={plan.p1} p2={plan.p2}
+            label={label} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} imaginary={plan.imaginary} />
+        );
         break;
       default:
         break;

@@ -29,7 +29,7 @@ import { COLOR_CONSTS, BUILTIN_FN_NAMES } from './evalMVArith.js';
 // Top-level constructor names (parser handles these specially — defining a
 // user function with one of these names would shadow the builtin form).
 const BUILTIN_CONSTRUCTOR_NAMES = new Set([
-  'point', 'line', 'vector', 'color', 'triangle', 'exp',
+  'point', 'flatPoint', 'line', 'vector', 'color', 'triangle', 'exp',
 ]);
 
 const ID  = /[A-Za-z_][A-Za-z0-9_]*/;
@@ -52,6 +52,19 @@ function splitAllTopLevelCommas(str) {
   const last = str.slice(start).trim();
   if (last) parts.push(last);
   return parts;
+}
+
+// True when parens in `str` are balanced and never dip below zero — i.e. the
+// string is a self-contained interior. Used by the call-parsers to reject
+// `point(1,0) ^ point(-1,0.5)`, whose first ')' is not the call's closer, so
+// such expressions fall through to the general mvExpr / evalMVArith path.
+function balancedParens(str) {
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '(') depth++;
+    else if (str[i] === ')') { if (--depth < 0) return false; }
+  }
+  return depth === 0;
 }
 
 function splitTopLevelComma(str) {
@@ -168,6 +181,7 @@ export function createParseExpression(algebra, evaluator) {
     const prefix = fnName + '(';
     if (!expr.startsWith(prefix) || !expr.endsWith(')')) return null;
     const inner = expr.slice(prefix.length, -1).trim();
+    if (!balancedParens(inner)) return null;   // the trailing ')' isn't this call's closer
     const coords = splitTopLevelComma(inner);
     if (!coords || !coords[0] || !coords[1]) return null;
     return coords;
@@ -177,6 +191,7 @@ export function createParseExpression(algebra, evaluator) {
     const prefix = fnName + '(';
     if (!expr.startsWith(prefix) || !expr.endsWith(')')) return null;
     const inner = expr.slice(prefix.length, -1).trim();
+    if (!balancedParens(inner)) return null;   // the trailing ')' isn't this call's closer
     const first = splitTopLevelComma(inner);
     if (!first) return null;
     const second = splitTopLevelComma(first[1]);
@@ -261,8 +276,14 @@ export function createParseExpression(algebra, evaluator) {
       return { id, label, type: 'scalar', deps: [], params: { value: +scalar[1] } };
     }
 
-    // point(xExpr, yExpr) — PGA-only
+    // point(xExpr, yExpr[, rExpr]) — PGA/CGA-only
     if (accepts('freePoint')) {
+      const pt3Coords = parse3Call(expr, 'point');
+      if (pt3Coords?.[0] && pt3Coords?.[1] && pt3Coords?.[2]) {
+        const [xExpr, yExpr, zExpr] = pt3Coords;
+        const deps = uniqueDeps(xExpr, yExpr, zExpr);
+        return { id, label, type: 'freePoint', deps, params: { xExpr, yExpr, zExpr, deps } };
+      }
       const ptCoords = parse2DCall(expr, 'point') ?? (() => {
         if (!expr.startsWith('(') || !expr.endsWith(')')) return null;
         return splitTopLevelComma(expr.slice(1, -1).trim());
@@ -274,6 +295,16 @@ export function createParseExpression(algebra, evaluator) {
       }
     }
 
+    // flatPoint(xExpr, yExpr) — CGA-only draggable flat point
+    if (accepts('freeFlatPoint')) {
+      const fpCoords = parse2DCall(expr, 'flatPoint');
+      if (fpCoords && fpCoords[0] && fpCoords[1]) {
+        const [xExpr, yExpr] = fpCoords;
+        const deps = uniqueDeps(xExpr, yExpr);
+        return { id, label, type: 'freeFlatPoint', deps, params: { xExpr, yExpr, deps } };
+      }
+    }
+
     // color(R, G, B) — RGB color value (non-MV). Auto-detects 0–1 vs 0–255 range.
     if (accepts('color')) {
       const rgb = parse3Call(expr, 'color');
@@ -281,6 +312,23 @@ export function createParseExpression(algebra, evaluator) {
         const [rExpr, gExpr, bExpr] = rgb;
         const deps = uniqueDeps(rExpr, gExpr, bExpr);
         return { id, label, type: 'color', deps, params: { rExpr, gExpr, bExpr, deps } };
+      }
+    }
+
+    // vector(xExpr, yExpr[, rExpr]) — CGA-only draggable ideal round point.
+    // Produces an MV value (so it composes with ^, &, …); renders as an arrow.
+    if (accepts('freeVector')) {
+      const v3 = parse3Call(expr, 'vector');
+      if (v3?.[0] && v3?.[1] && v3?.[2]) {
+        const [xExpr, yExpr, rExpr] = v3;
+        const deps = uniqueDeps(xExpr, yExpr, rExpr);
+        return { id, label, type: 'freeVector', deps, params: { xExpr, yExpr, rExpr, deps } };
+      }
+      const v2 = parse2DCall(expr, 'vector');
+      if (v2 && v2[0] && v2[1]) {
+        const [xExpr, yExpr] = v2;
+        const deps = uniqueDeps(xExpr, yExpr);
+        return { id, label, type: 'freeVector', deps, params: { xExpr, yExpr, deps } };
       }
     }
 

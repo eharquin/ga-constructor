@@ -9,6 +9,7 @@ export const DEFAULTS = {
   snapOnDrag:         true,
   alwaysShowAnchors:  true,
   decimals:           4,
+  cgaNullBasisDisplay: true,  // CGA: show MV using e0/einf instead of raw e3/e4
 };
 
 const SettingsContext = createContext(null);

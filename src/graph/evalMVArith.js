@@ -61,12 +61,29 @@ const TRIG_FNS = {
 // ─── Factory ────────────────────────────────────────────────────────────────
 
 export function createEvalMVArith(algebra) {
-  const { Algebra, arraySize, bladeIndex, parseBladeName, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
+  const { Algebra, arraySize, bladeIndex, parseBladeName, bladeNameToMV, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
+  // Algebra-specific named MV constants (e.g. CGA's e0 and einf). Resolved as
+  // ordinary identifiers in expressions; never collected as graph dependencies.
+  const MV_CONSTS = algebra.mvConsts || {};
+
+  // Object constructors usable inline in expressions (e.g. `point(-4, 2) ^ einf`).
+  // Each maps a reserved name → the algebra's typed constructor; only those the
+  // algebra actually provides are registered. Args are coerced to scalars.
+  const CONSTRUCTORS = {};
+  if (algebra.point2D)     CONSTRUCTORS.point     = algebra.point2D;
+  if (algebra.flatPoint2D) CONSTRUCTORS.flatPoint = algebra.flatPoint2D;
+  if (algebra.vector2D)    CONSTRUCTORS.vector    = algebra.vector2D;
+  if (algebra.line2D)      CONSTRUCTORS.line      = algebra.line2D;
+  const CONSTRUCTOR_NAMES = new Set(Object.keys(CONSTRUCTORS));
+  const toScalarArg = (a) =>
+    typeof a === 'number' ? a
+      : (a && typeof a.length === 'number' && a.length >= arraySize) ? (a[0] || 0)
+      : NaN;
 
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
   // Property names accepted after '.' that are not blade names.
-  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b']);
+  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b', 'inverse']);
 
   // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
   const BASIS_ENV = (() => {
@@ -100,6 +117,7 @@ export function createEvalMVArith(algebra) {
         continue;
       }
       if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
+      if (c === '<' && str[i+1] === '<') { raw.push({ type: 'op', val: '<<' }); i += 2; continue; }
       if ('+-*/()!~^&|.§[],'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
       if (c === ':') { raw.push({ type: 'op', val: ':' }); i++; continue; }
       return null;
@@ -117,7 +135,10 @@ export function createEvalMVArith(algebra) {
       const rightId   = next.type === 'id';
       const rightNum  = next.type === 'num';
       const rightBar  = next.type === 'op' && next.val === '|';
-      if ((leftNum || leftClose) && (rightOpen || rightId || rightNum || rightBar)) tokens.push(MUL);
+      // rightBar (|) only triggers implicit mul after a number (2|A| → 2*|A|),
+      // not after ) — that would break (A|B)|C by inserting a spurious *.
+      if ((leftNum || leftClose) && (rightOpen || rightId || rightNum)) tokens.push(MUL);
+      else if (leftNum && rightBar) tokens.push(MUL);
     }
     return tokens;
   }
@@ -171,7 +192,7 @@ export function createEvalMVArith(algebra) {
     // being consumed as a binary inner-product by grade().
     let absDepth = 0;
 
-    const GRADE_OPS = new Set(['^', '&', '|', '§']);
+    const GRADE_OPS = new Set(['^', '&', '|', '§', '<<']);
 
     function grade() {
       if (!factor()) return false;
@@ -214,6 +235,8 @@ export function createEvalMVArith(algebra) {
           }
           if (!peek() || peek().val !== ']') return false;
           eat();
+        } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
+          eat(); eat(); eat(); // ^, -, 1
         } else { break; }
       }
       return true;
@@ -276,7 +299,7 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !BUILTIN_FN_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !seen.has(t.val)) {
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !(bladeNameToMV && bladeNameToMV(t.val)) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTRUCTOR_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
@@ -390,6 +413,20 @@ export function createEvalMVArith(algebra) {
     }
     if (op === '/') {
       if (rNum && right !== 0) return scaleMV(toMV(left), 1 / right);
+      const rMV = toMV(right);
+      if (!rMV) return null;
+      // Fast path: pure scalar MV (only component [0] non-zero)
+      let isPureScalar = true;
+      for (let i = 1; i < arraySize; i++) { if (Math.abs(rMV[i] || 0) > 1e-10) { isPureScalar = false; break; } }
+      if (isPureScalar) {
+        const s = rMV[0] || 0;
+        return Math.abs(s) > 1e-15 ? scaleMV(toMV(left), 1 / s) : null;
+      }
+      // General MV inverse: A / B = A * B^{-1} via ganja (Inverse is a getter)
+      if ('Inverse' in rMV) {
+        const inv = rMV.Inverse;
+        return inv ? Algebra.Mul(toMV(left), inv) : null;
+      }
       return null;
     }
     if (op === '^') return Algebra.Wedge(toMV(left), toMV(right));
@@ -397,7 +434,8 @@ export function createEvalMVArith(algebra) {
       if (typeof Algebra.Vee !== 'function') return null;
       return Algebra.Vee(toMV(left), toMV(right));
     }
-    if (op === '|') return Algebra.LDot(toMV(left), toMV(right));
+    if (op === '|')  return Algebra.Dot(toMV(left), toMV(right));   // symmetric inner product
+    if (op === '<<') return Algebra.LDot(toMV(left), toMV(right));  // left contraction A⌋B
     if (op === '§') {
       const a = toMV(left), b = toMV(right);
       if (!a || !b) return null;
@@ -420,7 +458,7 @@ export function createEvalMVArith(algebra) {
     if (!tokens) return null;
 
     // Merge order: user env takes priority over constants, but only when defined.
-    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS };
+    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS, ...MV_CONSTS };
     for (const [k, v] of Object.entries(env)) { if (v !== undefined) fullEnv[k] = v; }
     let pos = 0;
     const peek = () => tokens[pos];
@@ -472,7 +510,7 @@ export function createEvalMVArith(algebra) {
       return left;
     }
 
-    const GRADE_OPS = new Set(['^', '&', '|', '§']);
+    const GRADE_OPS = new Set(['^', '&', '|', '§', '<<']);
     let evalAbsDepth = 0;
 
     function parseGrade() {
@@ -555,7 +593,13 @@ export function createEvalMVArith(algebra) {
             eat();
           }
 
-          if (BUILTIN_FN_NAMES.has(t.val)) {
+          if (CONSTRUCTOR_NAMES.has(t.val)) {
+            // Object constructor: point/flatPoint/vector/line with scalar args.
+            const nums = args.map(toScalarArg);
+            val = (args.length >= 2 && !nums.some(Number.isNaN))
+              ? CONSTRUCTORS[t.val](...nums)
+              : null;
+          } else if (BUILTIN_FN_NAMES.has(t.val)) {
             if (args.length !== 1) { val = null; }
             else {
               const arg = args[0];
@@ -603,8 +647,9 @@ export function createEvalMVArith(algebra) {
           const v = fullEnv[t.val];
           val = v !== undefined ? v : (() => {
             const b = parseBladeName(t.val);
-            if (!b) return null;
-            const mv = new Algebra(arraySize); mv[b.index] = b.sign; return mv;
+            if (b) { const mv = new Algebra(arraySize); mv[b.index] = b.sign; return mv; }
+            // Conformal/null-basis blade names (e01, e10inf, einf120, …).
+            return bladeNameToMV ? bladeNameToMV(t.val) : null;
           })();
         }
       } else {
@@ -622,6 +667,13 @@ export function createEvalMVArith(algebra) {
             val = applyNorm(val);
           } else if (prop.val === 'inorm') {
             val = applyINorm(val);
+          } else if (prop.val === 'inverse') {
+            const applyInv = (v) => {
+              if (typeof v === 'number') return Math.abs(v) > 1e-15 ? 1 / v : null;
+              const mv = toMV(v);
+              return mv && 'Inverse' in mv ? mv.Inverse : null;
+            };
+            val = val?.list ? mapList(val, applyInv) : applyInv(val);
           } else if (prop.val === 'r' || prop.val === 'g' || prop.val === 'b') {
             val = (val && typeof val === 'object' && typeof val.color === 'string')
               ? (val[prop.val] ?? null)
@@ -672,6 +724,14 @@ export function createEvalMVArith(algebra) {
           } else {
             val = null;
           }
+        } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
+          eat(); eat(); eat(); // ^, -, 1
+          const applyInverse = (v) => {
+            if (typeof v === 'number') return Math.abs(v) > 1e-15 ? 1 / v : null;
+            const mv = toMV(v);
+            return mv && 'Inverse' in mv ? mv.Inverse : null;
+          };
+          val = val?.list ? mapList(val, applyInverse) : applyInverse(val);
         } else { break; }
       }
 

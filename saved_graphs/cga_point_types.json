@@ -1,0 +1,46 @@
+{
+  "name": "cga_point_types",
+  "algebra": "cga310",
+  "items": [
+    {
+      "id": "expr_0", "text": "P = (-0.7, 0.4)",
+      "color": null, "anim": null, "drawPos": null, "label": "P", "labelOpts": null,
+      "visible": true, "movable": true, "normalizeMode": null,
+      "opacity": null, "scale": null, "pointShape": null,
+      "showPoints": null, "showOutline": null, "showFill": null,
+      "parentId": null, "kind": null, "folderName": null, "collapsed": false
+    },
+    {
+      "id": "expr_1", "text": "R = point(0.4, 0.4, 0.3)",
+      "color": null, "anim": null, "drawPos": null, "label": "R", "labelOpts": null,
+      "visible": true, "movable": true, "normalizeMode": null,
+      "opacity": null, "scale": null, "pointShape": null,
+      "showPoints": null, "showOutline": null, "showFill": null,
+      "parentId": null, "kind": null, "folderName": null, "collapsed": false
+    },
+    {
+      "id": "expr_2", "text": "I = point(0.4, -0.4, -0.25)",
+      "color": null, "anim": null, "drawPos": null, "label": "I", "labelOpts": null,
+      "visible": true, "movable": true, "normalizeMode": null,
+      "opacity": null, "scale": null, "pointShape": null,
+      "showPoints": null, "showOutline": null, "showFill": null,
+      "parentId": null, "kind": null, "folderName": null, "collapsed": false
+    },
+    {
+      "id": "expr_3", "text": "F = flatPoint(-0.4, -0.4)",
+      "color": null, "anim": null, "drawPos": null, "label": "F", "labelOpts": null,
+      "visible": true, "movable": true, "normalizeMode": null,
+      "opacity": null, "scale": null, "pointShape": null,
+      "showPoints": null, "showOutline": null, "showFill": null,
+      "parentId": null, "kind": null, "folderName": null, "collapsed": false
+    },
+    {
+      "id": "expr_4", "text": "FP = F ^ P",
+      "color": null, "anim": null, "drawPos": null, "label": null, "labelOpts": null,
+      "visible": true, "movable": true, "normalizeMode": null,
+      "opacity": null, "scale": null, "pointShape": null,
+      "showPoints": null, "showOutline": null, "showFill": null,
+      "parentId": null, "kind": null, "folderName": null, "collapsed": false
+    }
+  ]
+}

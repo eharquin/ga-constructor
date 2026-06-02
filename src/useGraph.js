@@ -10,7 +10,7 @@ const FALLBACK_COLOR = '#6c7086';
 const ITEM = (id, text, extra = {}) => ({
   id, text, color: null, anim: null, drawPos: null, label: null, labelOpts: null,
   visible: true, movable: true, normalizeMode: null,
-  opacity: null, scale: null, pointShape: null,
+  opacity: null, scale: null, pointShape: null, strokeStyle: null,
   showPoints: null, showOutline: null, showFill: null,
   parentId: null, kind: null, folderName: null, collapsed: false,
   ...extra,
@@ -63,6 +63,8 @@ function itemsReducer(items, action) {
       return items.map((it) => it.id === action.id ? { ...it, scale: action.scale } : it);
     case 'SET_POINT_SHAPE':
       return items.map((it) => it.id === action.id ? { ...it, pointShape: action.shape } : it);
+    case 'SET_STROKE_STYLE':
+      return items.map((it) => it.id === action.id ? { ...it, strokeStyle: action.style } : it);
     case 'SET_LIST_SHOW_POINTS':
       return items.map((it) => it.id === action.id ? { ...it, showPoints: action.show } : it);
     case 'SET_LIST_SHOW_OUTLINE':
@@ -150,6 +152,7 @@ function itemsReducer(items, action) {
         opacity: it.opacity ?? null,
         scale: it.scale ?? null,
         pointShape: it.pointShape ?? null,
+        strokeStyle: it.strokeStyle ?? null,
         showPoints: it.showPoints ?? null,
         showOutline: it.showOutline ?? null,
         showFill: it.showFill ?? null,
@@ -462,7 +465,7 @@ export function useGraph(algebra) {
       const val = values[node.id];
       const cls = classifyMV(val);
       const isVecNode  = node.type === 'vector';
-      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' ||
+      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'idealFlatPoint' ||
                          (val && typeof val === 'object' && 'vx' in val);
       const isBivecVal = cls?.kind === 'bivector';
       if (!isVecNode && !isVecVal && !isBivecVal) continue;
@@ -605,15 +608,59 @@ export function useGraph(algebra) {
     if (!item) return;
     const node = parseExpression(item.text);
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
-    const { xExpr, yExpr } = node.params;
+    const { xExpr, yExpr, zExpr } = node.params;
     const xHandled = tryUpdateScalar(xExpr, x);
     const yHandled = tryUpdateScalar(yExpr, y);
     if (!xHandled || !yHandled) {
       const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
       const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
       const text = algebra.freePointText
-        ? algebra.freePointText(node.label !== null ? nodeId : null, xPart, yPart)
-        : (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart})` : `point(${xPart}, ${yPart})`);
+        ? algebra.freePointText(node.label !== null ? nodeId : null, xPart, yPart, zExpr)
+        : zExpr !== undefined
+          ? (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart}, ${zExpr})` : `point(${xPart}, ${yPart}, ${zExpr})`)
+          : (node.label !== null ? `${nodeId} = point(${xPart}, ${yPart})` : `point(${xPart}, ${yPart})`);
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
+    }
+  };
+
+  const updateFreeFlatPoint = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'freeFlatPoint';
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
+    const { xExpr, yExpr } = node.params;
+    const xHandled = tryUpdateScalar(xExpr, x);
+    const yHandled = tryUpdateScalar(yExpr, y);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
+      const text = node.label !== null
+        ? `${nodeId} = flatPoint(${xPart}, ${yPart})`
+        : `flatPoint(${xPart}, ${yPart})`;
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
+    }
+  };
+
+  // CGA ideal round point — tip drag rewrites vector(x, y[, r]) preserving r.
+  const updateFreeVector = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'freeVector';
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
+    const { xExpr, yExpr, rExpr } = node.params;
+    const xHandled = tryUpdateScalar(xExpr, x);
+    const yHandled = tryUpdateScalar(yExpr, y);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
+      const args = rExpr !== undefined ? `${xPart}, ${yPart}, ${rExpr}` : `${xPart}, ${yPart}`;
+      const text = node.label !== null ? `${nodeId} = vector(${args})` : `vector(${args})`;
       dispatch({ type: 'SET_TEXT', id: item.id, text });
     }
   };
@@ -754,7 +801,7 @@ export function useGraph(algebra) {
       if (n.type === 'vector' || n.type === 'meetPoint') return true;
       const val = values[n.id];
       const cls = classifyMV(val);
-      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector' || cls?.kind === 'bivector') return true;
+      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector' || cls?.kind === 'idealFlatPoint' || cls?.kind === 'bivector') return true;
       return val && typeof val === 'object' && 'vx' in val;
     });
 
@@ -821,6 +868,7 @@ export function useGraph(algebra) {
     setItemOpacity:       (id, opacity) => dispatch({ type: 'SET_OPACITY',        id, opacity }),
     setItemScale:         (id, scale)   => dispatch({ type: 'SET_SCALE',          id, scale }),
     setItemPointShape:    (id, shape)   => dispatch({ type: 'SET_POINT_SHAPE',    id, shape }),
+    setItemStrokeStyle:   (id, style)   => dispatch({ type: 'SET_STROKE_STYLE',   id, style }),
     setListShowPoints:    (id, show)    => dispatch({ type: 'SET_LIST_SHOW_POINTS',  id, show }),
     setListShowOutline:   (id, show)    => dispatch({ type: 'SET_LIST_SHOW_OUTLINE', id, show }),
     setListShowFill:      (id, show)    => dispatch({ type: 'SET_LIST_SHOW_FILL',    id, show }),
@@ -837,6 +885,8 @@ export function useGraph(algebra) {
     clearAll,
     loadItems,
     updateFreePoint,
+    updateFreeFlatPoint,
+    updateFreeVector,
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,
