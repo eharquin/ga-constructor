@@ -140,9 +140,10 @@ export function toEuclidean(p) {
 }
 
 // Extract (x, y, rSq) from any grade-1 conformal embedding.
-// rSq = -(P·P)/w²  where  P·P = P[1]²+P[2]²+P[3]²-P[4]²  (metric +,+,+,-).
-// rSq≈0 → null point; rSq>0 → real round point (radius √rSq);
-// rSq<0 → imaginary round point (radius √|rSq|, drawn dashed).
+// OPNS points (w>0) satisfy P·P = -r²; IPNS spheres/duals (w<0) satisfy S·S = +r².
+// Using w·|w| instead of w² accounts for the sign-flip between the two conventions:
+//   rSq = -dotPP / (w·|w|) = -dotPP/w² for w>0, = dotPP/w² for w<0.
+// rSq≈0 → null point; rSq>0 → real round point; rSq<0 → imaginary.
 // Returns null for ideal vectors (w≈0).
 function extractRoundPoint(p) {
   if (!p || typeof p.length !== 'number' || p.length < ARRAY_SIZE) return null;
@@ -150,7 +151,7 @@ function extractRoundPoint(p) {
   if (Math.abs(w) < EPS) return null;
   const x = (p[1] || 0) / w, y = (p[2] || 0) / w;
   const dotPP = (p[1]||0)**2 + (p[2]||0)**2 + (p[3]||0)**2 - (p[4]||0)**2;
-  const rSq = -dotPP / (w * w);
+  const rSq = -dotPP / (w * Math.abs(w));
   return { x, y, rSq };
 }
 
