@@ -114,6 +114,29 @@ export function vector2D(x, y, r = 0) {
   return v;
 }
 
+// Real ideal point of CGA — the point at infinity einf scaled by the embedding's
+// quadratic term:  vinf(x, y) = ½(x²+y²)·einf  (no e0, no e1/e2). It is the einf
+// part of the conformal point P(x,y) with the e0 and linear parts dropped, so it
+// classifies as a point at infinity (a null grade-1 vector with zero e0 weight).
+// einf = e3+e4 ⇒ [3]=[4]=½(x²+y²). The (x,y) source is carried on `.dir` so a
+// dragged vinf(x, y) renders its tip exactly at (x, y); derived MVs drop it and
+// fall back to infinityDir (magnitude only — the quadratic loses the direction).
+export function infinityPoint2D(x, y) {
+  const half = 0.5 * (x * x + y * y);
+  const v = zeroMV();
+  v[3] = half;   // einf = e3 + e4
+  v[4] = half;
+  v.dir = { vx: x, vy: y };
+  return v;
+}
+
+// Recover a (vx, vy) for rendering a bare einf multiple: the embedding keeps only
+// the magnitude √(x²+y²) = √(2·einfCoeff), so point it along +x (direction lost).
+function infinityDir(v) {
+  const mag = Math.sqrt(Math.max(0, 2 * einfCoeff(v)));
+  return { vx: mag, vy: 0 };
+}
+
 // Euclidean direction of an ideal (e0-free) grade-1 vector — its e1/e2 part.
 export function toIdealVector(v) {
   if (!v || typeof v.length !== 'number' || v.length < ARRAY_SIZE) return null;
@@ -297,7 +320,14 @@ export function classifyMV(val) {
   // Pure grade-1: null point, round point (non-null with finite e0), or ideal.
   if (!g[0] && g[1] && !g[2] && !g[3] && !g[4]) {
     const rp = extractRoundPoint(val);
-    if (!rp) return { kind: 'idealPoint' };
+    if (!rp) {
+      // e0-free grade-1: a linear e1/e2 part ⇒ "vector" (ideal round point,
+      // vector(x,y)); a purely einf form ⇒ the real point at infinity (vinf).
+      let mag = 0;
+      for (let i = 1; i <= 4; i++) { const a = Math.abs(val[i] || 0); if (a > mag) mag = a; }
+      const lin = Math.hypot(val[1] || 0, val[2] || 0);
+      return lin < 1e-5 * mag ? { kind: 'infinityPoint' } : { kind: 'idealPoint' };
+    }
     // rSq has units of length², so the null-point cutoff scales with the
     // point's distance from the origin: a sandwich (E >>> G) on a far point
     // carries Float32 rSq noise that grows with x²+y², which a fixed 1e-6
@@ -502,6 +532,14 @@ export function getRenderPlan(val) {
       if (!pp) return null;
       return { kind: 'pointPair', p1: pp.p1, p2: pp.p2, cx: pp.cx, cy: pp.cy, r: pp.r, imaginary: pp.imaginary };
     }
+    case 'infinityPoint': {
+      // Real point at infinity vinf(x, y) = ½(x²+y²)·einf — drawn as an arrow.
+      // Prefer the signed source direction set by the constructor so a dragged
+      // vinf(x, y) renders its tip at (x, y); else recover the magnitude from einf.
+      const d = val.dir ?? infinityDir(val);
+      if (d.vx === 0 && d.vy === 0) return null;
+      return { kind: 'positionedVector', vx: d.vx, vy: d.vy };
+    }
     case 'idealPoint': {
       // e0-free grade-1 vector (e.g. vector(x, y, r)) — drawn as an arrow from
       // the tail to tail+(x, y). The einf coefficient ½(x²+y²+r²) recovers the
@@ -575,7 +613,7 @@ export const geomToMV = null;
 // Start conservative: support points, motors, wedge/meet, list, color, funcDef.
 // Skip PGA-specific types (joinLine/meetPoint use PGA conventions for lines).
 export const SUPPORTED_NODE_TYPES = new Set([
-  'scalar', 'freePoint', 'freeFlatPoint', 'freeVector',
+  'scalar', 'freePoint', 'freeFlatPoint', 'freeVector', 'freeInfinityPoint',
   'motorExp', 'motorApply',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
   'color', 'funcDef',
@@ -589,6 +627,7 @@ export const KIND_COLOR = {
   flatPoint:      '#1482C8',
   idealFlatPoint: '#E8A000',
   idealPoint:  '#E8A000',
+  infinityPoint: '#E8A000',
   vector:      '#E8A000',
   line:        '#C30A3A',
   circle:      '#C30A3A',
@@ -650,6 +689,7 @@ export const spec = {
   point2D,
   flatPoint2D,
   vector2D,
+  infinityPoint2D,
   toEuclidean,
   toIdealVector,
   lineBaseAndDir,
@@ -671,6 +711,7 @@ export const spec = {
       { label: 'origin (e0)',     formula: 'e0 = (e4 − e3) / 2     (null: e0² = 0)' },
       { label: 'infinity (einf)', formula: 'einf = e4 + e3         (null: einf² = 0,  e0·einf = −1)' },
       { label: 'point',           formula: 'P = e0 + x·e1 + y·e2 + ½(x²+y²)·einf' },
+      { label: 'point at ∞',       formula: 'vinf(x, y) = ½(x²+y²)·einf' },
       { label: 'flat point',       formula: 'F = P ∧ einf  =  x·e1inf + y·e2inf + e0inf' },
       { label: 'point pair',      formula: 'B = P1 ∧ P2' },
       { label: 'line',            formula: 'L = P1 ∧ P2 ∧ einf' },
