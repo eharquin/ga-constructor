@@ -665,6 +665,26 @@ export function useGraph(algebra) {
     }
   };
 
+  // CCGA point at infinity — tip drag rewrites vinf(x, y).
+  const updateFreeInfinityPoint = (nodeId, x, y) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'freeInfinityPoint';
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
+    const { xExpr, yExpr } = node.params;
+    const xHandled = tryUpdateScalar(xExpr, x);
+    const yHandled = tryUpdateScalar(yExpr, y);
+    if (!xHandled || !yHandled) {
+      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
+      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
+      const text = node.label !== null ? `${nodeId} = vinf(${xPart}, ${yPart})` : `vinf(${xPart}, ${yPart})`;
+      dispatch({ type: 'SET_TEXT', id: item.id, text });
+    }
+  };
+
   const updateVector = (nodeId, vx, vy) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -887,6 +907,7 @@ export function useGraph(algebra) {
     updateFreePoint,
     updateFreeFlatPoint,
     updateFreeVector,
+    updateFreeInfinityPoint,
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,

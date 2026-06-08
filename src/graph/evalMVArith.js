@@ -74,6 +74,10 @@ export function createEvalMVArith(algebra) {
   if (algebra.flatPoint2D) CONSTRUCTORS.flatPoint = algebra.flatPoint2D;
   if (algebra.vector2D)    CONSTRUCTORS.vector    = algebra.vector2D;
   if (algebra.line2D)      CONSTRUCTORS.line      = algebra.line2D;
+  if (algebra.infinityPoint2D) CONSTRUCTORS.vinf  = algebra.infinityPoint2D;
+  // Generic extension point: algebras can register extra named constructors
+  // (e.g. CCGA's circle/ellipse/hyperbola/…) without hardcoding them here.
+  if (algebra.namedConstructors) Object.assign(CONSTRUCTORS, algebra.namedConstructors);
   const CONSTRUCTOR_NAMES = new Set(Object.keys(CONSTRUCTORS));
   const toScalarArg = (a) =>
     typeof a === 'number' ? a
@@ -118,6 +122,7 @@ export function createEvalMVArith(algebra) {
       }
       if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
       if (c === '<' && str[i+1] === '<') { raw.push({ type: 'op', val: '<<' }); i += 2; continue; }
+      if (c === '*' && str[i+1] === '*') { raw.push({ type: 'op', val: '**' }); i += 2; continue; }
       if ('+-*/()!~^&|.§[],'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
       if (c === ':') { raw.push({ type: 'op', val: ':' }); i++; continue; }
       return null;
@@ -237,6 +242,11 @@ export function createEvalMVArith(algebra) {
           eat();
         } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
           eat(); eat(); eat(); // ^, -, 1
+        } else if (peek()?.val === '**') {
+          eat();
+          if (peek()?.val === '-') eat(); // optional negative exponent
+          if (peek()?.type !== 'num') return false;
+          eat();
         } else { break; }
       }
       return true;
@@ -374,6 +384,28 @@ export function createEvalMVArith(algebra) {
 
   const mapList = (lst, fn) => ({ list: true, items: lst.items.map(fn).filter((v) => v != null) });
 
+  // Integer power A**n — repeated geometric product (n>0), scalar 1 (n=0), or
+  // repeated product of the inverse (n<0). Pure numbers use Math.pow (any real
+  // exponent); multivectors require an integer exponent. Maps over lists.
+  function applyPow(val, n) {
+    if (val === null || typeof n !== 'number') return null;
+    if (val?.list) return mapList(val, (item) => applyPow(item, n));
+    if (typeof val === 'number') return Math.pow(val, n);
+    if (!Number.isInteger(n)) return null;
+    const mv = toMV(val);
+    if (!mv) return null;
+    if (n === 0) { const r = new Algebra(arraySize); r[0] = 1; return r; }
+    let base = mv, e = n;
+    if (n < 0) {
+      const inv = 'Inverse' in mv ? mv.Inverse : null;
+      if (!inv) return null;
+      base = inv; e = -n;
+    }
+    let result = base;
+    for (let k = 1; k < e; k++) result = Algebra.Mul(result, base);
+    return result;
+  }
+
   function applyOp(left, op, right) {
     if (left === null || right === null) return null;
     const lNum = typeof left  === 'number';
@@ -421,6 +453,21 @@ export function createEvalMVArith(algebra) {
       if (isPureScalar) {
         const s = rMV[0] || 0;
         return Math.abs(s) > 1e-15 ? scaleMV(toMV(left), 1 / s) : null;
+      }
+      // Versor fast path: for a blade/versor B (vectors, blades, rotors, …),
+      // B⁻¹ = ~B / (B·~B) where B·~B is a scalar — one product instead of ganja's
+      // general .Inverse, whose recursive product chain costs ~15× a Mul in high
+      // dimensions (≈30 ms in CCGA's 256-dim algebra, the dominant drag cost).
+      if (typeof Algebra.Reverse === 'function') {
+        const rev = Algebra.Reverse(rMV);
+        const n = Algebra.Mul(rMV, rev);
+        let maxNon = 0;
+        for (let i = 1; i < arraySize; i++) { const a = Math.abs(n[i] || 0); if (a > maxNon) maxNon = a; }
+        const s = n[0] || 0;
+        if (Math.abs(s) > 1e-12 && maxNon < Math.abs(s) * 1e-6) {  // B·~B effectively scalar
+          const inv = scaleMV(rev, 1 / s);
+          return Algebra.Mul(toMV(left), inv);
+        }
       }
       // General MV inverse: A / B = A * B^{-1} via ganja (Inverse is a getter)
       if ('Inverse' in rMV) {
@@ -611,14 +658,23 @@ export function createEvalMVArith(algebra) {
                 else {
                   const mv = toMV(arg);
                   if (!mv) { val = null; }
-                  else if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
-                    const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
-                  } else {
-                    const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
-                    const log = normalised.Log();
-                    const half = new Algebra(arraySize);
-                    for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
-                    val = half.Exp();
+                  else {
+                    // Treat the argument as a scalar when its non-scalar parts are
+                    // negligible *relative* to the scalar (a 2-blade's square is a
+                    // pure scalar mathematically, but ganja's Float32 product leaves
+                    // grade noise at ~1e-6 of it — an absolute cutoff would wrongly
+                    // push it into the motor branch and not return a scalar).
+                    let maxNon = 0;
+                    for (let i = 1; i < arraySize; i++) { const a = Math.abs(mv[i] || 0); if (a > maxNon) maxNon = a; }
+                    if (maxNon < Math.max(1e-9, Math.abs(mv[0] || 0) * 1e-4)) {
+                      const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
+                    } else {
+                      const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
+                      const log = normalised.Log();
+                      const half = new Algebra(arraySize);
+                      for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
+                      val = half.Exp();
+                    }
                   }
                 }
               } else { val = null; }
@@ -724,6 +780,14 @@ export function createEvalMVArith(algebra) {
           } else {
             val = null;
           }
+        } else if (peek()?.val === '**') {
+          eat();
+          let sign = 1;
+          if (peek()?.val === '-') { eat(); sign = -1; }
+          const numTok = peek();
+          if (!numTok || numTok.type !== 'num') return null;
+          eat();
+          val = applyPow(val, sign * numTok.val);
         } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
           eat(); eat(); eat(); // ^, -, 1
           const applyInverse = (v) => {

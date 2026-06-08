@@ -91,7 +91,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint' && valKind !== 'idealFlatPoint') continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint' && valKind !== 'idealFlatPoint' && valKind !== 'infinityPoint') continue;
     if (node.type === 'freePoint') {
       if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
@@ -119,6 +119,15 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       const tail = w2c(pos.x, pos.y, vp);
       if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
+      continue;
+    }
+    if (node.type === 'freeInfinityPoint') {
+      // Anchored at the origin — only the tip drags (rewrites the vinf direction).
+      const plan = algebra.getRenderPlan?.(values[id]);
+      if (!plan || plan.kind !== 'positionedVector') continue;
+      const tip = w2c(plan.vx, plan.vy, vp);
+      if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'freeInfinityPointTip' };
       continue;
     }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
@@ -449,6 +458,102 @@ function resolveStrokeDash(strokeStyle, defaultDash) {
   return defaultDash;
 }
 
+// CCGA general conic. The adapter reduces the conic to a subtype + geometry; we
+// draw ellipse/circle as a crisp rotated <ellipse> and hyperbola/parabola/line by
+// sampling their parametric form over the visible viewport (clipped by the SVG).
+function SvgConic({ plan, label, color, vp, W, H, opts, weight = 1, strokeStyle = null }) {
+  const sw = 2.5 * weight;
+  const dash = resolveStrokeDash(strokeStyle, undefined);
+  // World view bounds (+margin) drive the sampling extent of open curves.
+  const minX = -vp.offsetX / vp.scale, maxX = (W - vp.offsetX) / vp.scale;
+  const minY = (vp.offsetY - H) / vp.scale, maxY = vp.offsetY / vp.scale;
+  const spanW = Math.max(maxX - minX, maxY - minY) * 1.5;
+
+  if (plan.subtype === 'circle' || plan.subtype === 'ellipse') {
+    const c = w2c(plan.cx, plan.cy, vp);
+    const rx = plan.rx * vp.scale, ry = plan.ry * vp.scale;
+    // World CCW angle θ becomes screen CW (−θ) because the screen y-axis is flipped.
+    const angleDeg = -plan.theta * 180 / Math.PI;
+    const lx = c.cx, ly = c.cy - Math.max(rx, ry);
+    return (
+      <g>
+        <ellipse cx={c.cx} cy={c.cy} rx={rx} ry={ry}
+                 transform={`rotate(${angleDeg} ${c.cx} ${c.cy})`}
+                 fill="none" stroke={color} strokeWidth={sw} strokeDasharray={dash} />
+        {renderLabel(label, lx, ly, opts)}
+      </g>
+    );
+  }
+
+  if (plan.subtype === 'line') {
+    const a = plan.D, b = plan.E, cc = plan.F;
+    const len = Math.hypot(a, b);
+    if (len < 1e-12) return null;
+    const ux = -b / len, uy = a / len;
+    const bx = Math.abs(a) >= Math.abs(b) ? -cc / a : 0;
+    const by = Math.abs(a) >= Math.abs(b) ? 0 : -cc / b;
+    return <SvgLine bd={{ bx, by, ux, uy }} label={label} color={color} vp={vp} W={W} H={H} opts={opts} weight={weight} strokeStyle={strokeStyle} />;
+  }
+
+  const ct = Math.cos(plan.theta), st = Math.sin(plan.theta);
+  const polylines = [];
+
+  if (plan.subtype === 'hyperbola') {
+    const p = -plan.Fp / plan.Ap, q = -plan.Fp / plan.Bp;   // X'²/p + Y'²/q = 1
+    const realX = p > 0;                                     // real axis along X' (else Y')
+    const aSemi = Math.sqrt(Math.abs(realX ? p : q));        // along the real axis
+    const bSemi = Math.sqrt(Math.abs(realX ? q : p));        // along the imaginary axis
+    const Tmax = Math.asinh(spanW / Math.max(bSemi, 1e-6)) + 1;
+    const wpt = (X, Y) => w2c(plan.cx + X * ct - Y * st, plan.cy + X * st + Y * ct, vp);
+    for (const sgn of [1, -1]) {
+      const pts = [];
+      for (let i = 0; i <= 220; i++) {
+        const t = -Tmax + (2 * Tmax * i) / 220;
+        const u = sgn * aSemi * Math.cosh(t), v = bSemi * Math.sinh(t);
+        const s = realX ? wpt(u, v) : wpt(v, u);
+        pts.push(`${s.cx.toFixed(1)},${s.cy.toFixed(1)}`);
+      }
+      polylines.push(pts.join(' '));
+    }
+  } else if (plan.subtype === 'parabola') {
+    const D2 = plan.D * ct + plan.E * st, E2 = -plan.D * st + plan.E * ct;  // rotated gradient
+    const wpt = (X, Y) => w2c(X * ct - Y * st, X * st + Y * ct, vp);        // about the origin
+    const pts = [];
+    const N = 300;
+    if (Math.abs(plan.Ap) >= Math.abs(plan.Bp)) {            // opens along Y'
+      if (Math.abs(E2) < 1e-9) return null;
+      for (let i = 0; i <= N; i++) {
+        const X = -spanW + (2 * spanW * i) / N;
+        const Y = -(plan.Ap * X * X + D2 * X + plan.F) / E2;
+        const s = wpt(X, Y);
+        pts.push(`${s.cx.toFixed(1)},${s.cy.toFixed(1)}`);
+      }
+    } else {                                                 // opens along X'
+      if (Math.abs(D2) < 1e-9) return null;
+      for (let i = 0; i <= N; i++) {
+        const Y = -spanW + (2 * spanW * i) / N;
+        const X = -(plan.Bp * Y * Y + E2 * Y + plan.F) / D2;
+        const s = wpt(X, Y);
+        pts.push(`${s.cx.toFixed(1)},${s.cy.toFixed(1)}`);
+      }
+    }
+    polylines.push(pts.join(' '));
+  } else {
+    return null;
+  }
+
+  const first = polylines[0]?.split(' ')[0]?.split(',') ?? [W / 2, 20];
+  return (
+    <g>
+      {polylines.map((pts, i) => (
+        <polyline key={i} points={pts} fill="none" stroke={color}
+                  strokeWidth={sw} strokeLinecap="round" strokeDasharray={dash} />
+      ))}
+      {renderLabel(label, +first[0], +first[1], opts)}
+    </g>
+  );
+}
+
 function SvgLine({ bd, label, color, vp, W, H, opts, weight = 1, strokeStyle = null }) {
   if (!bd) return null;
   const { bx, by, ux, uy } = bd;
@@ -724,7 +829,7 @@ export default function Canvas({ onSquareCanvas }) {
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
-    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, updateFreeInfinityPoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   } = useGraphContext();
@@ -770,7 +875,7 @@ export default function Canvas({ onSquareCanvas }) {
   const snap = useRef(null);
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
-    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, updateFreeInfinityPoint, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
     addFreePoint,
   };
@@ -864,6 +969,9 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
         snap.current.updateFreeVector?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
+      if (dragType === 'freeInfinityPointTip') {
+        snap.current.updateFreeInfinityPoint?.(id, roundToScale(x, vp.scale), roundToScale(y, vp.scale));
+      }
 
     } else if (dragRef.current) {
       const dx = mx - dragRef.current.startMx;
@@ -940,7 +1048,7 @@ export default function Canvas({ onSquareCanvas }) {
       orientation: resolveField(rawOpts.orientation, values, 0),
     } : null;
     const hovered     = id === hoveredId;
-    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip';
+    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip' || hoveredDragType === 'freeInfinityPointTip';
     const tailHovered = hovered && !isTipDrag;
     const tipHovered  = hovered && isTipDrag;
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
@@ -1013,7 +1121,7 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
-        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector');
+        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector' || node.type === 'freeInfinityPoint');
         // CGA ideal round point: draw the tail as a round point — a radius
         // circle (solid for real r², dashed for imaginary) around the tail dot.
         if (plan.rSq !== undefined) {
@@ -1179,6 +1287,13 @@ export default function Canvas({ onSquareCanvas }) {
           <SvgPointPair key={id} p1={plan.p1} p2={plan.p2}
             label={label} color={color} vp={vp} W={size.w} H={size.h}
             opts={opts} weight={weight} imaginary={plan.imaginary} />
+        );
+        break;
+      case 'conic':
+        layers.push(
+          <SvgConic key={id} plan={plan}
+            label={label} color={color} vp={vp} W={size.w} H={size.h}
+            opts={opts} weight={weight} strokeStyle={strokeStyle} />
         );
         break;
       default:

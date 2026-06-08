@@ -106,6 +106,20 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       return `${lbl} (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})  r=${fmtC(plan.r)}`;
     }
     case 'idealPointPair': return 'Ideal point pair';
+    case 'infinityPoint': {
+      const plan = algebra.getRenderPlan?.(val);
+      return plan?.kind === 'positionedVector'
+        ? `Point at infinity → (${fmtC(plan.vx)}, ${fmtC(plan.vy)})`
+        : 'Point at infinity';
+    }
+    case 'conic': {
+      const plan = algebra.getRenderPlan?.(val);
+      const sub = plan?.subtype ?? cls.subtype;
+      const name = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : 'Conic';
+      if (plan && (plan.subtype === 'ellipse' || plan.subtype === 'circle'))
+        return `${name} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  rx=${fmtC(plan.rx)} ry=${fmtC(plan.ry)}`;
+      return `Conic — ${name}`;
+    }
     default:            return '—';
   }
 }
@@ -131,6 +145,7 @@ const KIND_LABELS = {
   reflector: 'Reflector', mixed: 'Mixed',
   vector: 'Vector', bivector: 'Bivector',
   circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
+  conic: 'Conic', infinityPoint: 'Point at infinity',
 };
 
 function describeListItem(item, algebra, decimals) {
@@ -677,7 +692,7 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'infinityPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair', 'pointPair', 'conic']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
@@ -981,7 +996,9 @@ export default function ExpressionPanel({ onHide }) {
                   <tbody>
                     <tr><td><code>A = point(x, y)</code></td><td>Free draggable point. <code>x</code>, <code>y</code> can be scalar names.</td></tr>
                     <tr><td><code>V = vector(vx, vy)</code></td><td>Free direction vector (ideal point). Draggable tail &amp; tip.</td></tr>
+                    <tr><td><code>I = vinf(vx, vy)</code></td><td>Point at infinity in direction <code>(vx, vy)</code> (CCGA). Draggable tip.</td></tr>
                     <tr><td><code>L = line(a, b, c)</code></td><td>Free line <code>a·x + b·y + c = 0</code>. Arguments can be scalar names.</td></tr>
+                    <tr><td><code>C = circle(cx, cy, r)</code></td><td>CCGA conic constructors: <code>circle</code>, <code>ellipse(a,b,cx,cy)</code>, <code>hyperbola(a,b,cx,cy)</code>, <code>parabola(p,cx,cy)</code>, <code>tilted_ellipse(a,b,θ,cx,cy)</code>, <code>conic(A,B,C,D,E,F)</code>. Args can be scalar names (animatable).</td></tr>
                     <tr><td><code>t = 0.5</code></td><td>Scalar. Click ▶ to animate. Supports blade literals: <code>t = 2e12</code>.</td></tr>
                   </tbody>
                 </table>
@@ -1038,6 +1055,7 @@ export default function ExpressionPanel({ onHide }) {
                     <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
                     <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
                     <tr><td><code>A.e12</code></td><td>Blade coefficient. Permuted names supported: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>A**n</code></td><td>Integer power — repeated geometric product. <code>A**2 = A*A</code>, <code>A**-1 = A.inverse</code>, <code>A**0 = 1</code>.</td></tr>
                     <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
                     <tr><td><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> …</td><td>Trig (radians). Also: <code>csc sec cot acsc asec acot abs</code>.</td></tr>
                     <tr><td><code>color(R, G, B)</code></td><td>Define a custom color. Channels in 0–1 or 0–255 (auto-detected). Appears in the color-picker's <i>Custom</i> section.</td></tr>

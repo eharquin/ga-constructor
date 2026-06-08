@@ -29,7 +29,9 @@ import { COLOR_CONSTS, BUILTIN_FN_NAMES } from './evalMVArith.js';
 // Top-level constructor names (parser handles these specially — defining a
 // user function with one of these names would shadow the builtin form).
 const BUILTIN_CONSTRUCTOR_NAMES = new Set([
-  'point', 'flatPoint', 'line', 'vector', 'color', 'triangle', 'exp',
+  'point', 'flatPoint', 'line', 'vector', 'vinf', 'color', 'triangle', 'exp',
+  // CCGA named conics (resolve to constructors only where the spec defines them).
+  'circle', 'ellipse', 'hyperbola', 'parabola', 'tilted_ellipse', 'conic',
 ]);
 
 const ID  = /[A-Za-z_][A-Za-z0-9_]*/;
@@ -329,6 +331,17 @@ export function createParseExpression(algebra, evaluator) {
         const [xExpr, yExpr] = v2;
         const deps = uniqueDeps(xExpr, yExpr);
         return { id, label, type: 'freeVector', deps, params: { xExpr, yExpr, deps } };
+      }
+    }
+
+    // vinf(xExpr, yExpr) — CCGA-only draggable point at infinity (Veronese limit).
+    // Produces an MV value; renders as an arrow in its asymptotic direction.
+    if (accepts('freeInfinityPoint')) {
+      const vinfCoords = parse2DCall(expr, 'vinf');
+      if (vinfCoords && vinfCoords[0] && vinfCoords[1]) {
+        const [xExpr, yExpr] = vinfCoords;
+        const deps = uniqueDeps(xExpr, yExpr);
+        return { id, label, type: 'freeInfinityPoint', deps, params: { xExpr, yExpr, deps } };
       }
     }
 
