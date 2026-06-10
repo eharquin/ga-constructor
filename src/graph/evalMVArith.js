@@ -101,8 +101,19 @@ export function createEvalMVArith(algebra) {
     return env;
   })();
 
+  // Constant env shared by every evalMVArith call (basis blades + named consts).
+  // Built once: in Cl(5,3) BASIS_ENV alone is 255 keys, so spreading it fresh on
+  // each (deeply recursive, user-function-heavy) call dominated the eval cost.
+  // Per call we now layer the call-site env on top via the prototype chain.
+  const CONST_ENV = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS, ...MV_CONSTS };
+
+  // Token cache: function bodies and node expressions are constant strings
+  // re-evaluated every drag tick, so memoising their token arrays avoids
+  // re-tokenising the same source repeatedly.
+  const _tokenCache = new Map();
+
   // ── Tokenizer ──────────────────────────────────────────────────────────
-  function tokenize(str) {
+  function tokenizeRaw(str) {
     const raw = [];
     let i = 0;
     while (i < str.length) {
@@ -146,6 +157,15 @@ export function createEvalMVArith(algebra) {
       else if (leftNum && rightBar) tokens.push(MUL);
     }
     return tokens;
+  }
+
+  // Memoised tokenize: token arrays are read-only during parsing, so the same
+  // array can be safely shared across repeated evaluations of the same string.
+  function tokenize(str) {
+    if (_tokenCache.has(str)) return _tokenCache.get(str);
+    const t = tokenizeRaw(str);
+    _tokenCache.set(str, t);
+    return t;
   }
 
   // ── Syntax validator ──────────────────────────────────────────────────
@@ -505,8 +525,10 @@ export function createEvalMVArith(algebra) {
     if (!tokens) return null;
 
     // Merge order: user env takes priority over constants, but only when defined.
-    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS, ...MV_CONSTS };
-    for (const [k, v] of Object.entries(env)) { if (v !== undefined) fullEnv[k] = v; }
+    // Layer the call-site env over the shared constant env via the prototype
+    // chain — lookups fall through to CONST_ENV without copying its 255 keys.
+    const fullEnv = Object.create(CONST_ENV);
+    for (const k of Object.keys(env)) { if (env[k] !== undefined) fullEnv[k] = env[k]; }
     let pos = 0;
     const peek = () => tokens[pos];
     const eat  = () => tokens[pos++];
