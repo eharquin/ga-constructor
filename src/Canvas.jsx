@@ -495,6 +495,33 @@ function SvgConic({ plan, label, color, vp, W, H, opts, weight = 1, strokeStyle 
     return <SvgLine bd={{ bx, by, ux, uy }} label={label} color={color} vp={vp} W={W} H={H} opts={opts} weight={weight} strokeStyle={strokeStyle} />;
   }
 
+  // Degenerate conic that is a single (real) point — Δ₃≈0, Δ₂>0.
+  if (plan.subtype === 'point') {
+    return <SvgPoint x={plan.cx} y={plan.cy} label={label} color={color} vp={vp} W={W} H={H}
+                     opts={opts} weight={weight} draggable={false} />;
+  }
+
+  // Degenerate conic that splits into two lines — Δ₃≈0 (intersecting or parallel).
+  if (plan.subtype === 'linePair' || plan.subtype === 'parallelLines') {
+    const homToBd = (nx, ny, dd) => {                       // nx·x+ny·y+dd=0 → base+direction
+      const len = Math.hypot(nx, ny);
+      if (len < 1e-12) return null;
+      const ux = -ny / len, uy = nx / len;
+      const bx = Math.abs(nx) >= Math.abs(ny) ? -dd / nx : 0;
+      const by = Math.abs(nx) >= Math.abs(ny) ? 0 : -dd / ny;
+      return { bx, by, ux, uy };
+    };
+    return (
+      <g>
+        {(plan.lines ?? []).map((l, i) => {
+          const bd = homToBd(l.nx, l.ny, l.d);
+          return bd ? <SvgLine key={i} bd={bd} label={i === 0 ? label : null} color={color}
+                               vp={vp} W={W} H={H} opts={opts} weight={weight} strokeStyle={strokeStyle} /> : null;
+        })}
+      </g>
+    );
+  }
+
   const ct = Math.cos(plan.theta), st = Math.sin(plan.theta);
   const polylines = [];
 

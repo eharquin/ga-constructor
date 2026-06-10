@@ -369,6 +369,39 @@ function conicCoeffs(val) {
   return coeffsFromGrade1(s);
 }
 
+// Split a degenerate conic (det H₃ ≈ 0) into its two lines via the adjugate of the
+// Hessian (Richter-Gebert / Chomicki et al. Alg. 2): adj(H) picks the rank-1 skew
+// part D so that H + D/β factors as the outer product of the two lines; a column and
+// a row of that recover them. Returns each as a homogeneous line nx·x+ny·y+d=0
+// (empty when no real line can be recovered). Handles intersecting, parallel, and
+// double lines uniformly (β≈0 ⇒ the skew term vanishes, lines live in H's own span).
+function factorLinePair(a, b, c, d, e, f) {
+  const H = [[a, c / 2, d / 2], [c / 2, b, e / 2], [d / 2, e / 2, f]];
+  const adj = [
+    [H[1][1] * H[2][2] - H[1][2] * H[2][1], -(H[0][1] * H[2][2] - H[0][2] * H[2][1]), H[0][1] * H[1][2] - H[0][2] * H[1][1]],
+    [-(H[1][0] * H[2][2] - H[1][2] * H[2][0]), H[0][0] * H[2][2] - H[0][2] * H[2][0], -(H[0][0] * H[1][2] - H[0][2] * H[1][0])],
+    [H[1][0] * H[2][1] - H[1][1] * H[2][0], -(H[0][0] * H[2][1] - H[0][1] * H[2][0]), H[0][0] * H[1][1] - H[0][1] * H[1][0]],
+  ];
+  let i = 0;
+  for (let k = 1; k < 3; k++) if (adj[k][k] < adj[i][i]) i = k;
+  const beta = Math.sqrt(Math.max(-adj[i][i], 0));
+  let N = H;
+  if (beta > 1e-12) {
+    const r = adj[i];
+    const Dm = [[0, -r[2], r[1]], [r[2], 0, -r[0]], [-r[1], r[0], 0]];
+    N = H.map((row, ri) => row.map((x, ci) => x + Dm[ri][ci] / beta));
+  }
+  let jc = 0, best = -1;
+  for (let j = 0; j < 3; j++) { const s = N[0][j] ** 2 + N[1][j] ** 2; if (s > best) { best = s; jc = j; } }
+  let jr = 0; best = -1;
+  for (let j = 0; j < 3; j++) { const s = N[j][0] ** 2 + N[j][1] ** 2; if (s > best) { best = s; jr = j; } }
+  const lines = [];
+  for (const [u, v, w] of [[N[0][jc], N[1][jc], N[2][jc]], [N[jr][0], N[jr][1], N[jr][2]]]) {
+    if (Math.hypot(u, v) > 1e-9) lines.push({ nx: u, ny: v, d: w });
+  }
+  return lines;
+}
+
 // Reduce (A..F) to a drawable form. Subtype from the discriminant Δ=C²−4AB; for a
 // central conic, centre + rotated principal semi-axes (rx along the θ axis); for a
 // parabola/line the raw coefficients are passed through for sampling.
@@ -379,6 +412,21 @@ function conicGeometry(co) {
   if (Math.abs(cA) < tol && Math.abs(cB) < tol && Math.abs(cC) < tol)
     return { subtype: 'line', D: cD, E: cE, F: cF };
   const disc = cC * cC - 4 * cA * cB;
+
+  // Degeneracy: Δ₃ = det(Hessian) ≈ 0 ⇒ point / line pair (Chomicki et al. Table 1).
+  // Δ₂ (= −disc/4) then splits the case: Δ₂>0 (disc<0) a point, Δ₂<0 (disc>0) two
+  // intersecting lines, Δ₂≈0 (disc≈0) parallel/double lines. Scale-invariant cutoff
+  // on the coefficient magnitude (notebook classify.py: conic_is_degenerate).
+  const cmax = Math.max(Math.abs(cA), Math.abs(cB), Math.abs(cC), Math.abs(cD), Math.abs(cE), Math.abs(cF));
+  const delta3 = cA * cB * cF + (cC * cD * cE - cC * cC * cF - cB * cD * cD - cA * cE * cE) / 4;
+  if (cmax > 0 && Math.abs(delta3) < 1e-7 * cmax * cmax * cmax) {
+    const dtol = 1e-6 * cmax * cmax;
+    if (disc < -dtol) {
+      const det2c = 4 * cA * cB - cC * cC;
+      return { subtype: 'point', cx: (-2 * cB * cD + cC * cE) / det2c, cy: (-2 * cA * cE + cC * cD) / det2c };
+    }
+    return { subtype: Math.abs(disc) <= dtol ? 'parallelLines' : 'linePair', lines: factorLinePair(cA, cB, cC, cD, cE, cF) };
+  }
   const theta = 0.5 * Math.atan2(cC, cA - cB);
   const ct = Math.cos(theta), st = Math.sin(theta);
   const Ap = cA * ct * ct + cC * ct * st + cB * st * st;  // X'² coeff after rotation

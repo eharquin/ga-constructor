@@ -115,6 +115,10 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
     case 'conic': {
       const plan = algebra.getRenderPlan?.(val);
       const sub = plan?.subtype ?? cls.subtype;
+      // Degenerate sub-types (Δ₃≈0): point / line pair / parallel lines (paper Table 1).
+      if (sub === 'point') return `Degenerate conic — point (${fmtC(plan.cx)}, ${fmtC(plan.cy)})`;
+      if (sub === 'linePair') return 'Degenerate conic — two intersecting lines';
+      if (sub === 'parallelLines') return 'Degenerate conic — parallel lines';
       const name = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : 'Conic';
       if (plan && (plan.subtype === 'ellipse' || plan.subtype === 'circle'))
         return `${name} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  rx=${fmtC(plan.rx)} ry=${fmtC(plan.ry)}`;
