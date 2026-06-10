@@ -358,6 +358,12 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < arraySize; i++) r[i] = (mv[i] || 0) * s;
     return r;
   }
+  // True when only the grade-0 component is non-negligible — such an MV multiplies
+  // as a plain scalar, so products with it reduce to a cheap scaleMV.
+  function isPureScalarMV(mv) {
+    for (let i = 1; i < arraySize; i++) if (Math.abs(mv[i] || 0) > 1e-12) return false;
+    return true;
+  }
   function applyAbs(val) {
     if (val === null) return null;
     if (typeof val === 'number') return Math.abs(val);
@@ -461,7 +467,13 @@ export function createEvalMVArith(algebra) {
     if (op === '*') {
       if (lNum) return scaleMV(toMV(right), left);
       if (rNum) return scaleMV(toMV(left), right);
-      return Algebra.Mul(toMV(left), toMV(right));
+      const lMV = toMV(left), rMV = toMV(right);
+      if (!lMV || !rMV) return null;
+      // Pure-scalar fast path: a grade-0 MV (e.g. a `C|eo1` coefficient) just
+      // scales the other operand — skip ganja's full 256-dim Mul (~77µs).
+      if (isPureScalarMV(lMV)) return scaleMV(rMV, lMV[0] || 0);
+      if (isPureScalarMV(rMV)) return scaleMV(lMV, rMV[0] || 0);
+      return Algebra.Mul(lMV, rMV);
     }
     if (op === '/') {
       if (rNum && right !== 0) return scaleMV(toMV(left), 1 / right);
