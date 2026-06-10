@@ -8,6 +8,15 @@
 // flat-array contract every adapter relies on and crashes Dual. We force the flat
 // 256-element representation with `graded:false`.
 //
+// numeric base type: ganja elements default to Float32Array (~7 digits). The conic
+// pipeline raises magnitudes to high powers (det3 cubic; the degenerate-pencil
+// Cardano tail squares/cubes those and then cancels), which Float32 cannot hold —
+// e.g. det1²∝‖C‖¹⁸ underflows and the discriminant loses ~2 digits to cancellation,
+// putting a ~3% error in the recovered root. `baseType:Float64Array` (supported for
+// flat generators) gives ~16 digits: the degenerate conic comes out clean and the
+// underflow floor drops from ~1e-45 to ~5e-324. Cost is 2× MV memory (≈1→2 KB) and
+// no real perf change (V8 numbers are f64 natively).
+//
 // Orthogonal (diagonal) basis — ganja indices 1..8:
 //   e1, e2          → Euclidean directions          (square +1)
 //   e3, e4, e5      → e₊₁, e₊₂, e₊₃                  (square +1)
@@ -26,7 +35,7 @@ import Algebra from 'ganja.js';
 export const ID    = 'ccga';
 export const LABEL = 'CCGA';
 
-export const CCGA = Algebra({ p: 5, q: 3, graded: false });
+export const CCGA = Algebra({ p: 5, q: 3, graded: false, baseType: Float64Array });
 const A = CCGA;
 
 export const ARRAY_SIZE = 256;

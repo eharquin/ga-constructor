@@ -36,7 +36,7 @@ export const SCALAR_CONSTS = {
 // ─── Built-in scalar functions ───────────────────────────────────────────────
 
 export const BUILTIN_FN_NAMES = new Set([
-  'sqrt', 'abs', 'len',
+  'sqrt', 'sqrt3', 'abs', 'len',
   'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
   'asin', 'acos', 'atan', 'acsc', 'asec', 'acot',
 ]);
@@ -708,6 +708,27 @@ export function createEvalMVArith(algebra) {
                       const half = new Algebra(arraySize);
                       for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
                       val = half.Exp();
+                    }
+                  }
+                }
+              } else if (t.val === 'sqrt3') {
+                // Real cube root. Single-valued over the reals (Math.cbrt handles
+                // negatives), so unlike sqrt it needs no sign-flip — which is exactly
+                // why it can take the (possibly negative) Cardano radicand directly.
+                if (typeof arg === 'number') { val = Math.cbrt(arg); }
+                else {
+                  const mv = toMV(arg);
+                  if (!mv) { val = null; }
+                  else {
+                    let maxNon = 0;
+                    for (let i = 1; i < arraySize; i++) { const a = Math.abs(mv[i] || 0); if (a > maxNon) maxNon = a; }
+                    if (maxNon < Math.max(1e-9, Math.abs(mv[0] || 0) * 1e-4)) {
+                      const r = new Algebra(arraySize); r[0] = Math.cbrt(mv[0]); val = r;
+                    } else {
+                      const log = mv.Log();
+                      const third = new Algebra(arraySize);
+                      for (let i = 0; i < arraySize; i++) third[i] = (log[i] || 0) / 3;
+                      val = third.Exp();
                     }
                   }
                 }
