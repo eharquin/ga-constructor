@@ -119,7 +119,7 @@
     },
     {
       "id": "expr_504",
-      "text": "ca = -(sC.e3 + sC.e6)/4",
+      "text": "ca = 0.5*(sC|einf1)",
       "color": null,
       "anim": null,
       "drawPos": null,
@@ -142,7 +142,7 @@
     },
     {
       "id": "expr_505",
-      "text": "cb = -(sC.e4 + sC.e7)/4",
+      "text": "cb = 0.5*(sC|einf2)",
       "color": null,
       "anim": null,
       "drawPos": null,
@@ -165,7 +165,7 @@
     },
     {
       "id": "expr_506",
-      "text": "cc = -(sC.e5 + sC.e8)/2",
+      "text": "cc = sC|einf3",
       "color": null,
       "anim": null,
       "drawPos": null,
@@ -188,7 +188,7 @@
     },
     {
       "id": "expr_507",
-      "text": "cd = sC.e1",
+      "text": "cd = sC|e1",
       "color": null,
       "anim": null,
       "drawPos": null,
@@ -211,7 +211,7 @@
     },
     {
       "id": "expr_508",
-      "text": "ce = sC.e2",
+      "text": "ce = sC|e2",
       "color": null,
       "anim": null,
       "drawPos": null,
@@ -234,7 +234,7 @@
     },
     {
       "id": "expr_509",
-      "text": "cf = (sC.e3 - sC.e6) + (sC.e4 - sC.e7)",
+      "text": "cf = 2*(sC|eo1)",
       "color": null,
       "anim": null,
       "drawPos": null,
@@ -487,7 +487,7 @@
     },
     {
       "id": "expr_520",
-      "text": "P1 = point(x0 + t1*ux, y0 + t1*uy)",
+      "text": "P1 = point(x0 + t1*ux, y0 + t1*uy)*1",
       "color": "#D81B60",
       "anim": null,
       "drawPos": null,
@@ -510,7 +510,7 @@
     },
     {
       "id": "expr_521",
-      "text": "P2 = point(x0 + t2*ux, y0 + t2*uy)",
+      "text": "P2 = point(x0 + t2*ux, y0 + t2*uy)*1",
       "color": "#1A73E8",
       "anim": null,
       "drawPos": null,
