@@ -702,6 +702,7 @@ export default function ExpressionPanel({ onHide }) {
           const hasPosition = node?.type === 'vector' ||
                               positionKind === 'idealPoint' || positionKind === 'vector' ||
                               positionKind === 'idealFlatPoint' || positionKind === 'bivector' ||
+                              positionKind === 'infinityPoint' ||
                               !!(values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
           const isDraggable = (() => {
             if (!node) return false;

@@ -122,12 +122,17 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       continue;
     }
     if (node.type === 'freeInfinityPoint') {
-      // Anchored at the origin — only the tip drags (rewrites the vinf direction).
+      // Arrow from the tail (drawPos) to tail+(vx, vy). Tip drags the vinf direction;
+      // tail drags the anchor (drawPos, via the 'vector' path) — like freeVector.
       const plan = algebra.getRenderPlan?.(values[id]);
       if (!plan || plan.kind !== 'positionedVector') continue;
-      const tip = w2c(plan.vx, plan.vy, vp);
+      const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+      const tip = w2c(pos.x + plan.vx, pos.y + plan.vy, vp);
       if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'freeInfinityPointTip' };
+      const tail = w2c(pos.x, pos.y, vp);
+      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
+        return { id, dragType: 'vector' };
       continue;
     }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
@@ -181,6 +186,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     // vectors (`U = V + W`), PGA `D = !L`, and bivectors (`B = V ^ W`, `B = 5*e12`).
     const val_ = values[id];
     const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' || valKind === 'idealFlatPoint' ||
+                            valKind === 'infinityPoint' ||
                             (val_ && typeof val_ === 'object' && 'vx' in val_);
     const isAnchorableBivec = valKind === 'bivector';
     if (node.type !== 'vector' && (isVectorLikeVal || isAnchorableBivec)) {
@@ -997,7 +1003,8 @@ export default function Canvas({ onSquareCanvas }) {
         snap.current.updateFreeVector?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
       if (dragType === 'freeInfinityPointTip') {
-        snap.current.updateFreeInfinityPoint?.(id, roundToScale(x, vp.scale), roundToScale(y, vp.scale));
+        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+        snap.current.updateFreeInfinityPoint?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
 
     } else if (dragRef.current) {

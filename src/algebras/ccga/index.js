@@ -670,7 +670,7 @@ export const geomToMV = null;
 
 // ─── Node types accepted under CCGA (conservative for now) ───────────────────
 export const SUPPORTED_NODE_TYPES = new Set([
-  'scalar', 'freePoint', 'freeVector', 'freeInfinityPoint',
+  'scalar', 'freePoint', 'freeInfinityPoint',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
   'color', 'funcDef',
 ]);

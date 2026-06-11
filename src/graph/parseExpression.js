@@ -336,8 +336,10 @@ export function createParseExpression(algebra, evaluator) {
 
     // vinf(xExpr, yExpr) — CCGA-only draggable point at infinity (Veronese limit).
     // Produces an MV value; renders as an arrow in its asymptotic direction.
+    // `vector(...)` is accepted as an alias here (CCGA has no separate ideal-round-point
+    // constructor — it does not accept 'freeVector' — so vector() builds a vinf too).
     if (accepts('freeInfinityPoint')) {
-      const vinfCoords = parse2DCall(expr, 'vinf');
+      const vinfCoords = parse2DCall(expr, 'vinf') || parse2DCall(expr, 'vector');
       if (vinfCoords && vinfCoords[0] && vinfCoords[1]) {
         const [xExpr, yExpr] = vinfCoords;
         const deps = uniqueDeps(xExpr, yExpr);

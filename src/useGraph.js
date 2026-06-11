@@ -480,6 +480,7 @@ export function useGraph(algebra) {
       const cls = classifyMV(val);
       const isVecNode  = node.type === 'vector';
       const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'idealFlatPoint' ||
+                         cls?.kind === 'infinityPoint' ||
                          (val && typeof val === 'object' && 'vx' in val);
       const isBivecVal = cls?.kind === 'bivector';
       if (!isVecNode && !isVecVal && !isBivecVal) continue;
