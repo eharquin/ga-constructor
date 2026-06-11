@@ -149,14 +149,22 @@ export function vector2D(x, y, r = 0) {
   return v;
 }
 
-// True point at infinity (Veronese limit) in direction (vx, vy) — the constructor
-// for the purely-quadratic ideal point: vector2D minus the linear e1/e2 part.
-//   vinf = ½vx²·einf1 + ½vy²·einf2 + vx·vy·einf3   (no eo, no e1/e2).
-export function infinityPoint2D(vx, vy) {
+// Ideal point (Veronese limit) in direction (vx, vy) — the purely-quadratic point
+// embedding: vector2D minus the linear e1/e2 part.
+//   vinf = ½vx²·einf1 + ½vy²·einf2 + vx·vy·einf3 ± r²·einf   (no eo, no e1/e2).
+// The optional radius adds ±r²·einf (sign from r): r>0 → real, r<0 → imaginary, drawn
+// as a (dashed-if-imaginary) circle of radius |r| at the arrow tip. rSq = r·|r| is
+// stashed for the renderer/panel; like .dir it is dropped by derived products.
+export function infinityPoint2D(vx, vy, r = 0) {
   const v = zeroMV();
   const ax = (vx * vx) / 4, ay = (vy * vy) / 4, axy = (vx * vy) / 2;
   v[3] = -ax;  v[4] = -ay;  v[5] = -axy;
   v[6] =  ax;  v[7] =  ay;  v[8] =  axy;
+  if (r) {
+    const s = r * Math.abs(r);                       // ±r²
+    for (let i = 0; i < ARRAY_SIZE; i++) v[i] += s * einf[i];
+    v.rSq = s;
+  }
   // Carry the signed source direction so the canvas arrow follows the cursor
   // freely on drag. The embedding is purely quadratic (vx², vy², vx·vy), so the
   // overall sign of (vx, vy) can't be recovered from v alone (infinityDir picks
@@ -633,7 +641,7 @@ function renderPlanImpl(val) {
       // vinf(x, y) renders its tip exactly at (x, y); else recover it from v.
       const d = val.dir ?? infinityDir(val);
       if (d.vx === 0 && d.vy === 0) return null;
-      return { kind: 'positionedVector', vx: d.vx, vy: d.vy };
+      return { kind: 'positionedVector', vx: d.vx, vy: d.vy, rSq: val.rSq };
     }
     case 'idealPoint': {
       // Origin-free grade-1 vector (vector(x,y[,r])) — arrow from origin to (x,y).

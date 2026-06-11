@@ -287,10 +287,16 @@ export function createNodeTypes(algebra, evaluator) {
   // asymptotic direction; draggable just like the ideal round point (freeVector).
   if (infinityPt2D) {
     types.freeInfinityPoint = {
-      label: 'Point at ∞',
+      label: 'Ideal point',
       compute: (depValues, params) => {
         const { vx: cx, vy: cy } = evalCoords(depValues, params);
         if (isNaN(cx) || isNaN(cy)) return null;
+        if (params.rExpr !== undefined) {
+          const scalars = Object.fromEntries((params.deps ?? []).map((d, i) => [d, depValues[i]]));
+          const cr = scalar(params.rExpr, scalars);
+          if (isNaN(cr)) return null;
+          return infinityPt2D(cx, cy, cr);
+        }
         return infinityPt2D(cx, cy);
       },
     };

@@ -339,6 +339,12 @@ export function createParseExpression(algebra, evaluator) {
     // `vector(...)` is accepted as an alias here (CCGA has no separate ideal-round-point
     // constructor — it does not accept 'freeVector' — so vector() builds a vinf too).
     if (accepts('freeInfinityPoint')) {
+      const v3 = parse3Call(expr, 'vinf') || parse3Call(expr, 'vector');
+      if (v3?.[0] && v3?.[1] && v3?.[2]) {
+        const [xExpr, yExpr, rExpr] = v3;
+        const deps = uniqueDeps(xExpr, yExpr, rExpr);
+        return { id, label, type: 'freeInfinityPoint', deps, params: { xExpr, yExpr, rExpr, deps } };
+      }
       const vinfCoords = parse2DCall(expr, 'vinf') || parse2DCall(expr, 'vector');
       if (vinfCoords && vinfCoords[0] && vinfCoords[1]) {
         const [xExpr, yExpr] = vinfCoords;

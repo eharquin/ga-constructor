@@ -689,13 +689,14 @@ export function useGraph(algebra) {
     if (!item) return;
     const node = parseExpression(item.text);
     const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
-    const { xExpr, yExpr } = node.params;
+    const { xExpr, yExpr, rExpr } = node.params;
     const xHandled = tryUpdateScalar(xExpr, x);
     const yHandled = tryUpdateScalar(yExpr, y);
     if (!xHandled || !yHandled) {
       const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
       const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
-      const text = node.label !== null ? `${nodeId} = vinf(${xPart}, ${yPart})` : `vinf(${xPart}, ${yPart})`;
+      const args = rExpr !== undefined ? `${xPart}, ${yPart}, ${rExpr}` : `${xPart}, ${yPart}`;
+      const text = node.label !== null ? `${nodeId} = vinf(${args})` : `vinf(${args})`;
       dispatch({ type: 'SET_TEXT', id: item.id, text });
     }
   };

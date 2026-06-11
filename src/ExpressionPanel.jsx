@@ -110,9 +110,9 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
     case 'idealPointPair': return 'Ideal point pair';
     case 'infinityPoint': {
       const plan = algebra.getRenderPlan?.(val);
-      return plan?.kind === 'positionedVector'
-        ? `Point at infinity → (${fmtC(plan.vx)}, ${fmtC(plan.vy)})`
-        : 'Point at infinity';
+      if (plan?.kind !== 'positionedVector') return 'Ideal point';
+      const rPart = plan.rSq ? `  r=${fmtC(Math.sqrt(Math.abs(plan.rSq)))}${plan.rSq < 0 ? 'i' : ''}` : '';
+      return `Ideal point → (${fmtC(plan.vx)}, ${fmtC(plan.vy)})${rPart}`;
     }
     case 'conic': {
       const plan = algebra.getRenderPlan?.(val);
@@ -151,7 +151,7 @@ const KIND_LABELS = {
   reflector: 'Reflector', mixed: 'Mixed',
   vector: 'Vector', bivector: 'Bivector',
   circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
-  conic: 'Conic', infinityPoint: 'Point at infinity',
+  conic: 'Conic', infinityPoint: 'Ideal point',
   roundPointDirect: 'Round point', quadpole: 'Quadpole',
 };
 
