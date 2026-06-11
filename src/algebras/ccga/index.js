@@ -424,10 +424,12 @@ function conicGeometry(co) {
   // made off-origin and small-magnitude degenerate conics (e.g. the dual of a 5-point
   // conic) miss the test and fall through to hyperbola/parabola. The qmax-relative
   // cutoff sits far below any non-degenerate conic (min observed |Δ₃|/qmax³ ≈ 0.1) and
-  // well above the float-noise floor (≈1e-5).
+  // above the noise floor of a truly degenerate conic (≈1e-5) yet below a genuine but
+  // near-degenerate hyperbola (≈9e-4 for a thin 5-point conic) — 1e-4 is the geometric
+  // mean of the two, the widest log-space margin separating the cases.
   const qmax = Math.max(Math.abs(cA), Math.abs(cB), Math.abs(cC));
   const delta3 = cA * cB * cF + (cC * cD * cE - cC * cC * cF - cB * cD * cD - cA * cE * cE) / 4;
-  if (qmax > 0 && Math.abs(delta3) < 1e-3 * qmax * qmax * qmax) {
+  if (qmax > 0 && Math.abs(delta3) < 1e-4 * qmax * qmax * qmax) {
     const dtol = 1e-3 * qmax * qmax;
     if (disc < -dtol) {
       const det2c = 4 * cA * cB - cC * cC;
