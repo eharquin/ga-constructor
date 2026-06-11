@@ -489,11 +489,12 @@ function isPointVector(v) {
 }
 
 // Disambiguate a pure grade-4 object by which gauge blade divides it (B∧g ≈ 0):
-//   flat point  p∧Iinf      — annihilated by every einf_i (Iinf ⊂ B)
-//   round point (p∧q)∧Iod   — annihilated by the origin gauge Iod
-//   quadpole    p∧q∧r∧s     — no gauge factor
+//   flat point  p∧Iinf       — annihilated by every einf_i (Iinf ⊂ B)
+//   round point (p∧q)∧Iinfd  — annihilated by the infinity gauge Iinfd
+//   quadpole    p∧q∧r∧s      — no gauge factor
+// (∧Iinf and ∧Iod are NOT discriminators — they read the same for all three.)
 // Tests are relative to ‖B‖; near-origin separations are huge (0 vs ~0.5–2.8), so 1e-6
-// is comfortable. Caveat: far from the origin the Veronese coords (∝R²) drive both
+// is comfortable. Caveat: far from the origin the Veronese coords (∝R²) drive these
 // wedges toward 0 and the test breaks — no simple normalization recovers it (unlike the
 // conic q-normalization), so off-origin grade-4 objects can misclassify.
 function classifyGrade4(val) {
@@ -501,7 +502,7 @@ function classifyGrade4(val) {
   const n = rawNorm(val) || 1;                            // ‖B‖
   const w = (gauge) => rawNorm(A.Wedge(val, gauge)) / n;  // ‖B∧g‖ / ‖B‖
   if (w(einf1) < 1e-6 && w(einf2) < 1e-6 && w(einf3) < 1e-6) return { kind: 'flatPoint' };
-  if (w(Iod) < 1e-6) return { kind: 'roundPointDirect' };
+  if (w(Iinfd) < 1e-6) return { kind: 'roundPointDirect' };
   return { kind: 'quadpole' };
 }
 
