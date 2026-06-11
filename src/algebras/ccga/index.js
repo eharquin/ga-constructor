@@ -415,12 +415,20 @@ function conicGeometry(co) {
 
   // Degeneracy: Δ₃ = det(Hessian) ≈ 0 ⇒ point / line pair (Chomicki et al. Table 1).
   // Δ₂ (= −disc/4) then splits the case: Δ₂>0 (disc<0) a point, Δ₂<0 (disc>0) two
-  // intersecting lines, Δ₂≈0 (disc≈0) parallel/double lines. Scale-invariant cutoff
-  // on the coefficient magnitude (notebook classify.py: conic_is_degenerate).
-  const cmax = Math.max(Math.abs(cA), Math.abs(cB), Math.abs(cC), Math.abs(cD), Math.abs(cE), Math.abs(cF));
+  // intersecting lines, Δ₂≈0 (disc≈0) parallel/double lines.
+  //
+  // Δ₃ = det(H₃) and the quadratic part both transform by unimodular conjugation under
+  // translation, so |Δ₃|/qmax³ (qmax = max quadratic coefficient) is a translation-
+  // invariant degeneracy measure. Normalising by the full cmax instead — as before —
+  // collapses for conics far from the origin, where F grows ∝ R² and swamps Δ₃; that
+  // made off-origin and small-magnitude degenerate conics (e.g. the dual of a 5-point
+  // conic) miss the test and fall through to hyperbola/parabola. The qmax-relative
+  // cutoff sits far below any non-degenerate conic (min observed |Δ₃|/qmax³ ≈ 0.1) and
+  // well above the float-noise floor (≈1e-5).
+  const qmax = Math.max(Math.abs(cA), Math.abs(cB), Math.abs(cC));
   const delta3 = cA * cB * cF + (cC * cD * cE - cC * cC * cF - cB * cD * cD - cA * cE * cE) / 4;
-  if (cmax > 0 && Math.abs(delta3) < 1e-7 * cmax * cmax * cmax) {
-    const dtol = 1e-6 * cmax * cmax;
+  if (qmax > 0 && Math.abs(delta3) < 1e-3 * qmax * qmax * qmax) {
+    const dtol = 1e-3 * qmax * qmax;
     if (disc < -dtol) {
       const det2c = 4 * cA * cB - cC * cC;
       return { subtype: 'point', cx: (-2 * cB * cD + cC * cE) / det2c, cy: (-2 * cA * cE + cC * cD) / det2c };
