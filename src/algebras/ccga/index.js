@@ -488,6 +488,23 @@ function isPointVector(v) {
   return Math.abs(eo3) < thr && Math.abs(eob) < thr;
 }
 
+// Disambiguate a pure grade-4 object by which gauge blade divides it (B∧g ≈ 0):
+//   flat point  p∧Iinf      — annihilated by every einf_i (Iinf ⊂ B)
+//   round point (p∧q)∧Iod   — annihilated by the origin gauge Iod
+//   quadpole    p∧q∧r∧s     — no gauge factor
+// Tests are relative to ‖B‖; near-origin separations are huge (0 vs ~0.5–2.8), so 1e-6
+// is comfortable. Caveat: far from the origin the Veronese coords (∝R²) drive both
+// wedges toward 0 and the test breaks — no simple normalization recovers it (unlike the
+// conic q-normalization), so off-origin grade-4 objects can misclassify.
+function classifyGrade4(val) {
+  const rawNorm = (mv) => { let s = 0; for (let i = 0; i < ARRAY_SIZE; i++) s += (mv[i] || 0) ** 2; return Math.sqrt(s); };
+  const n = rawNorm(val) || 1;                            // ‖B‖
+  const w = (gauge) => rawNorm(A.Wedge(val, gauge)) / n;  // ‖B∧g‖ / ‖B‖
+  if (w(einf1) < 1e-6 && w(einf2) < 1e-6 && w(einf3) < 1e-6) return { kind: 'flatPoint' };
+  if (w(Iod) < 1e-6) return { kind: 'roundPointDirect' };
+  return { kind: 'quadpole' };
+}
+
 function classifyImpl(val) {
   if (typeof val === 'number') return { kind: 'scalar' };
   if (!isMV(val)) return null;
@@ -524,8 +541,8 @@ function classifyImpl(val) {
   // Pure grade-2: dipole / point pair (pp = p1∧p2).
   if (onlyGrade(g, 2)) return { kind: 'pointPair' };
 
-  // Pure grade-4: flat point (p∧Iinf). (Quadpoles, also grade-4, come later.)
-  if (onlyGrade(g, 4)) return { kind: 'flatPoint' };
+  // Pure grade-4: flat point (p∧Iinf) / round point ((p∧q)∧Iod) / quadpole (p∧q∧r∧s).
+  if (onlyGrade(g, 4)) return classifyGrade4(val);
 
   // Pure grade-7: general conic (Iod ∧ p1∧…∧p5). Subtype via the dual coefficients.
   if (onlyGrade(g, 7)) {
@@ -662,7 +679,9 @@ export const KIND_COLOR = {
   scalar:      '#0F9D57',
   finitePoint: '#1482C8',
   roundPoint:  '#1482C8',
+  roundPointDirect: '#1482C8',
   flatPoint:   '#1482C8',
+  quadpole:    '#7A5AA8',
   pointPair:   '#AA7500',
   conic:       '#C30A3A',
   idealPoint:  '#E8A000',
