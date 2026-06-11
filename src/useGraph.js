@@ -95,9 +95,8 @@ function itemsReducer(items, action) {
     case 'DELETE': {
       const victim = items.find((it) => it.id === action.id);
       if (victim?.kind === 'folder') {
-        return items
-          .filter((it) => it.id !== action.id)
-          .map((it) => it.parentId === action.id ? { ...it, parentId: null } : it);
+        // Deleting a folder removes all of its child items too.
+        return items.filter((it) => it.id !== action.id && it.parentId !== action.id);
       }
       return items.filter((it) => it.id !== action.id);
     }
@@ -130,12 +129,27 @@ function itemsReducer(items, action) {
 
       // Sibling drop: new parent = target's parent (folders themselves stay at root).
       const newParentId = dragged.kind === 'folder' ? null : (target.parentId ?? null);
-      let insertAt = action.position === 'before' ? to : to + 1;
-      if (from < to) insertAt--;
-      const next = [...items];
-      const [moved] = next.splice(from, 1);
-      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, { ...moved, parentId: newParentId });
-      return next;
+
+      // A dragged folder moves together with its contiguous child block so the
+      // folder + children stay adjacent in the array (rendering invariant).
+      let blockEnd = from;
+      if (dragged.kind === 'folder') {
+        for (let i = from + 1; i < items.length; i++) {
+          if (items[i].parentId === dragged.id) blockEnd = i;
+          else break;
+        }
+      }
+      const block = items.slice(from, blockEnd + 1);
+      const rest = [...items.slice(0, from), ...items.slice(blockEnd + 1)];
+
+      // Locate target in the remaining array; if it's inside the moved block
+      // (e.g. dropping a folder onto its own child), bail out unchanged.
+      const targetIdx = rest.findIndex((it) => it.id === action.targetId);
+      if (targetIdx === -1) return items;
+
+      const insertAt = action.position === 'before' ? targetIdx : targetIdx + 1;
+      rest.splice(insertAt, 0, { ...block[0], parentId: newParentId }, ...block.slice(1));
+      return rest;
     }
     case 'LOAD_ITEMS':
       return action.items.map((it) => ({
