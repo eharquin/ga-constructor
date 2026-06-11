@@ -5,6 +5,7 @@ const STORAGE_KEY = 'ga-settings';
 export const DEFAULTS = {
   weightThickness:    false,  // user asked: off by default
   showMvExpression:   true,   // user asked: on by default
+  showGrades:         false,  // show present grades [..] next to the type label
   showGrid:           true,
   snapOnDrag:         true,
   alwaysShowAnchors:  true,

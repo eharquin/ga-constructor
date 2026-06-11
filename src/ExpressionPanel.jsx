@@ -152,6 +152,24 @@ const KIND_LABELS = {
   conic: 'Conic', infinityPoint: 'Point at infinity',
 };
 
+// Sorted list of grades carrying a non-negligible coefficient in `val`.
+// Generators are single-character in every algebra, so a blade's grade is
+// `name === '1' ? 0 : name.length - 1` and val[i] aligns with bladeNames[i].
+function gradesPresent(val, algebra) {
+  if (typeof val === 'number') return Number.isFinite(val) && val !== 0 ? [0] : [];
+  const names = algebra?.bladeNames;
+  if (val == null || typeof val !== 'object' || !names || !('length' in val)) return null;
+  let maxAbs = 0;
+  for (let i = 0; i < names.length; i++) { const a = Math.abs(val[i] ?? 0); if (a > maxAbs) maxAbs = a; }
+  if (maxAbs === 0) return [];
+  const eps = maxAbs * 1e-6;            // relative threshold — ignore numeric leakage
+  const present = new Set();
+  for (let i = 0; i < names.length; i++) {
+    if (Math.abs(val[i] ?? 0) > eps) { const n = names[i]; present.add(n === '1' ? 0 : n.length - 1); }
+  }
+  return [...present].sort((a, b) => a - b);
+}
+
 function describeListItem(item, algebra, decimals) {
   if (item == null) return { kindLabel: '?', mvStr: null };
   if (typeof item === 'number') {
@@ -706,6 +724,8 @@ export default function ExpressionPanel({ onHide }) {
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values, algebra, items);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra, settings.decimals) : null;
+          const grades     = settings.showGrades ? gradesPresent(node ? values[node.id] : null, algebra) : null;
+          const gradeStr   = grades && grades.length ? ` [${grades.join(', ')}]` : '';
           const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals, settings.cgaNullBasisDisplay) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
@@ -831,7 +851,7 @@ export default function ExpressionPanel({ onHide }) {
                       {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
                     </button>
                   ) : (
-                    !hasError && !isFuncDef && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                    !hasError && !isFuncDef && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}<span className="expr-grades">{gradeStr}</span></div>
                   )}
                   {!hasError && !isFuncDef && !isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isFuncDef && (
