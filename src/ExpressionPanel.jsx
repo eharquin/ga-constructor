@@ -93,7 +93,6 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
         ? `Flat point (${fmtC(plan.x)}, ${fmtC(plan.y)})`
         : 'Flat point';
     }
-    case 'roundPointDirect': return 'Round point';
     case 'quadpole':         return 'Quadpole';
     case 'idealFlatPoint': {
       const plan = algebra.getRenderPlan?.(val);
@@ -152,7 +151,7 @@ const KIND_LABELS = {
   vector: 'Vector', bivector: 'Bivector',
   circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
   conic: 'Conic', infinityPoint: 'Ideal point',
-  roundPointDirect: 'Round point', quadpole: 'Quadpole',
+  quadpole: 'Quadpole',
 };
 
 // Sorted list of grades carrying a non-negligible coefficient in `val`.

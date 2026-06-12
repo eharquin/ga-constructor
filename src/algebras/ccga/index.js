@@ -497,9 +497,12 @@ function isPointVector(v) {
 }
 
 // Disambiguate a pure grade-4 object by which gauge blade divides it (B∧g ≈ 0):
-//   flat point  p∧Iinf       — annihilated by every einf_i (Iinf ⊂ B)
-//   round point (p∧q)∧Iinfd  — annihilated by the infinity gauge Iinfd
-//   quadpole    p∧q∧r∧s      — no gauge factor
+//   flat point      p∧Iinf            — annihilated by every einf_i (Iinf ⊂ B)
+//   CGA point pair  (p1∧p2)∧Iinfd     — annihilated by the infinity gauge Iinfd;
+//                                        Iod⌋B recovers the bare dipole p1∧p2
+//                                        (cga.cga_blade), fed to extractDipole exactly
+//                                        like a grade-2 pp = p1∧p2
+//   quadpole        p1∧p2∧p3∧p4       — no gauge factor
 // (∧Iinf and ∧Iod are NOT discriminators — they read the same for all three.)
 // Tests are relative to ‖B‖; near-origin separations are huge (0 vs ~0.5–2.8), so 1e-6
 // is comfortable. Caveat: far from the origin the Veronese coords (∝R²) drive these
@@ -510,8 +513,60 @@ function classifyGrade4(val) {
   const n = rawNorm(val) || 1;                            // ‖B‖
   const w = (gauge) => rawNorm(A.Wedge(val, gauge)) / n;  // ‖B∧g‖ / ‖B‖
   if (w(einf1) < 1e-6 && w(einf2) < 1e-6 && w(einf3) < 1e-6) return { kind: 'flatPoint' };
-  if (w(Iinfd) < 1e-6) return { kind: 'roundPointDirect' };
+  if (w(Iinfd) < 1e-6) {
+    const pp = A.LDot(Iod, val);                          // grade-2 dipole p1∧p2
+    if (rawNorm(pp) > 1e-6 * n) return { kind: 'pointPair', ccgaPair: pp };
+  }
   return { kind: 'quadpole' };
+}
+
+// Disambiguate a pure grade-3 object: the CGA round-point family O = p∧Iinfd
+// (OBJECTS.md §7), one grade below classifyGrade4's point pair. Iod⌋O recovers
+// the bare point p (grade-1); extractRoundPoint is scale-invariant, so it reads
+// off (x, y, rSq) directly from Iod⌋O without needing the proportionality
+// constant — exactly like extractDipole(Iod⌋O) one grade up. A bare tripole
+// p1∧p2∧p3 (no Iinfd factor, ‖T∧Iinfd‖/‖T‖ ≈ 0.55 for a representative triple)
+// fails the gate and stays 'mixed' — multipole-ladder objects come later.
+function classifyGrade3(val) {
+  const rawNorm = (mv) => { let s = 0; for (let i = 0; i < ARRAY_SIZE; i++) s += (mv[i] || 0) ** 2; return Math.sqrt(s); };
+  const n = rawNorm(val) || 1;
+  const w = (gauge) => rawNorm(A.Wedge(val, gauge)) / n;
+  if (w(Iinfd) < 1e-6) {
+    const p = A.LDot(Iod, val);                           // grade-1 point p
+    if (rawNorm(p) > 1e-6 * n) {
+      const rp = extractRoundPoint(p);
+      if (rp) {
+        const nullTol = 1e-6 * (1 + rp.x * rp.x + rp.y * rp.y);
+        if (Math.abs(rp.rSq) < nullTol) return { kind: 'finitePoint', ccgaPoint: p };
+        return { kind: 'roundPoint', rSq: rp.rSq, ccgaPoint: p };
+      }
+    }
+  }
+  return { kind: 'mixed' };
+}
+
+// Disambiguate a pure grade-5 object: the CGA circle/line family (OBJECTS.md §7)
+//   circle  p1∧p2∧p3∧Iinfd
+//   line    p1∧p2∧einf∧Iinfd  ≡  −(p1∧p2∧Iinf)
+// Iod and Iinfd are both grade-2, and grade-2∧grade-2 wedges commute, so
+// O∧Iod = T∧Iod∧Iinfd (grade 7) — the same shape as the general-conic OPNS
+// object (Iod∧p1∧…∧p5) — so conicGeometry(conicCoeffs(O∧Iod)) reads off the
+// circle or line directly. conicGeometry already discriminates 'line' (A≈B≈C≈0)
+// vs 'circle'/'ellipse' (A≈B), and 3 collinear points naturally degrade to the
+// line through them — no separate disambiguation needed. A bare pentapole (no
+// Iinfd factor) fails the gate and stays 'mixed'.
+function classifyGrade5(val) {
+  const rawNorm = (mv) => { let s = 0; for (let i = 0; i < ARRAY_SIZE; i++) s += (mv[i] || 0) ** 2; return Math.sqrt(s); };
+  const n = rawNorm(val) || 1;
+  const w = (gauge) => rawNorm(A.Wedge(val, gauge)) / n;
+  if (w(Iinfd) < 1e-6) {
+    const c7 = A.Wedge(val, Iod);                         // grade-7 OPNS conic
+    if (rawNorm(c7) > 1e-6 * n) {
+      const geom = conicGeometry(conicCoeffs(c7));
+      return { kind: 'conic', subtype: geom.subtype, geom };
+    }
+  }
+  return { kind: 'mixed' };
 }
 
 function classifyImpl(val) {
@@ -547,11 +602,18 @@ function classifyImpl(val) {
     return { kind: 'conic', subtype: geom.subtype, geom };
   }
 
+  // Pure grade-3: CGA round point (p∧Iinfd) — finite/round point, else mixed.
+  if (onlyGrade(g, 3)) return classifyGrade3(val);
+
   // Pure grade-2: dipole / point pair (pp = p1∧p2).
   if (onlyGrade(g, 2)) return { kind: 'pointPair' };
 
   // Pure grade-4: flat point (p∧Iinf) / round point ((p∧q)∧Iod) / quadpole (p∧q∧r∧s).
   if (onlyGrade(g, 4)) return classifyGrade4(val);
+
+  // Pure grade-5: CGA circle/line family (p1∧p2∧p3∧Iinfd, or p1∧p2∧einf∧Iinfd
+  // ≡ −(p1∧p2∧Iinf)) — conic via Wedge(O,Iod), else mixed.
+  if (onlyGrade(g, 5)) return classifyGrade5(val);
 
   // Pure grade-7: general conic (Iod ∧ p1∧…∧p5). Subtype via the dual coefficients.
   if (onlyGrade(g, 7)) {
@@ -628,11 +690,11 @@ function renderPlanImpl(val) {
   if (!cls) return null;
   switch (cls.kind) {
     case 'finitePoint': {
-      const eu = toEuclidean(val);
+      const eu = toEuclidean(cls.ccgaPoint ?? val);
       return eu ? { kind: 'finitePoint', x: eu.x, y: eu.y } : null;
     }
     case 'roundPoint': {
-      const rp = extractRoundPoint(val);
+      const rp = extractRoundPoint(cls.ccgaPoint ?? val);
       return rp ? { kind: 'roundPoint', x: rp.x, y: rp.y, rSq: rp.rSq } : null;
     }
     case 'infinityPoint': {
@@ -652,7 +714,7 @@ function renderPlanImpl(val) {
       return { kind: 'positionedVector', vx: x, vy: y, rSq };
     }
     case 'pointPair': {
-      const pp = extractDipole(val);
+      const pp = extractDipole(cls.ccgaPair ?? val);
       return pp ? { kind: 'pointPair', p1: pp.p1, p2: pp.p2, cx: pp.cx, cy: pp.cy, r: pp.r, imaginary: pp.imaginary } : null;
     }
     case 'flatPoint': {
@@ -688,7 +750,6 @@ export const KIND_COLOR = {
   scalar:      '#0F9D57',
   finitePoint: '#1482C8',
   roundPoint:  '#1482C8',
-  roundPointDirect: '#1482C8',
   flatPoint:   '#1482C8',
   quadpole:    '#7A5AA8',
   pointPair:   '#AA7500',
