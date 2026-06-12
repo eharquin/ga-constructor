@@ -687,6 +687,19 @@ export function classifyMV(val) {
 // ─── Norms / weight ──────────────────────────────────────────────────────────
 export function normalizeMVFinit(val) {
   if (!isMV(val)) return val;
+  // Conformal points are projective — normalize by the origin weight, P ↦ P/−(P·e∞)
+  // (the cheat-sheet convention P·e∞ = −1), so the origin weight becomes +1 and the
+  // position reads straight off e1/e2. −(P·e∞) = einfWeight(P). For a null finite
+  // point this is the *only* usable scale (its GA magnitude is ≈0). Everything else
+  // (conics, dipoles, gauge blades, …) uses the GA magnitude.
+  const kind = classifyMV(val)?.kind;
+  if (kind === 'finitePoint' || kind === 'roundPoint' || kind === 'specialPoint') {
+    const w = einfWeight(val);                       // = −(P·e∞)
+    if (Math.abs(w) < 1e-10) return val;
+    const r = zeroMV();
+    for (let i = 0; i < ARRAY_SIZE; i++) r[i] = val[i] / w;
+    return r;
+  }
   const norm = A.Length(val);
   if (norm < 1e-10) return val;
   const r = zeroMV();
