@@ -191,25 +191,31 @@ export function conicIPNS(A, B, C, D, E, F) {
   return s;
 }
 
-// Friendly constructors mapping shape params → (A..F) (OBJECTS.md §4). A circle's
-// IPNS vector is a round point and renders via the roundPoint path; ellipse /
-// hyperbola / parabola / tilted ellipse classify as `conic` and draw via SvgConic.
+// Every named conic returns the grade-7 OPNS form — the dual of the grade-1 IPNS
+// vector — so it renders via SvgConic. Grade-1 IPNS vectors are the algebraic/dual
+// form and are NOT drawn as conics directly; dualize (`!`) to view one. (`CCGA.Dual`,
+// not the shadowed local `A`, since ellipse/hyperbola/tilted bind `A` to a coeff.)
+const opnsConic = (cA, cB, cC, cD, cE, cF) => CCGA.Dual(conicIPNS(cA, cB, cC, cD, cE, cF));
+
+// Friendly constructors mapping shape params → (A..F) (OBJECTS.md §4), each emitting
+// the grade-7 OPNS conic via opnsConic so circle / ellipse / hyperbola / parabola /
+// tilted ellipse / line all classify as `conic` and draw via SvgConic.
 export const circleConic = (cx, cy, r) =>
-  conicIPNS(1, 1, 0, -2 * cx, -2 * cy, cx * cx + cy * cy - r * r);
+  opnsConic(1, 1, 0, -2 * cx, -2 * cy, cx * cx + cy * cy - r * r);
 
 export function ellipseConic(a, b, cx = 0, cy = 0) {
   const A = 1 / (a * a), B = 1 / (b * b);
-  return conicIPNS(A, B, 0, -2 * cx * A, -2 * cy * B, cx * cx * A + cy * cy * B - 1);
+  return opnsConic(A, B, 0, -2 * cx * A, -2 * cy * B, cx * cx * A + cy * cy * B - 1);
 }
 
 export function hyperbolaConic(a, b, cx = 0, cy = 0) {
   const A = 1 / (a * a), B = -1 / (b * b);
-  return conicIPNS(A, B, 0, -2 * cx * A, -2 * cy * B, (cx * cx) / (a * a) - (cy * cy) / (b * b) - 1);
+  return opnsConic(A, B, 0, -2 * cx * A, -2 * cy * B, (cx * cx) / (a * a) - (cy * cy) / (b * b) - 1);
 }
 
 // Parabola (y − cy)² = 4p (x − cx) — base y²=4px translated to the vertex (cx,cy).
 export const parabolaConic = (p, cx = 0, cy = 0) =>
-  conicIPNS(0, 1, 0, -4 * p, -2 * cy, cy * cy + 4 * p * cx);
+  opnsConic(0, 1, 0, -4 * p, -2 * cy, cy * cy + 4 * p * cx);
 
 export function tiltedEllipseConic(a, b, theta, cx = 0, cy = 0) {
   const c = Math.cos(theta), s = Math.sin(theta);
@@ -219,23 +225,17 @@ export function tiltedEllipseConic(a, b, theta, cx = 0, cy = 0) {
   const D = -2 * (A * cx + (C / 2) * cy);
   const E = -2 * (B * cy + (C / 2) * cx);
   const F = A * cx * cx + B * cy * cy + C * cx * cy - 1;
-  return conicIPNS(A, B, C, D, E, F);
+  return opnsConic(A, B, C, D, E, F);
 }
 
 // A line is the degenerate conic A=B=C=0; its grade-1 IPNS has zero einf-weight,
-// so the classifier reads it as an ideal-point arrow. Return the grade-7 OPNS
-// dual, which classifies as a conic 'line' and renders via SvgLine.
-export const lineConic = (nx, ny, d = 0) => A.Dual(conicIPNS(0, 0, 0, nx, ny, d));
+// so the classifier reads it as an ideal-point arrow. The grade-7 OPNS dual
+// classifies as a conic 'line' and renders via SvgLine.
+export const lineConic = (nx, ny, d = 0) => opnsConic(0, 0, 0, nx, ny, d);
 
-// General conic from raw (A..F). A degenerate A=B=C≈0 (a line) is dualized to
-// grade-7 so it still renders, matching lineConic.
-export function conicGeneral(cA, cB, cC, cD, cE, cF) {
-  const s = conicIPNS(cA, cB, cC, cD, cE, cF);
-  const scale = Math.abs(cA) + Math.abs(cB) + Math.abs(cC) + Math.abs(cD) + Math.abs(cE) + Math.abs(cF) + 1;
-  if (Math.abs(cA) < 1e-9 * scale && Math.abs(cB) < 1e-9 * scale && Math.abs(cC) < 1e-9 * scale)
-    return A.Dual(s);
-  return s;
-}
+// General conic from raw (A..F) — grade-7 OPNS like the rest (a degenerate A=B=C≈0
+// dualizes to a 'line', matching lineConic).
+export const conicGeneral = (cA, cB, cC, cD, cE, cF) => opnsConic(cA, cB, cC, cD, cE, cF);
 
 // Euclidean direction of an ideal (origin-free) grade-1 vector — its e1/e2 part.
 export function toIdealVector(v) {
@@ -496,6 +496,24 @@ function isPointVector(v) {
   return Math.abs(eo3) < thr && Math.abs(eob) < thr;
 }
 
+// A genuine Veronese point/round point has its einf (quadratic) coefficients locked
+// to its position: einf3 = x·y and the radius offset is isotropic (einf1−½x² ==
+// einf2−½y²). A grade-1 vector that passes isPointVector but violates either is the
+// IPNS dual of a circle/conic — NOT a point — so it must not read as a round point.
+// (einf coeffs in the orthogonal basis: einf1 = v6−v3, einf2 = v7−v4, einf3 = v8−v5;
+// tolerance relative to the squared position scale.)
+function isVeronesePoint(p) {
+  const w = einfWeight(p);
+  if (Math.abs(w) < EPS) return false;
+  const x = (p[1] || 0) / w, y = (p[2] || 0) / w;
+  const E1 = ((p[6] || 0) - (p[3] || 0)) / w;
+  const E2 = ((p[7] || 0) - (p[4] || 0)) / w;
+  const E3 = ((p[8] || 0) - (p[5] || 0)) / w;
+  const tol = 1e-6 * (1 + x * x + y * y);
+  return Math.abs(E3 - x * y) < tol &&
+         Math.abs((E1 - 0.5 * x * x) - (E2 - 0.5 * y * y)) < tol;
+}
+
 // Disambiguate a pure grade-4 object by which gauge blade divides it (B∧g ≈ 0):
 //   flat point      p∧Iinf            — annihilated by every einf_i (Iinf ⊂ B)
 //   CGA point pair  (p1∧p2)∧Iinfd     — annihilated by the infinity gauge Iinfd;
@@ -583,6 +601,10 @@ function classifyImpl(val) {
     if (isPointVector(val)) {
       const rp = extractRoundPoint(val);
       if (rp) {
+        // Only a genuine Veronese point/round point renders as a point. A
+        // Veronese-inconsistent grade-1 vector is the IPNS dual of a circle and is
+        // not drawn directly (dualize to the grade-7 OPNS form to render it).
+        if (!isVeronesePoint(val)) return { kind: 'mixed' };
         // rSq has units of length², so the null cutoff scales with distance² to
         // absorb the Float32 noise a far-from-origin point carries.
         const nullTol = 1e-6 * (1 + rp.x * rp.x + rp.y * rp.y);
@@ -596,10 +618,9 @@ function classifyImpl(val) {
       const lin = Math.hypot(val[1] || 0, val[2] || 0);
       return lin < 1e-5 * mag ? { kind: 'infinityPoint' } : { kind: 'idealPoint' };
     }
-    // Stash the full geometry so getRenderPlan reuses it (the costly part is the
-    // conicCoeffs Mul) instead of recomputing the dual a second time.
-    const geom = conicGeometry(conicCoeffs(val));
-    return { kind: 'conic', subtype: geom.subtype, geom };
+    // Grade-1 IPNS conic vector — the algebraic/dual form, not drawn as a conic
+    // directly. Only its grade-7 OPNS dual renders (dualize with `!`).
+    return { kind: 'mixed' };
   }
 
   // Pure grade-3: CGA round point (p∧Iinfd) — finite/round point, else mixed.
