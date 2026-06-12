@@ -479,7 +479,7 @@ export function useGraph(algebra) {
       const val = values[node.id];
       const cls = classifyMV(val);
       const isVecNode  = node.type === 'vector';
-      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'idealFlatPoint' ||
+      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'specialIdealPoint' || cls?.kind === 'idealFlatPoint' ||
                          cls?.kind === 'infinityPoint' ||
                          (val && typeof val === 'object' && 'vx' in val);
       const isBivecVal = cls?.kind === 'bivector';
@@ -508,6 +508,7 @@ export function useGraph(algebra) {
       const tail = map[id] ?? { x: 0, y: 0 };
       if (val && typeof val === 'object' && 'vx' in val) return { x: tail.x + val.vx, y: tail.y + val.vy };
       if (cls?.kind === 'vector')      return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
+      if (cls?.kind === 'specialIdealPoint') return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
       if (cls?.kind === 'idealPoint')  return { x: tail.x - (val[5] || 0), y: tail.y + (val[4] || 0) };
       return tail;
     };

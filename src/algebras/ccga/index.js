@@ -636,7 +636,17 @@ function classifyImpl(val) {
       let mag = 0;
       for (let i = 1; i <= 8; i++) { const a = Math.abs(val[i] || 0); if (a > mag) mag = a; }
       const lin = Math.hypot(val[1] || 0, val[2] || 0);
-      return lin < 1e-5 * mag ? { kind: 'infinityPoint' } : { kind: 'idealPoint' };
+      if (lin < 1e-5 * mag) return { kind: 'infinityPoint' };
+      // A pure-direction ideal point (linear e1/e2, no einf lift) is a "special ideal
+      // point" — the ideal analogue of the special point; it carries no radius (the
+      // einf parts are what encode one). einf coeffs: v6−v3, v7−v4, v8−v5.
+      const ethr = Math.max(Math.abs(val[1] || 0), Math.abs(val[2] || 0)) * 1e-5;
+      const einf1 = (val[6] || 0) - (val[3] || 0);
+      const einf2 = (val[7] || 0) - (val[4] || 0);
+      const einf3 = (val[8] || 0) - (val[5] || 0);
+      if (Math.abs(einf1) < ethr && Math.abs(einf2) < ethr && Math.abs(einf3) < ethr)
+        return { kind: 'specialIdealPoint' };
+      return { kind: 'idealPoint' };
     }
     // Grade-1 IPNS conic vector — the algebraic/dual form, not drawn as a conic
     // directly. Only its grade-7 OPNS dual renders (dualize with `!`).
@@ -771,6 +781,11 @@ function renderPlanImpl(val) {
       const rSq = (x * x + y * y) - 2 * (((val[6] || 0) - (val[3] || 0)) + ((val[7] || 0) - (val[4] || 0)));
       return { kind: 'positionedVector', vx: x, vy: y, rSq };
     }
+    case 'specialIdealPoint': {
+      // Pure-direction ideal point (no einf lift) — arrow with a hollow special-point
+      // base and NO radius (rSq omitted so the canvas draws no circle).
+      return { kind: 'positionedVector', vx: val[1] || 0, vy: val[2] || 0, special: true };
+    }
     case 'pointPair': {
       const pp = extractDipole(cls.ccgaPair ?? val);
       return pp ? { kind: 'pointPair', p1: pp.p1, p2: pp.p2, cx: pp.cx, cy: pp.cy, r: pp.r, imaginary: pp.imaginary } : null;
@@ -814,6 +829,7 @@ export const KIND_COLOR = {
   pointPair:   '#AA7500',
   conic:       '#C30A3A',
   idealPoint:  '#E8A000',
+  specialIdealPoint: '#E8A000',
   infinityPoint: '#E8A000',
   mixed:       '#8B93A4',
 };

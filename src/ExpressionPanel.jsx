@@ -75,6 +75,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       return `${tag} (${fmtC(plan.x)}, ${fmtC(plan.y)})  r=${fmtC(r)}`;
     }
     case 'idealPoint':  { const iv = toI?.(val); return iv ? `Ideal point (${fmtC(iv.vx)}, ${fmtC(iv.vy)})` : '—'; }
+    case 'specialIdealPoint': { const iv = toI?.(val); return iv ? `Special ideal point (${fmtC(iv.vx)}, ${fmtC(iv.vy)})` : 'Special ideal point'; }
     case 'vector':      return `Vector (${fmtC(val[1] ?? 0)}, ${fmtC(val[2] ?? 0)})`;
     case 'bivector':    return `Bivector (${fmtN(val[3] ?? val[val.length - 1])} e12)`;
     case 'line':        return 'Line';
@@ -148,7 +149,7 @@ function fmtCoeff(c, decimals = 4) {
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
 const KIND_LABELS = {
-  scalar: 'Scalar', finitePoint: 'Point', specialPoint: 'Special point', roundPoint: 'Round point', flatPoint: 'Flat point', idealFlatPoint: 'Ideal flat point', idealPoint: 'Ideal point',
+  scalar: 'Scalar', finitePoint: 'Point', specialPoint: 'Special point', roundPoint: 'Round point', flatPoint: 'Flat point', idealFlatPoint: 'Ideal flat point', idealPoint: 'Ideal point', specialIdealPoint: 'Special ideal point',
   line: 'Line', idealLine: 'Ideal line', pseudoscalar: 'Pseudoscalar',
   rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
   reflector: 'Reflector', mixed: 'Mixed',
@@ -707,7 +708,7 @@ export default function ExpressionPanel({ onHide }) {
           // ideal point (PGA dual etc.), grade-1 vector (VGA), or bivector.
           const positionKind = node ? classifyMV(values[node.id])?.kind : null;
           const hasPosition = node?.type === 'vector' ||
-                              positionKind === 'idealPoint' || positionKind === 'vector' ||
+                              positionKind === 'idealPoint' || positionKind === 'specialIdealPoint' || positionKind === 'vector' ||
                               positionKind === 'idealFlatPoint' || positionKind === 'bivector' ||
                               positionKind === 'infinityPoint' ||
                               !!(values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
@@ -725,7 +726,7 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'specialPoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'infinityPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair', 'pointPair', 'conic']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'specialPoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'specialIdealPoint', 'infinityPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair', 'pointPair', 'conic']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);

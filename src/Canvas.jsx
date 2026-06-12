@@ -1191,6 +1191,14 @@ export default function Canvas({ onSquareCanvas }) {
             label={label} color={color} vp={vp} tailHovered={tailHovered} tipHovered={tipHovered} linked={pos.linked}
             tipDraggable={tipDraggable} opts={opts} />
         );
+        // Special ideal point: a hollow special-point dot at the arrow's base.
+        if (plan.special) {
+          layers.push(
+            <SvgPoint key={`${id}-base`} x={pos.x} y={pos.y} label={null} color={color}
+              vp={vp} W={size.w} H={size.h} hovered={false} opts={null} weight={weight}
+              shape="hollow" scale={scale} draggable={false} />
+          );
+        }
         if (hasIdealLine && plan.ringMarker !== false) {
           layers.push(
             <SvgIdealPointMarker key={`${id}-inf`} vx={plan.vx} vy={plan.vy}
