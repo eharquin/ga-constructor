@@ -1226,7 +1226,7 @@ export default function Canvas({ onSquareCanvas }) {
         const circleEl = (
           <SvgCircle key={`${id}-r`} cx={plan.x} cy={plan.y} r={rVal}
             label={null} color={color} vp={vp} W={size.w} H={size.h}
-            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (rImaginary ? 'dashed' : null)} />
+            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (rImaginary ? 'dashed' : plan.cga ? 'dotted' : null)} />
         );
         const inner = <>{ptEl}{circleEl}</>;
         layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{inner}</g> : inner);
@@ -1327,7 +1327,7 @@ export default function Canvas({ onSquareCanvas }) {
         layers.push(
           <SvgConic key={id} plan={plan}
             label={label} color={color} vp={vp} W={size.w} H={size.h}
-            opts={opts} weight={weight} strokeStyle={strokeStyle} />
+            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (plan.cga ? 'dotted' : null)} />
         );
         break;
       default:

@@ -537,8 +537,8 @@ function classifyGrade3(val) {
       const rp = extractRoundPoint(p);
       if (rp) {
         const nullTol = 1e-6 * (1 + rp.x * rp.x + rp.y * rp.y);
-        if (Math.abs(rp.rSq) < nullTol) return { kind: 'finitePoint', ccgaPoint: p };
-        return { kind: 'roundPoint', rSq: rp.rSq, ccgaPoint: p };
+        if (Math.abs(rp.rSq) < nullTol) return { kind: 'finitePoint', ccgaPoint: p, cga: true };
+        return { kind: 'roundPoint', rSq: rp.rSq, ccgaPoint: p, cga: true };
       }
     }
   }
@@ -563,7 +563,7 @@ function classifyGrade5(val) {
     const c7 = A.Wedge(val, Iod);                         // grade-7 OPNS conic
     if (rawNorm(c7) > 1e-6 * n) {
       const geom = conicGeometry(conicCoeffs(c7));
-      return { kind: 'conic', subtype: geom.subtype, geom };
+      return { kind: 'conic', subtype: geom.subtype, geom, cga: true };
     }
   }
   return { kind: 'mixed' };
@@ -691,11 +691,11 @@ function renderPlanImpl(val) {
   switch (cls.kind) {
     case 'finitePoint': {
       const eu = toEuclidean(cls.ccgaPoint ?? val);
-      return eu ? { kind: 'finitePoint', x: eu.x, y: eu.y } : null;
+      return eu ? { kind: 'finitePoint', x: eu.x, y: eu.y, cga: cls.cga } : null;
     }
     case 'roundPoint': {
       const rp = extractRoundPoint(cls.ccgaPoint ?? val);
-      return rp ? { kind: 'roundPoint', x: rp.x, y: rp.y, rSq: rp.rSq } : null;
+      return rp ? { kind: 'roundPoint', x: rp.x, y: rp.y, rSq: rp.rSq, cga: cls.cga } : null;
     }
     case 'infinityPoint': {
       // True point at infinity — drawn as an arrow in its asymptotic direction.
@@ -724,7 +724,7 @@ function renderPlanImpl(val) {
     case 'conic': {
       const geom = cls.geom ?? conicGeometry(conicCoeffs(val));  // reuse classify's geom
       if (geom.subtype === 'empty') return null;          // imaginary conic — no real locus
-      return { kind: 'conic', ...geom };
+      return { kind: 'conic', ...geom, cga: cls.cga };
     }
     default: return null;
   }
