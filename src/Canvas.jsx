@@ -91,7 +91,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     if (hiddenIds?.has(id)) continue;
     if (movableMap?.[id] === false) continue;
     const valKind = classifyMV(values[id])?.kind;
-    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint' && valKind !== 'idealFlatPoint' && valKind !== 'infinityPoint') continue;
+    if (node.label === null && node.type !== 'freePoint' && node.type !== 'freeFlatPoint' && node.type !== 'scalar' && node.type !== 'vector' && node.type !== 'multivector' && node.type !== 'meetPoint' && valKind !== 'idealPoint' && valKind !== 'specialIdealPoint' && valKind !== 'idealFlatPoint' && valKind !== 'infinityPoint') continue;
     if (node.type === 'freePoint') {
       if (!toEuclidean) continue;
       const eu = toEuclidean(values[id]);
@@ -185,7 +185,7 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     // bivector) allows anchor dragging via vectorPositions. Covers derived
     // vectors (`U = V + W`), PGA `D = !L`, and bivectors (`B = V ^ W`, `B = 5*e12`).
     const val_ = values[id];
-    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'vector' || valKind === 'idealFlatPoint' ||
+    const isVectorLikeVal = valKind === 'idealPoint' || valKind === 'specialIdealPoint' || valKind === 'vector' || valKind === 'idealFlatPoint' ||
                             valKind === 'infinityPoint' ||
                             (val_ && typeof val_ === 'object' && 'vx' in val_);
     const isAnchorableBivec = valKind === 'bivector';
