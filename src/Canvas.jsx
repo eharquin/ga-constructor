@@ -332,6 +332,24 @@ function SvgPoint({ x, y, label, color, vp, W, H, hovered, opts, weight = 1, sha
     );
   }
 
+  if (shape === 'hollow') {
+    // Pure-position "special point" — a hollow ring (no fill) so it reads as a
+    // point but distinct from the filled finite/round dot.
+    const dotScale = hovered ? r_ring / r_dot : 1;
+    return (
+      <g>
+        {draggable && <circle cx={cx} cy={cy} r={r_ring} fill={color} fillOpacity={0.2} />}
+        <circle cx={cx} cy={cy} r={r_dot} fill="none" stroke={color} strokeWidth={sw}
+          style={{
+            transformOrigin: `${cx}px ${cy}px`,
+            transform: `scale(${dotScale})`,
+            transition: 'transform 0.35s ease',
+          }} />
+        {renderLabel(label, cx, cy, opts)}
+      </g>
+    );
+  }
+
   if (shape === 'square') {
     const r_sq = 5.5 * weight * scale;
     const sqScale = hovered ? r_ring / r_sq : 1;
@@ -1200,6 +1218,23 @@ export default function Canvas({ onSquareCanvas }) {
         })();
         const ringVisible = !!algebra.flatPoint2D;
         const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape={shape} scale={scale} draggable={isDragEligible} ringVisible={ringVisible} />;
+        layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
+        break;
+      }
+      case 'specialPoint': {
+        // Pure-position point (eo+xe1+ye2, no Veronese lift) — drawn as a hollow dot.
+        const isDragEligible = movableMap[id] !== false && (() => {
+          if (node.type === 'freePoint') return true;
+          if (node.type === 'scalar') return true;
+          if (node.type === 'multivector') {
+            const { coeffExprs } = node.params ?? {};
+            return algebra.hasDepPointCoeffs
+              ? algebra.hasDepPointCoeffs(coeffExprs)
+              : (coeffExprs?.[1] !== undefined || coeffExprs?.[2] !== undefined);
+          }
+          return false;
+        })();
+        const ptEl = <SvgPoint key={id} x={plan.x} y={plan.y} label={label} color={color} vp={vp} W={size.w} H={size.h} hovered={hovered} opts={opts} weight={weight} shape="hollow" scale={scale} draggable={isDragEligible} />;
         layers.push(opacity < 1 ? <g key={`${id}-g`} opacity={opacity}>{ptEl}</g> : ptEl);
         break;
       }

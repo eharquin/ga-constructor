@@ -514,6 +514,22 @@ function isVeronesePoint(p) {
          Math.abs((E1 - 0.5 * x * x) - (E2 - 0.5 * y * y)) < tol;
 }
 
+// A "special point" is the pure-position grade-1 vector w·eo + x·e1 + y·e2 — a point
+// carrying position (x,y) = (e1/w, e2/w) but with NO Veronese quadratic lift (all einf
+// coefficients zero). It is the flat point's linear core (OBJECTS.md / GENERAL_FORM.md);
+// distinct from a finite/round point (lift present) and from a grade-1 IPNS circle
+// (einf ≠ 0). Tested only after isVeronesePoint fails, so the origin point (einf = lift =
+// 0, but Veronese-consistent) never reaches here.
+function isSpecialPoint(p) {
+  const w = einfWeight(p);
+  if (Math.abs(w) < EPS) return false;
+  const einf1 = (p[6] || 0) - (p[3] || 0);
+  const einf2 = (p[7] || 0) - (p[4] || 0);
+  const einf3 = (p[8] || 0) - (p[5] || 0);
+  const thr = Math.max(Math.abs(w), Math.abs(p[1] || 0), Math.abs(p[2] || 0)) * 1e-5;
+  return Math.abs(einf1) < thr && Math.abs(einf2) < thr && Math.abs(einf3) < thr;
+}
+
 // Disambiguate a pure grade-4 object by which gauge blade divides it (B∧g ≈ 0):
 //   flat point      p∧Iinf            — annihilated by every einf_i (Iinf ⊂ B)
 //   CGA point pair  (p1∧p2)∧Iinfd     — annihilated by the infinity gauge Iinfd;
@@ -602,9 +618,13 @@ function classifyImpl(val) {
       const rp = extractRoundPoint(val);
       if (rp) {
         // Only a genuine Veronese point/round point renders as a point. A
-        // Veronese-inconsistent grade-1 vector is the IPNS dual of a circle and is
-        // not drawn directly (dualize to the grade-7 OPNS form to render it).
-        if (!isVeronesePoint(val)) return { kind: 'mixed' };
+        // Veronese-inconsistent vector is either a "special point" (pure position
+        // eo+xe1+ye2, no einf lift) or the IPNS dual of a circle (einf≠0) — the
+        // latter is not drawn directly (dualize to the grade-7 OPNS form to render it).
+        if (!isVeronesePoint(val)) {
+          if (isSpecialPoint(val)) return { kind: 'specialPoint' };
+          return { kind: 'mixed' };
+        }
         // rSq has units of length², so the null cutoff scales with distance² to
         // absorb the Float32 noise a far-from-origin point carries.
         const nullTol = 1e-6 * (1 + rp.x * rp.x + rp.y * rp.y);
@@ -714,6 +734,10 @@ function renderPlanImpl(val) {
       const eu = toEuclidean(cls.ccgaPoint ?? val);
       return eu ? { kind: 'finitePoint', x: eu.x, y: eu.y, cga: cls.cga } : null;
     }
+    case 'specialPoint': {
+      const eu = toEuclidean(val);
+      return eu ? { kind: 'specialPoint', x: eu.x, y: eu.y } : null;
+    }
     case 'roundPoint': {
       const rp = extractRoundPoint(cls.ccgaPoint ?? val);
       return rp ? { kind: 'roundPoint', x: rp.x, y: rp.y, rSq: rp.rSq, cga: cls.cga } : null;
@@ -772,6 +796,7 @@ export const KIND_COLOR = {
   finitePoint: '#1482C8',
   roundPoint:  '#1482C8',
   flatPoint:   '#1482C8',
+  specialPoint:'#1482C8',
   quadpole:    '#7A5AA8',
   pointPair:   '#AA7500',
   conic:       '#C30A3A',
