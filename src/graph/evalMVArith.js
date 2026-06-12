@@ -86,8 +86,13 @@ export function createEvalMVArith(algebra) {
 
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
+  // The ideal norm (.inorm / inorm button) only exists for a degenerate metric
+  // (r > 0, e.g. PGA); non-degenerate algebras have a single finite norm, so `.inorm`
+  // is not a recognised postfix there.
+  const idealNormSupported = (algebra.info?.signature?.r ?? 0) > 0;
+
   // Property names accepted after '.' that are not blade names.
-  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b', 'inverse']);
+  const PROP_NAMES = new Set(['norm', 'r', 'g', 'b', 'inverse', ...(idealNormSupported ? ['inorm'] : [])]);
 
   // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
   const BASIS_ENV = (() => {
@@ -776,7 +781,7 @@ export function createEvalMVArith(algebra) {
           eat();
           if (prop.val === 'norm') {
             val = applyNorm(val);
-          } else if (prop.val === 'inorm') {
+          } else if (prop.val === 'inorm' && idealNormSupported) {
             val = applyINorm(val);
           } else if (prop.val === 'inverse') {
             const applyInv = (v) => {

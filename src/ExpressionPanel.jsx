@@ -1092,7 +1092,7 @@ export default function ExpressionPanel({ onHide }) {
                     <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A &lt;&lt; B</code>, <code>A § B</code></td><td>Outer (wedge), regressive (vee), inner (symmetric), left contraction, commutator (tightest binary).</td></tr>
                     <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Dual, reverse, negate (unary — tightest).</td></tr>
                     <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
-                    <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
+                    <tr><td><code>A.norm</code>{isDegenerate && <>, <code>A.inorm</code></>}</td><td>Explicit finite{isDegenerate ? ' / ideal' : ''} norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
                     <tr><td><code>A.e12</code></td><td>Blade coefficient. Permuted names supported: <code>A.e21 = −A.e12</code>.</td></tr>
                     <tr><td><code>A**n</code></td><td>Integer power — repeated geometric product. <code>A**2 = A*A</code>, <code>A**-1 = A.inverse</code>, <code>A**0 = 1</code>.</td></tr>
                     <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
