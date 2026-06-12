@@ -162,23 +162,28 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
       if (!toEuclidean) {
         // VGA + others without a projective point map: skip multivector point hit-tests.
       } else if (hasVariablePos) {
+        // toEuclidean is null for an ideal/special-ideal value (origin weight 0) —
+        // not a finite point; fall through to the value-driven anchor handler below.
         const eu = toEuclidean(values[id]);
-        if (!eu) continue;
-        const { cx, cy } = w2c(eu.x, eu.y, vp);
-        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'depPoint' };
+        if (eu) {
+          const { cx, cy } = w2c(eu.x, eu.y, vp);
+          if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+            return { id, dragType: 'depPoint' };
+        }
       } else if (dual && (coeffExprs?.[3] !== undefined || coeffExprs?.[2] !== undefined)) {
         const eu = toEuclidean(values[id]);
-        if (!eu) continue;
-        const { cx, cy } = w2c(eu.x, eu.y, vp);
-        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'dualDepPoint' };
+        if (eu) {
+          const { cx, cy } = w2c(eu.x, eu.y, vp);
+          if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+            return { id, dragType: 'dualDepPoint' };
+        }
       } else if (!dual && (algebra.isLitMVPoint ? algebra.isLitMVPoint(components, values[id]) : Math.abs(components?.[6] ?? 0) > 1e-10)) {
         const eu = toEuclidean(values[id]);
-        if (!eu) continue;
-        const { cx, cy } = w2c(eu.x, eu.y, vp);
-        if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
-          return { id, dragType: 'litMVPoint' };
+        if (eu) {
+          const { cx, cy } = w2c(eu.x, eu.y, vp);
+          if ((mx - cx) ** 2 + (my - cy) ** 2 <= HIT_RADIUS ** 2)
+            return { id, dragType: 'litMVPoint' };
+        }
       }
     }
     // Value-driven: any node whose value is anchorable (vector-like or
