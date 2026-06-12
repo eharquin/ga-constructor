@@ -386,6 +386,10 @@ export default function ExpressionPanel({ onHide }) {
   const { algebra } = useAlgebra();
   const { settings } = useSettings();
   const { parseExpression, classifyMV } = algebra;
+  // `inorm` (ideal norm) only makes sense for a degenerate metric (r > 0, e.g. PGA),
+  // where ideal objects live in the null subspace. Non-degenerate algebras have a
+  // single finite norm, so the inorm button is hidden and `norm` always applies.
+  const isDegenerate = (algebra.info?.signature?.r ?? 0) > 0;
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
@@ -725,7 +729,9 @@ export default function ExpressionPanel({ onHide }) {
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
-          const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
+          // Only degenerate metrics have genuine "ideal" objects (finite norm undefined);
+          // in non-degenerate algebras every object normalizes by the finite norm.
+          const isIdealObj  = isDegenerate && (IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_));
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
@@ -823,12 +829,14 @@ export default function ExpressionPanel({ onHide }) {
                           tabIndex={-1}
                         >norm</button>
                       )}
-                      <button
-                        className={`norm-btn${item.normalizeMode === 'inorm' ? ' active' : ''}`}
-                        title="Normalize by ideal norm ‖A‖∞"
-                        onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'inorm' ? null : 'inorm')}
-                        tabIndex={-1}
-                      >inorm</button>
+                      {isDegenerate && (
+                        <button
+                          className={`norm-btn${item.normalizeMode === 'inorm' ? ' active' : ''}`}
+                          title="Normalize by ideal norm ‖A‖∞"
+                          onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'inorm' ? null : 'inorm')}
+                          tabIndex={-1}
+                        >inorm</button>
+                      )}
                     </span>
                   )}
                   <input
@@ -1099,7 +1107,9 @@ export default function ExpressionPanel({ onHide }) {
                 <table className="help-table">
                   <tbody>
                     <tr><td><b>norm</b> button</td><td>Divide by finite norm ‖A‖ = √(scalar_part(AÃ)). For finite objects.</td></tr>
-                    <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
+                    {isDegenerate && (
+                      <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
+                    )}
                   </tbody>
                 </table>
               </section>
