@@ -196,6 +196,13 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
     const isAnchorableBivec = valKind === 'bivector';
     if (node.type !== 'vector' && (isVectorLikeVal || isAnchorableBivec)) {
       const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+      // Literal special ideal point: arrowhead drags the direction (rewrites e1/e2).
+      // Checked before the tail so the head wins when they overlap.
+      if (valKind === 'specialIdealPoint' && node.type === 'multivector' && !node.params?.dual) {
+        const tip = w2c(pos.x + (val_[1] || 0), pos.y + (val_[2] || 0), vp);
+        if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
+          return { id, dragType: 'specialIdealTip' };
+      }
       const anc = w2c(pos.x, pos.y, vp);
       if ((mx - anc.cx) ** 2 + (my - anc.cy) ** 2 <= HIT_RADIUS ** 2)
         return { id, dragType: 'vector' };
@@ -886,7 +893,7 @@ export default function Canvas({ onSquareCanvas }) {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
     updateFreePoint, updateFreeFlatPoint, updateFreeVector, updateFreeInfinityPoint, setDrawPos, setDrawPosRef, updateVector,
-    updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
+    updateDepPoint, updateDualDepPoint, updateLiteralMVPoint, updateSpecialIdealPoint,
     addFreePoint,
   } = useGraphContext();
   const { parseExpression, classifyMV, objectWeight, getRenderPlan } = algebra;
@@ -932,7 +939,7 @@ export default function Canvas({ onSquareCanvas }) {
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
     updateFreePoint, updateFreeFlatPoint, updateFreeVector, updateFreeInfinityPoint, setDrawPos, setDrawPosRef, updateVector,
-    updateDepPoint, updateDualDepPoint, updateLiteralMVPoint,
+    updateDepPoint, updateDualDepPoint, updateLiteralMVPoint, updateSpecialIdealPoint,
     addFreePoint,
   };
 
@@ -1029,6 +1036,10 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
         snap.current.updateFreeInfinityPoint?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
+      if (dragType === 'specialIdealTip') {
+        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
+        snap.current.updateSpecialIdealPoint?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
+      }
 
     } else if (dragRef.current) {
       const dx = mx - dragRef.current.startMx;
@@ -1105,7 +1116,7 @@ export default function Canvas({ onSquareCanvas }) {
       orientation: resolveField(rawOpts.orientation, values, 0),
     } : null;
     const hovered     = id === hoveredId;
-    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip' || hoveredDragType === 'freeInfinityPointTip';
+    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip' || hoveredDragType === 'freeInfinityPointTip' || hoveredDragType === 'specialIdealTip';
     const tailHovered = hovered && !isTipDrag;
     const tipHovered  = hovered && isTipDrag;
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
@@ -1178,7 +1189,8 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
-        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector' || node.type === 'freeInfinityPoint');
+        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector' || node.type === 'freeInfinityPoint'
+          || (plan.special && node.type === 'multivector' && !node.params?.dual));
         // CGA ideal round point: draw the tail as a round point — a radius
         // circle (solid for real r², dashed for imaginary) around the tail dot.
         if (plan.rSq !== undefined) {

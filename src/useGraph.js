@@ -816,6 +816,29 @@ export function useGraph(algebra) {
     dispatch({ type: 'SET_TEXT', id: item.id, text });
   };
 
+  // Tip-drag a literal special ideal point (pure-direction vector): rewrite its
+  // e1/e2 coefficients to the new direction (vx, vy). Keeps it a special ideal point
+  // (only e1/e2 → ideal, no einf lift). Preserves the label if any.
+  const updateSpecialIdealPoint = (nodeId, vx, vy) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'multivector' && !n.params?.dual;
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const term = (c, blade) => {
+      const r = fmtNum(c);
+      if (+r === 0) return null;
+      if (+r === 1) return blade;
+      if (+r === -1) return `-${blade}`;
+      return `${r}*${blade}`;
+    };
+    const parts = [term(vx, 'e1'), term(vy, 'e2')].filter(Boolean);
+    const expr = (parts.join(' + ').replace(/ \+ -/g, ' - ')) || '0*e2';
+    const text = node.label !== null ? `${node.label} = ${expr}` : expr;
+    dispatch({ type: 'SET_TEXT', id: item.id, text });
+  };
+
   const updateScalarAsComplexPoint = (nodeId, x, y) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -928,6 +951,7 @@ export function useGraph(algebra) {
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,
+    updateSpecialIdealPoint,
     updateScalarAsComplexPoint,
     createScalarsFor,
     addFreePoint,
