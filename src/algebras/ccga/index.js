@@ -457,8 +457,10 @@ function conicGeometry(co) {
   const Fp = cA * cx * cx + cB * cy * cy + cC * cx * cy + cD * cx + cE * cy + cF;  // Q(centre)
   if (disc < 0) {
     const rx2 = -Fp / Ap, ry2 = -Fp / Bp;
-    if (rx2 <= 0 || ry2 <= 0) return { subtype: 'empty', cx, cy };  // imaginary (no real locus)
     const circle = Math.abs(Ap - Bp) < 1e-4 * Math.max(Math.abs(Ap), Math.abs(Bp));
+    if (rx2 <= 0 || ry2 <= 0)  // imaginary: real centre, no real locus — draw |axes| dashed
+      return { subtype: circle ? 'circle' : 'ellipse', cx, cy,
+               rx: Math.sqrt(Math.abs(rx2)), ry: Math.sqrt(Math.abs(ry2)), theta, imaginary: true };
     return { subtype: circle ? 'circle' : 'ellipse', cx, cy, rx: Math.sqrt(rx2), ry: Math.sqrt(ry2), theta };
   }
   return { subtype: 'hyperbola', cx, cy, Ap, Bp, Fp, theta };  // X'²·Ap + Y'²·Bp = −Fp
@@ -551,7 +553,8 @@ function classifyGrade4(val) {
     const pp = A.LDot(Iod, val);                          // grade-2 dipole p1∧p2
     if (rawNorm(pp) > 1e-6 * n) return { kind: 'pointPair', ccgaPair: pp };
   }
-  return { kind: 'quadpole' };
+  if (w(Iod) < 1e-6) return { kind: 'conicPencil', n: 2 }; // p1∧p2∧Iod
+  return { kind: 'quadpole' };                             // bare p1∧p2∧p3∧p4
 }
 
 // Disambiguate a pure grade-3 object: the CGA round-point family O = p∧Iinfd
@@ -576,29 +579,41 @@ function classifyGrade3(val) {
       }
     }
   }
-  return { kind: 'mixed' };
+  // Pure-einf grade-3 blade (a multiple of Iinf = einf1∧einf2∧einf3) is the line at infinity.
+  if (w(einf1) < 1e-6 && w(einf2) < 1e-6 && w(einf3) < 1e-6) return { kind: 'lineAtInfinity' };
+  if (w(Iod) < 1e-6) return { kind: 'conicPencil', n: 1 }; // p∧Iod
+  return { kind: 'tripole' };                              // bare p1∧p2∧p3
 }
 
-// Disambiguate a pure grade-5 object: the CGA circle/line family (OBJECTS.md §7)
-//   circle  p1∧p2∧p3∧Iinfd
-//   line    p1∧p2∧einf∧Iinfd  ≡  −(p1∧p2∧Iinf)
-// Iod and Iinfd are both grade-2, and grade-2∧grade-2 wedges commute, so
-// O∧Iod = T∧Iod∧Iinfd (grade 7) — the same shape as the general-conic OPNS
-// object (Iod∧p1∧…∧p5) — so conicGeometry(conicCoeffs(O∧Iod)) reads off the
-// circle or line directly. conicGeometry already discriminates 'line' (A≈B≈C≈0)
-// vs 'circle'/'ellipse' (A≈B), and 3 collinear points naturally degrade to the
-// line through them — no separate disambiguation needed. A bare pentapole (no
-// Iinfd factor) fails the gate and stays 'mixed'.
+// Disambiguate a pure grade-5 object. CCGA points live in the 6-D subspace
+// V₆ = {e1,e2,eo,einf1,einf2,einf3}, so a grade-5 object built from points sits in
+// V₆ and its V₆-dual is a grade-1 IPNS conic vector — i.e. EVERY point-built grade-5
+// object is a conic. In particular:
+//   CGA circle  p1∧p2∧p3∧Iinfd,  CGA line  p1∧p2∧einf∧Iinfd ≡ −(p1∧p2∧Iinf), and
+//   bare pentapole p1∧…∧p5 (the unique conic through 5 points)
+// all read off via conicGeometry(conicCoeffs(O∧Iod)); the subtype (circle/ellipse/
+// hyperbola/parabola/line) is the actual geometry, so no construction-based label is
+// needed. The Iinfd wedge-gate is useless here (grade 5+2 overflows the 6-D point
+// span ⇒ always 0); Iod is transverse, so w(Iod)≈0 is the real discriminator for the
+// Iod-gauged objects that are NOT single curves: the conic at infinity (Iod∧Iinf) and
+// the 3-point conic pencil (p1∧p2∧p3∧Iod).
 function classifyGrade5(val) {
   const rawNorm = (mv) => { let s = 0; for (let i = 0; i < ARRAY_SIZE; i++) s += (mv[i] || 0) ** 2; return Math.sqrt(s); };
   const n = rawNorm(val) || 1;
   const w = (gauge) => rawNorm(A.Wedge(val, gauge)) / n;
-  if (w(Iinfd) < 1e-6) {
-    const c7 = A.Wedge(val, Iod);                         // grade-7 OPNS conic
-    if (rawNorm(c7) > 1e-6 * n) {
-      const geom = conicGeometry(conicCoeffs(c7));
-      return { kind: 'conic', subtype: geom.subtype, geom, cga: true };
-    }
+  if (w(Iod) < 1e-6) {
+    // Iod is a factor → an under-determined / ideal object, not a single curve.
+    if (w(einf1) < 1e-6 && w(einf2) < 1e-6 && w(einf3) < 1e-6) return { kind: 'conicAtInfinity' };
+    // Both gauges → the CGA round point p∧Iinfd in the conic frame (cf. the gr7 circle);
+    // contract out Iod to recover the standard Iinfd-gauged form and reclassify.
+    if (w(Iinfd) < 1e-6) return classifyImpl(A.LDot(Iinfd, val));
+    return { kind: 'conicPencil', n: 3 };
+  }
+  // Otherwise it is a conic: CGA circle/line, or the conic through 5 points.
+  const c7 = A.Wedge(val, Iod);                           // grade-7 OPNS conic
+  if (rawNorm(c7) > 1e-6 * n) {
+    const geom = conicGeometry(conicCoeffs(c7));
+    return { kind: 'conic', subtype: geom.subtype, geom, cga: true };
   }
   return { kind: 'mixed' };
 }
@@ -656,8 +671,9 @@ function classifyImpl(val) {
   // Pure grade-3: CGA round point (p∧Iinfd) — finite/round point, else mixed.
   if (onlyGrade(g, 3)) return classifyGrade3(val);
 
-  // Pure grade-2: dipole / point pair (pp = p1∧p2).
-  if (onlyGrade(g, 2)) return { kind: 'pointPair' };
+  // Pure grade-2: a bare twopole p1∧p2 (the multipole-ladder object). The CGA dipole /
+  // point pair is one grade up — p1∧p2∧Iinfd — so this is label-only, not drawn.
+  if (onlyGrade(g, 2)) return { kind: 'twopole' };
 
   // Pure grade-4: flat point (p∧Iinf) / round point ((p∧q)∧Iod) / quadpole (p∧q∧r∧s).
   if (onlyGrade(g, 4)) return classifyGrade4(val);
@@ -666,11 +682,30 @@ function classifyImpl(val) {
   // ≡ −(p1∧p2∧Iinf)) — conic via Wedge(O,Iod), else mixed.
   if (onlyGrade(g, 5)) return classifyGrade5(val);
 
+  // Pure grade-6: an Iod-gauged object. With Iinfd too (p1∧p2∧Iinfd∧Iod) it is the CGA
+  // point pair in the conic frame (cf. the gr7 circle) → recover the gr4 pair and reclassify;
+  // Iod only (p1∧…∧p4∧Iod) is a genuine 4-point conic pencil.
+  if (onlyGrade(g, 6)) {
+    const nb = (mv) => { let s = 0; for (let i = 0; i < ARRAY_SIZE; i++) s += (mv[i] || 0) ** 2; return Math.sqrt(s); };
+    const nrm = nb(val) || 1;
+    if (nb(A.Wedge(val, Iod)) / nrm < 1e-6) {                 // Iod is a factor
+      if (nb(A.Wedge(val, Iinfd)) / nrm < 1e-6)               // …and Iinfd too → CGA point pair
+        return classifyImpl(A.LDot(Iinfd, val));
+      return { kind: 'conicPencil', n: 4 };
+    }
+    return { kind: 'mixed' };
+  }
+
   // Pure grade-7: general conic (Iod ∧ p1∧…∧p5). Subtype via the dual coefficients.
+  // A both-gauge CGA round object (p1∧p2∧p3∧Iinfd∧Iod) lands here too — conicGeometry
+  // reads it off as the same circle/line it represents one grade down.
   if (onlyGrade(g, 7)) {
     const geom = conicGeometry(conicCoeffs(val));
     return { kind: 'conic', subtype: geom.subtype, geom };
   }
+
+  // Pure grade-8: the pseudoscalar I.
+  if (onlyGrade(g, 8)) return { kind: 'pseudoscalar' };
 
   // Other higher-grade objects come in later slices.
   return { kind: 'mixed' };
@@ -825,12 +860,18 @@ export const KIND_COLOR = {
   roundPoint:  '#1482C8',
   flatPoint:   '#1482C8',
   specialPoint:'#1482C8',
+  twopole:     '#7A5AA8',
+  tripole:     '#7A5AA8',
   quadpole:    '#7A5AA8',
   pointPair:   '#AA7500',
   conic:       '#C30A3A',
+  conicPencil: '#D8567A',
   idealPoint:  '#E8A000',
   specialIdealPoint: '#E8A000',
   infinityPoint: '#E8A000',
+  lineAtInfinity:  '#E8A000',
+  conicAtInfinity: '#E8A000',
+  pseudoscalar: '#8B93A4',
   mixed:       '#8B93A4',
 };
 
@@ -849,7 +890,7 @@ const ITEM = (id, text, extra = {}) => ({
 export const INITIAL_ITEMS = [
   ITEM('expr_0', 'P1 = point(1.5, 0.5)'),
   ITEM('expr_1', 'P2 = point(-1, -1)'),
-  ITEM('expr_2', 'pp = P1 ^ P2'),
+  ITEM('expr_2', 'pp = P1 ^ P2 ^ Iinfd'),
   ITEM('expr_3', 'P3 = point(0.5, 1.5)'),
   ITEM('expr_4', 'F = P3 ^ Iinf'),
 ];

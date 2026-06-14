@@ -98,7 +98,13 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
         ? `Flat point (${fmtC(plan.x)}, ${fmtC(plan.y)})`
         : 'Flat point';
     }
+    case 'twopole':          return 'Twopole';
+    case 'tripole':          return 'Tripole';
     case 'quadpole':         return 'Quadpole';
+    case 'conicPencil':      return `Conic pencil (${cls.n ?? '?'} pts)`;
+    case 'lineAtInfinity':   return 'Line at infinity';
+    case 'conicAtInfinity':  return 'Conic at infinity';
+    case 'pseudoscalar':     return 'Pseudoscalar';
     case 'idealFlatPoint': {
       const plan = algebra.getRenderPlan?.(val);
       return plan?.kind === 'idealFlatPoint'
@@ -125,7 +131,8 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       if (sub === 'point') return `Degenerate conic — point (${fmtC(plan.cx)}, ${fmtC(plan.cy)})`;
       if (sub === 'linePair') return 'Degenerate conic — two intersecting lines';
       if (sub === 'parallelLines') return 'Degenerate conic — parallel lines';
-      const name = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : 'Conic';
+      let name = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : 'Conic';
+      if (plan?.imaginary) name = `Imaginary ${name.toLowerCase()}`;
       if (plan && (plan.subtype === 'ellipse' || plan.subtype === 'circle'))
         return `${name} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  rx=${fmtC(plan.rx)} ry=${fmtC(plan.ry)}`;
       return `Conic — ${name}`;
@@ -156,7 +163,9 @@ const KIND_LABELS = {
   vector: 'Vector', bivector: 'Bivector',
   circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
   conic: 'Conic', infinityPoint: 'Ideal point',
-  quadpole: 'Quadpole',
+  twopole: 'Twopole', tripole: 'Tripole', quadpole: 'Quadpole',
+  conicPencil: 'Conic pencil', lineAtInfinity: 'Line at infinity',
+  conicAtInfinity: 'Conic at infinity', pseudoscalar: 'Pseudoscalar',
 };
 
 // Sorted list of grades carrying a non-negligible coefficient in `val`.
@@ -1043,6 +1052,27 @@ export default function ExpressionPanel({ onHide }) {
                   </tbody>
                 </table>
               </section>
+
+              {algebra.mvConsts?.Iod && (
+              <section className="help-section">
+                <h3>Object zoo (CCGA)</h3>
+                <p className="help-note">Wedge points <code>p = point(x,y)</code> into the ladders. A bare wedge is a <em>multipole</em>; <code>^Iod</code> builds the conic ladder, <code>^Iinfd</code> the embedded CGA family. Abstract objects (multipoles, pencils) are labelled but not drawn.</p>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>p1 ^ p2</code></td><td>Twopole (gr 2) — multipole, not drawn. The drawable dipole is <code>p1^p2^Iinfd</code>.</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ p3</code></td><td>Tripole (gr 3) / <code>^p4</code> → Quadpole (gr 4): under-determined (net/pencil of conics), not drawn.</td></tr>
+                    <tr><td><code>p1 ^ … ^ p5</code></td><td>Five points fix a unique Conic (gr 5) — drawn (circle/ellipse/hyperbola/parabola/line by geometry).</td></tr>
+                    <tr><td><code>p1 ^ … ^ pn ^ Iod</code></td><td>Conic pencil (n&lt;5 pts), gr n+2 — under-determined conic, not drawn.</td></tr>
+                    <tr><td><code>p1 ^ … ^ p5 ^ Iod</code></td><td>Conic (gr 7) — the gauged grade-7 form, drawn identically.</td></tr>
+                    <tr><td><code>p ^ Iinfd</code></td><td>Round point (CGA, gr 3), drawn.</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ Iinfd</code></td><td>Point pair (CGA, gr 4), drawn. <code>p^einf^Iinfd</code> → Flat point.</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ p3 ^ Iinfd</code></td><td>Circle (CGA, gr 5), drawn. <code>p1^p2^einf^Iinfd</code> → Line.</td></tr>
+                    <tr><td><code>Iinf</code> / <code>p ^ Iinf</code></td><td>Line at infinity (gr 3) / Flat point (gr 4).</td></tr>
+                    <tr><td><code>Iod ^ Iinf</code> / <code>I</code></td><td>Conic at infinity (gr 5) / Pseudoscalar (gr 8).</td></tr>
+                  </tbody>
+                </table>
+              </section>
+              )}
 
               <section className="help-section">
                 <h3>Geometry</h3>

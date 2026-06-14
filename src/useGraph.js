@@ -25,12 +25,12 @@ function nextFolderName(items) {
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
 
-function pickPointName(usedIds) {
+function pickPointName(usedIds, reserved) {
   for (const n of AUTO_POINT_NAMES) {
-    if (!usedIds.has(n)) return n;
+    if (!usedIds.has(n) && !reserved.has(n)) return n;
   }
   let i = 1;
-  while (usedIds.has(`P${i}`)) i++;
+  while (usedIds.has(`P${i}`) || reserved.has(`P${i}`)) i++;
   return `P${i}`;
 }
 
@@ -890,7 +890,10 @@ export function useGraph(algebra) {
 
   const addFreePoint = (x, y) => {
     const usedIds = new Set(items.map((it) => parseExpression(it.text)?.id).filter(Boolean));
-    const name  = pickPointName(usedIds);
+    // Skip auto-names that collide with the active algebra's reserved constants (e.g. CCGA's
+    // pseudoscalar `I`), so a clicked point never shadows a built-in identifier.
+    const reserved = new Set(Object.keys(algebra.mvConsts ?? {}));
+    const name  = pickPointName(usedIds, reserved);
     const newId = `expr_${nextId.current++}`;
     // PGA: emit `point(...)`; VGA (no freePoint support): emit `vector(...)` so double-click adds a vector.
     const supportsPoint = algebra.supportedNodeTypes?.has('freePoint');
