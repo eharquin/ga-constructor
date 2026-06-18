@@ -99,6 +99,13 @@ const I     = A.Wedge(A.Wedge(Ieps, Iinf), Io);          // grade-8 pseudoscalar
 const I2    = A.Mul(I, I)[0] || -1;                      // = −1
 const Iinv  = scaleMV(1 / I2, I);                        // = −I
 
+// Dilation (scaling) generators — hyperbolic bivectors with (eoᵢ∧einfᵢ)² = +1.
+// Their sum Edil is the isotropic scaling generator: exp(½ln(s)·Edil) scales by s.
+const B1 = A.Wedge(eo1, einf1);
+const B2 = A.Wedge(eo2, einf2);
+const B3 = A.Wedge(eo3, einf3);
+const Edil = addMV(B1, B2, B3);
+
 // Flat-point reference blades. A flat point p∧Iinf collapses (the einf parts of p
 // wedge to 0 against Iinf) to  eo∧Iinf + x·(e1∧Iinf) + y·(e2∧Iinf), so (x,y) read
 // off by ratio — Bx/By are the only ones carrying e1/e2, giving unique signature indices.
@@ -135,18 +142,53 @@ export function point2D(x, y, r = 0) {
   return p;
 }
 
-// Ideal round point ("vector"): the point embedding with the origin part (eo = eo1+eo2)
-// dropped — grade-1 with zero origin weight, so it classifies as an ideal point and
-// renders as an arrow from the origin to (x, y). r (optional) lives in the einf part.
-// Same expansion as point2D minus the eo "+1"s on [3],[4],[6],[7].
-export function vector2D(x, y, r = 0) {
-  const v = zeroMV();
-  const ax = (x * x) / 4, ay = (y * y) / 4, axy = (x * y) / 2;
-  v[1] = x;    v[2] = y;
-  v[3] = -ax;  v[4] = -ay;  v[5] = -axy;
-  v[6] =  ax;  v[7] =  ay;  v[8] =  axy;
-  if (r) { const rr = (r * Math.abs(r)) / 8; v[3] += rr; v[4] += rr; v[6] -= rr; v[7] -= rr; }
-  return v;
+// CCGA's free `vector(x, y)` — the natural ideal point of CCGA: the Veronese point at
+// infinity  0.5·x²·einf1 + 0.5·y²·einf2 + x·y·einf3  (no eo, no linear e1/e2). Same
+// embedding as `infinityPoint2D` (the single source of truth); classifies as
+// `infinityPoint` and renders as an arrow toward (x, y) — the signed source is stashed on
+// `.dir` so the tip follows the cursor (the purely quadratic form can't recover the sign).
+export function vector2D(x, y) {
+  return infinityPoint2D(x, y);
+}
+
+// ─── Versors (transforms) ────────────────────────────────────────────────────
+// Isotropic scaling versor (dilator) about the origin, scale factor s > 0.
+// Closed form D = ∏ᵢ(cosh u + sinh u·(eoᵢ∧einfᵢ)), u = ½ln s; matches the
+// notebook's ccga/transform.py::dilator. Applied by sandwich: D >>> X scales X
+// (and any conic) by s. Verified: dilator(s) >>> point(x,y) → (s·x, s·y).
+export function dilator(s) {
+  if (!(s > 0)) return null;                              // scale must be positive
+  const u = 0.5 * Math.log(s), c = Math.cosh(u), sh = Math.sinh(u);
+  const factor = (B) => { const f = scaleMV(sh, B); f[0] += c; return f; };
+  return A.Mul(A.Mul(factor(B1), factor(B2)), factor(B3));
+}
+
+// Exponential for CCGA versor generators. ganja's analytic .Exp() is wrong here —
+// it assumes a *simple* bivector, but the dilation generator eo1∧einf1+eo2∧einf2+
+// eo3∧einf3 is not simple (gives the wrong scale). We use scaling-and-squaring of
+// a truncated Taylor series (all products delegate to ganja's A.Mul), which is
+// exact for dilators, translators, rotors, and general motors alike.
+export function ccgaExp(mv) {
+  let norm = 0;
+  for (let i = 0; i < ARRAY_SIZE; i++) norm += Math.abs(mv[i] || 0);
+  let k = 0;
+  while (norm > 0.5) { norm /= 2; k++; }
+  const X = scaleMV(1 / 2 ** k, mv);
+  let term = zeroMV(); term[0] = 1;
+  let sum  = zeroMV(); sum[0]  = 1;
+  // After scaling ‖X‖₁ ≤ 0.5, so term n is bounded by 0.5ⁿ/n! and the partial sums
+  // stay O(1) — once a term's L1 norm drops below f64 round-off it contributes
+  // nothing, so bail early (a rotor typically needs ~7 terms, not the full 18).
+  // Each A.Mul here is a ~3.5 ms 256-dim product, so trimmed iterations matter.
+  for (let n = 1; n <= 18; n++) {
+    term = scaleMV(1 / n, A.Mul(term, X));
+    sum = addMV(sum, term);
+    let tn = 0;
+    for (let i = 0; i < ARRAY_SIZE; i++) tn += Math.abs(term[i] || 0);
+    if (tn < 1e-16) break;
+  }
+  for (let i = 0; i < k; i++) sum = A.Mul(sum, sum);
+  return sum;
 }
 
 // Ideal point (Veronese limit) in direction (vx, vy) — the purely-quadratic point
@@ -356,6 +398,46 @@ function extractDipole(pp) {
   };
 }
 
+// Pair of ideal directions B = vinf(v1)∧vinf(v2) — a grade-2 blade living entirely in
+// the 3-D einf space (extractDipole bails because m = −(einf⌋B) collapses for points at
+// infinity). Each ideal direction sits on the conic at infinity at einf-coords
+// (a,b,c) = (½vx², ½vy², vx·vy); a direction lies in span(v1,v2) iff w∧B = 0, i.e.
+// a·B₂₃ − b·B₁₃ + c·B₁₂ = 0. Substituting the Veronese coords gives a homogeneous
+// quadratic in (vx,vy):  ½B₂₃·vx² + B₁₂·vx·vy − ½B₁₃·vy² = 0  whose roots are the two
+// directions. Bᵢⱼ (the einfᵢ∧einfⱼ coefficient) is read off by contracting with the
+// reciprocal eoᵢ∧eoⱼ: ⟨(eoᵢ∧eoⱼ)·B⟩₀ = −Bᵢⱼ (eoᵢ·einfⱼ = −δᵢⱼ).
+//   2 real roots → secant pair (hyperbola-type); 1 double root → tangent (parabola-type);
+//   0 real roots → imaginary pair (ellipse-type), no real asymptotic direction.
+const EOW12 = A.Wedge(eo1, eo2), EOW13 = A.Wedge(eo1, eo3), EOW23 = A.Wedge(eo2, eo3);
+const scalarOf = (mv) => (typeof mv === 'number' ? mv : (mv[0] || 0));
+function extractIdealPair(B) {
+  if (!isMV(B)) return null;
+  const B12 = -scalarOf(A.Mul(EOW12, B));
+  const B13 = -scalarOf(A.Mul(EOW13, B));
+  const B23 = -scalarOf(A.Mul(EOW23, B));
+  const scale = Math.abs(B12) + Math.abs(B13) + Math.abs(B23);
+  if (scale < 1e-10) return null;                          // not an einf-plane blade
+  // P·vx² + Q·vx·vy + R·vy² = 0
+  const P = 0.5 * B23, Q = B12, R = -0.5 * B13;
+  const norm = (vx, vy) => { const n = Math.hypot(vx, vy); return n < 1e-12 ? null : { vx: vx / n, vy: vy / n }; };
+  const disc = Q * Q - 4 * P * R;
+  let dirs;
+  if (disc < -1e-12 * scale * scale) return { dirs: [], imaginary: true };  // ellipse-type
+  const s = Math.sqrt(Math.max(disc, 0));
+  if (Math.abs(P) > 1e-12 * scale) {                       // solve vx with vy = 1
+    dirs = [norm((-Q + s) / (2 * P), 1), norm((-Q - s) / (2 * P), 1)];
+  } else if (Math.abs(R) > 1e-12 * scale) {                // P≈0: solve vy with vx = 1
+    dirs = [norm(1, (-Q + s) / (2 * R)), norm(1, (-Q - s) / (2 * R))];
+  } else {                                                  // P,R≈0: Q·vx·vy = 0
+    dirs = [norm(1, 0), norm(0, 1)];
+  }
+  dirs = dirs.filter(Boolean);
+  // Collapse a double root (parabola-type tangent) to one direction.
+  if (dirs.length === 2 && Math.abs(dirs[0].vx * dirs[1].vy - dirs[0].vy * dirs[1].vx) < 1e-6)
+    dirs = [dirs[0]];
+  return dirs.length ? { dirs, imaginary: false } : null;
+}
+
 // ─── Conics ──────────────────────────────────────────────────────────────────
 // A grade-7 OPNS conic C = Iod ∧ p1 ∧ … ∧ p5 dualizes to a grade-1 IPNS vector
 // whose orthogonal coefficients map directly to the implicit conic
@@ -370,11 +452,38 @@ function coeffsFromGrade1(s) {
   };
 }
 
+// Precomputed grade-7 → grade-1 dual map. The OPNS→IPNS dual Mul(C7, Iinv) sends a
+// pure grade-7 blade to grade-1, so it is an 8×8 linear map on the grade-7 / grade-1
+// component slots. Building it once (8 dense Muls at load) lets a grade-7 conic
+// dualize with a tiny 8×8 product instead of a ~2.5 ms 256-dim Mul.
+const GRADE7_IDX = GRADES.map((g, i) => (g === 7 ? i : -1)).filter((i) => i >= 0);
+const DUAL7 = (() => {
+  const m = Array.from({ length: 9 }, () => new Array(GRADE7_IDX.length).fill(0));
+  GRADE7_IDX.forEach((idx, c) => {
+    const unit = zeroMV(); unit[idx] = 1;
+    const d = A.Mul(unit, Iinv);
+    for (let r = 1; r <= 8; r++) m[r][c] = d[r] || 0;
+  });
+  return m;
+})();
+// grade-1 dual coeffs s[1..8] of a pure grade-7 blade (= Mul(C7, Iinv) at grade 1).
+function dualGrade7Coeffs(C7) {
+  const s = new Array(9).fill(0);
+  for (let c = 0; c < GRADE7_IDX.length; c++) {
+    const v = C7[GRADE7_IDX[c]] || 0;
+    if (!v) continue;
+    for (let r = 1; r <= 8; r++) s[r] += v * DUAL7[r][c];
+  }
+  return s;
+}
+
 // Coefficients from either conic form: a grade-1 vector is already IPNS; a grade-7
-// OPNS conic is dualized first via Mul(·, Iinv).
+// OPNS conic is dualized first (fast 8×8 map for pure grade-7, else full Mul).
 function conicCoeffs(val) {
-  const s = onlyGrade(gradeFlags(val), 1) ? val : A.Mul(val, Iinv);
-  return coeffsFromGrade1(s);
+  const g = gradeFlags(val);
+  if (onlyGrade(g, 1)) return coeffsFromGrade1(val);
+  if (onlyGrade(g, 7)) return coeffsFromGrade1(dualGrade7Coeffs(val));
+  return coeffsFromGrade1(A.Mul(val, Iinv));
 }
 
 // Split a degenerate conic (det H₃ ≈ 0) into its two lines via the adjugate of the
@@ -436,7 +545,7 @@ function conicGeometry(co) {
   // near-degenerate hyperbola (≈9e-4 for a thin 5-point conic) — 1e-4 is the geometric
   // mean of the two, the widest log-space margin separating the cases.
   const qmax = Math.max(Math.abs(cA), Math.abs(cB), Math.abs(cC));
-  const delta3 = cA * cB * cF + (cC * cD * cE - cC * cC * cF - cB * cD * cD - cA * cE * cE) / 4;
+  const delta3 = det3(co);
   if (qmax > 0 && Math.abs(delta3) < 1e-4 * qmax * qmax * qmax) {
     const dtol = 1e-3 * qmax * qmax;
     if (disc < -dtol) {
@@ -464,6 +573,209 @@ function conicGeometry(co) {
     return { subtype: circle ? 'circle' : 'ellipse', cx, cy, rx: Math.sqrt(rx2), ry: Math.sqrt(ry2), theta };
   }
   return { subtype: 'hyperbola', cx, cy, Ap, Bp, Fp, theta };  // X'²·Ap + Y'²·Bp = −Fp
+}
+
+// ─── n-pole point extraction (for rendering) ─────────────────────────────────
+// A bare n-pole p1∧…∧pn keeps all n points; we draw them as dots joined by a
+// dashed outline. Rather than port extract.py's radical solvers (SVD + Cardano +
+// Ferrari), we use the GA-native carrier conic the n points lie on and scan the
+// membership residual ‖point2D(x,y) ∧ Npole‖ along it for the n zeros — exact
+// enough for rendering, and reuses the conicCoeffs/conicGeometry pipeline. The
+// caller is behind the classify/render WeakMap caches, so this runs only when a
+// defining point actually moves; the sample counts below are the tuning knob.
+function rawNorm(mv) {
+  if (!isMV(mv)) return Math.abs(mv || 0);
+  let s = 0;
+  for (let i = 0; i < ARRAY_SIZE; i++) s += (mv[i] || 0) ** 2;
+  return Math.sqrt(s);
+}
+
+// 3×3 conic-matrix determinant of A x²+B y²+C xy+D x+E y+F (= det of
+// [[A,C/2,D/2],[C/2,B,E/2],[D/2,E/2,F]]). Zero ⇔ the conic is degenerate.
+function det3(co) {
+  const { A: a, B: b, C: c, D: d, E: e, F: f } = co;
+  return a * b * f + (c * d * e - c * c * f - b * d * d - a * e * e) / 4;
+}
+
+// Real roots of a3·t³ + a2·t² + a1·t + a0 (Cardano; trig form for the
+// three-real-root case). Degrades to quadratic/linear when a3≈0.
+function solveCubicReal(a3, a2, a1, a0) {
+  if (Math.abs(a3) < 1e-12) {                            // a2 t² + a1 t + a0
+    if (Math.abs(a2) < 1e-12) return Math.abs(a1) < 1e-12 ? [] : [-a0 / a1];
+    const disc = a1 * a1 - 4 * a2 * a0;
+    if (disc < 0) return [];
+    const s = Math.sqrt(disc);
+    return [(-a1 + s) / (2 * a2), (-a1 - s) / (2 * a2)];
+  }
+  const a = a2 / a3, b = a1 / a3, c = a0 / a3;           // monic t³ + a t² + b t + c
+  const p = b - a * a / 3, q = 2 * a * a * a / 27 - a * b / 3 + c;
+  const disc = (q * q) / 4 + (p * p * p) / 27, shift = -a / 3;
+  if (disc < 0) {                                        // three distinct real roots
+    const r = Math.sqrt(-(p * p * p) / 27);
+    const phi = Math.acos(Math.max(-1, Math.min(1, -q / (2 * r))));
+    const m = 2 * Math.cbrt(r);
+    return [0, 1, 2].map((k) => m * Math.cos((phi + 2 * Math.PI * k) / 3) + shift);
+  }
+  const s = Math.sqrt(disc);
+  return [Math.cbrt(-q / 2 + s) + Math.cbrt(-q / 2 - s) + shift];
+}
+
+// Real intersection points of a line (nx·x+ny·y+d=0) with a conic co, by
+// substituting the line's parametric form into the conic quadratic — the exact
+// al/be/ga of saved_graphs/ccga_line_conic_intersection.json. Returns 0/1/2 pts.
+function lineConicPoints(line, co) {
+  const { nx, ny, d } = line;
+  const len2 = nx * nx + ny * ny;
+  if (len2 < 1e-18) return [];
+  const x0 = -nx * d / len2, y0 = -ny * d / len2;        // foot of perpendicular
+  const ux = -ny, uy = nx;                               // (unnormalized) direction
+  const { A: cA, B: cB, C: cC, D: cD, E: cE, F: cF } = co;
+  const al = cA * ux * ux + cB * uy * uy + cC * ux * uy;
+  const be = 2 * cA * x0 * ux + 2 * cB * y0 * uy + cC * (x0 * uy + y0 * ux) + cD * ux + cE * uy;
+  const ga = cA * x0 * x0 + cB * y0 * y0 + cC * x0 * y0 + cD * x0 + cE * y0 + cF;
+  const at = (t) => ({ x: x0 + t * ux, y: y0 + t * uy });
+  if (Math.abs(al) < 1e-12) return Math.abs(be) < 1e-12 ? [] : [at(-ga / be)];
+  const disc = be * be - 4 * al * ga;
+  if (disc < -1e-9 * (be * be + Math.abs(4 * al * ga) + 1)) return [];
+  const s = Math.sqrt(Math.max(disc, 0));
+  return [at((-be + s) / (2 * al)), at((-be - s) / (2 * al))];
+}
+
+const distinctPoint = (list, p, tol = 1e-3) =>
+  list.every((q) => Math.abs(q.x - p.x) + Math.abs(q.y - p.y) > tol);
+
+// n points around a circle/ellipse carrier (tripole circumcircle).
+function sampleCircle(geom, n) {
+  const ct = Math.cos(geom.theta || 0), st = Math.sin(geom.theta || 0), pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n, X = geom.rx * Math.cos(a), Y = geom.ry * Math.sin(a);
+    pts.push({ x: geom.cx + X * ct - Y * st, y: geom.cy + X * st + Y * ct });
+  }
+  return pts;
+}
+
+// Golden-section minimum of the residual along the chord lo→hi (a local, near-linear
+// model of the carrier between two adjacent samples). ~20 cheap evals of resFn.
+function refineChord(resFn, lo, hi) {
+  const g = (Math.sqrt(5) - 1) / 2;
+  const at = (t) => ({ x: lo.x + t * (hi.x - lo.x), y: lo.y + t * (hi.y - lo.y) });
+  const f = (t) => { const p = at(t); return resFn(p.x, p.y); };
+  let a = 0, b = 1, c = b - g * (b - a), d = a + g * (b - a), fc = f(c), fd = f(d);
+  for (let k = 0; k < 20; k++) {
+    if (fc < fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = f(c); }
+    else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = f(d); }
+  }
+  return at((a + b) / 2);
+}
+
+// Scan `resFn` over the sampled carrier, take the `count` lowest local minima
+// (refined along the local chord), deduped. `scale` sets the flat-carrier floor.
+// Returns the points, or null if fewer than `count` distinct real zeros are found.
+function findMembershipZeros(resFn, pts, count, scale) {
+  if (pts.length < count + 1) return null;
+  const res = pts.map((p) => resFn(p.x, p.y));
+  // Degenerate carrier: the residual stays ~0 along the whole curve (the entire
+  // locus is the zero set, e.g. a collinear tripole whose lifted points are
+  // dependent) — no isolated points. A genuine carrier dips to ≈0 only at the n
+  // points and rises to O(scale) elsewhere, so a flat-zero scan means "undrawable".
+  if (Math.max(...res) < 1e-6 * (scale || 1)) return null;
+  let totalGap = 0;
+  for (let i = 1; i < pts.length; i++) totalGap += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  const medGap = totalGap / (pts.length - 1);                 // mean spacing — branch jumps run larger
+  const cand = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (res[i] <= (res[i - 1] ?? Infinity) && res[i] <= (res[i + 1] ?? Infinity)) cand.push(i);
+  }
+  cand.sort((i, j) => res[i] - res[j]);
+  const out = [];
+  for (const i of cand) {
+    let p = pts[i];
+    const lo = pts[i - 1], hi = pts[i + 1];
+    if (lo && hi && Math.hypot(hi.x - lo.x, hi.y - lo.y) < 4 * medGap) p = refineChord(resFn, lo, hi);
+    if (distinctPoint(out, p, 1e-2)) out.push(p);
+    if (out.length === count) break;
+  }
+  return out.length === count ? out : null;
+}
+
+// Tripole p1∧p2∧p3 (grade 3): the 3 points lie on the circum-conic T∧Iod∧Iinfd
+// (extract.py:tripole_circumconic) — a circle (or a line for collinear points,
+// which is degenerate: T's 3 points then span no isolated locus → undrawn). With
+// no clean 1-param pencil (3 points = a 2-param net), read the points off the
+// bounded circle with the precomputed quadratic-form residual ‖q∧T‖².
+function extractTripole(T) {
+  if (!isMV(T)) return null;
+  const geom = conicGeometry(conicCoeffs(A.Wedge(A.Wedge(T, Iod), Iinfd)));
+  if (geom.subtype !== 'circle' && geom.subtype !== 'ellipse') return null;  // line/point → collinear
+  return findMembershipZeros(wedgeResidualForm(T), sampleCircle(geom, 120), 3, rawNorm(T));
+}
+
+// Precompute q ↦ ‖q∧B‖² for grade-1 q as an 8×8 symmetric form: W_i = e_i∧B (8
+// wedges, once); M[i][j] = W_i·W_j. The returned residual is then pure arithmetic
+// over point2D's 8 coords — no ganja, no allocation, per call.
+function wedgeResidualForm(B) {
+  const W = [];
+  for (let i = 1; i <= 8; i++) W.push(A.Wedge(bvec(i), B));
+  const M = Array.from({ length: 8 }, () => new Array(8).fill(0));
+  for (let i = 0; i < 8; i++) for (let j = i; j < 8; j++) {
+    let s = 0;
+    for (let k = 0; k < ARRAY_SIZE; k++) s += (W[i][k] || 0) * (W[j][k] || 0);
+    M[i][j] = s; M[j][i] = s;
+  }
+  return (x, y) => {
+    const ax = x * x / 4, ay = y * y / 4, axy = x * y / 2;
+    const q = [x, y, 1 - ax, 1 - ay, -axy, 1 + ax, 1 + ay, axy];   // point2D's e1..e8 coords
+    let s = 0;
+    for (let i = 0; i < 8; i++) {
+      s += q[i] * q[i] * M[i][i];
+      for (let j = i + 1; j < 8; j++) s += 2 * q[i] * q[j] * M[i][j];
+    }
+    return Math.sqrt(Math.max(s, 0));
+  };
+}
+
+// Quadpole p1∧p2∧p3∧p4 (grade 4): the 4 points lie on every member of the pencil
+// of conics through them. Closed-form Ferrari (saved_graphs/ccga_extract_lines.json):
+// take two independent pencil members, find a degenerate one (det3=0 → a cubic in
+// the pencil parameter, Cardano), split it into two real lines, and meet each line
+// with a pencil conic (a quadratic). No scanning, no SVD.
+// Iod∧Q∧p5 is pure grade-7 → dualize with the fast 8×8 map (no dense Mul).
+const pencilMember = (Q, p5) => coeffsFromGrade1(dualGrade7Coeffs(A.Wedge(A.Wedge(Iod, Q), p5)));
+const coAdd = (c1, c2, t) => ({
+  A: c1.A + t * c2.A, B: c1.B + t * c2.B, C: c1.C + t * c2.C,
+  D: c1.D + t * c2.D, E: c1.E + t * c2.E, F: c1.F + t * c2.F,
+});
+function coIndependent(c1, c2) {                 // not proportional (and both nonzero)
+  const v1 = [c1.A, c1.B, c1.C, c1.D, c1.E, c1.F], v2 = [c2.A, c2.B, c2.C, c2.D, c2.E, c2.F];
+  let dot = 0, n1 = 0, n2 = 0;
+  for (let i = 0; i < 6; i++) { dot += v1[i] * v2[i]; n1 += v1[i] ** 2; n2 += v2[i] ** 2; }
+  return n1 > 1e-12 && n2 > 1e-12 && dot * dot < (1 - 1e-6) * n1 * n2;
+}
+function extractQuadpole(Q) {
+  if (!isMV(Q)) return null;
+  const probes = [einf, eo, e1, point2D(0.31, -0.72), point2D(1, 1), e2];
+  const members = [];
+  for (const p of probes) {
+    const co = pencilMember(Q, p);
+    if (Math.abs(det3(co)) > 1e-9 && (members.length === 0 || coIndependent(members[0], co))) {
+      members.push(co);
+      if (members.length === 2) break;
+    }
+  }
+  if (members.length < 2) return null;
+  const [co1, co2] = members;
+  const g0 = det3(co1), g3 = det3(co2), gp = det3(coAdd(co1, co2, 1)), gm = det3(coAdd(co1, co2, -1));
+  // det3(co1 + t·co2) = a0 + a1 t + a2 t² + a3 t³ from 4 evals (g(0), g(±1), t³ lead).
+  const roots = solveCubicReal(g3, 0.5 * (gp + gm) - g0, 0.5 * (gp - gm) - g3, g0);
+  for (const t of roots) {
+    const cd = coAdd(co1, co2, t);                 // degenerate pencil member (a line pair)
+    const lines = factorLinePair(cd.A, cd.B, cd.C, cd.D, cd.E, cd.F);
+    if (lines.length < 2) continue;
+    const pts = [];
+    for (const L of lines) for (const p of lineConicPoints(L, co1)) if (distinctPoint(pts, p)) pts.push(p);
+    if (pts.length === 4) return pts;
+  }
+  return null;
 }
 
 // ─── Generic GA ops via ganja ────────────────────────────────────────────────
@@ -825,6 +1137,23 @@ function renderPlanImpl(val) {
       const pp = extractDipole(cls.ccgaPair ?? val);
       return pp ? { kind: 'pointPair', p1: pp.p1, p2: pp.p2, cx: pp.cx, cy: pp.cy, r: pp.r, imaginary: pp.imaginary } : null;
     }
+    // n-pole ladder — drawn as its n defining points joined by a dashed outline.
+    case 'twopole': {                                   // bare p1∧p2 (now drawn)
+      const pp = extractDipole(val);
+      if (pp) return { kind: 'multipole', points: [pp.p1, pp.p2], imaginary: pp.imaginary };
+      // A pair of points at infinity (einf-plane blade) — extractDipole collapses;
+      // draw the two asymptotic directions as arrows from the origin.
+      const ip = extractIdealPair(val);
+      return ip ? { kind: 'idealPair', dirs: ip.dirs, imaginary: ip.imaginary } : null;
+    }
+    case 'tripole': {
+      const pts = extractTripole(val);
+      return pts ? { kind: 'multipole', points: pts } : null;
+    }
+    case 'quadpole': {
+      const pts = extractQuadpole(val);
+      return pts ? { kind: 'multipole', points: pts } : null;
+    }
     case 'flatPoint': {
       const fp = extractFlatPoint(val);
       return fp ? { kind: 'flatPoint', x: fp.x, y: fp.y } : null;
@@ -848,8 +1177,9 @@ export const geomToMV = null;
 
 // ─── Node types accepted under CCGA (conservative for now) ───────────────────
 export const SUPPORTED_NODE_TYPES = new Set([
-  'scalar', 'freePoint', 'freeInfinityPoint',
+  'scalar', 'freePoint', 'freeVector',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
+  'motorExp', 'motorApply',
   'color', 'funcDef',
 ]);
 
@@ -893,6 +1223,7 @@ export const INITIAL_ITEMS = [
   ITEM('expr_2', 'pp = P1 ^ P2 ^ Iinfd'),
   ITEM('expr_3', 'P3 = point(0.5, 1.5)'),
   ITEM('expr_4', 'F = P3 ^ Iinf'),
+  ITEM('expr_5', 'T = P1 ^ P2 ^ P3'),
 ];
 
 // ─── Null-basis display ──────────────────────────────────────────────────────
@@ -980,6 +1311,7 @@ export const spec = {
   point2D,
   vector2D,
   infinityPoint2D,
+  expFn: ccgaExp,
   // Named conic constructors, dispatched as inline expression-language calls.
   namedConstructors: {
     circle: circleConic,
@@ -989,6 +1321,7 @@ export const spec = {
     tilted_ellipse: tiltedEllipseConic,
     line: lineConic,
     conic: conicGeneral,
+    dilator: dilator,
   },
   toEuclidean,
   toIdealVector,
@@ -1002,6 +1335,7 @@ export const spec = {
     eo1, eo2, eo3, einf1, einf2, einf3,
     eo, einf, eob, einfb,
     Iod, Iinfd, Io, Iinf, Ieps, I, Iinv,
+    Edil,
   },
   supportedNodeTypes: SUPPORTED_NODE_TYPES,
   KIND_COLOR, TYPE_COLOR_FALLBACK,

@@ -36,7 +36,7 @@ export const SCALAR_CONSTS = {
 // ─── Built-in scalar functions ───────────────────────────────────────────────
 
 export const BUILTIN_FN_NAMES = new Set([
-  'sqrt', 'sqrt3', 'abs', 'len',
+  'sqrt', 'sqrt3', 'abs', 'len', 'log', 'ln',
   'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
   'asin', 'acos', 'atan', 'acsc', 'asec', 'acot',
 ]);
@@ -44,6 +44,8 @@ export const BUILTIN_FN_NAMES = new Set([
 const MAX_USER_CALL_DEPTH = 64;
 
 const TRIG_FNS = {
+  log:  Math.log,
+  ln:   Math.log,
   sin:  Math.sin,
   cos:  Math.cos,
   tan:  Math.tan,
@@ -74,7 +76,8 @@ export function createEvalMVArith(algebra) {
   if (algebra.flatPoint2D) CONSTRUCTORS.flatPoint = algebra.flatPoint2D;
   if (algebra.vector2D)    CONSTRUCTORS.vector    = algebra.vector2D;
   if (algebra.line2D)      CONSTRUCTORS.line      = algebra.line2D;
-  if (algebra.infinityPoint2D) CONSTRUCTORS.vinf  = algebra.infinityPoint2D;
+  // (In CCGA `vector2D` is the Veronese point at infinity, so inline `vector(...)` builds
+  // the same natural ideal point as the free draggable node.)
   // Generic extension point: algebras can register extra named constructors
   // (e.g. CCGA's circle/ellipse/hyperbola/…) without hardcoding them here.
   if (algebra.namedConstructors) Object.assign(CONSTRUCTORS, algebra.namedConstructors);
@@ -680,9 +683,10 @@ export function createEvalMVArith(algebra) {
           }
 
           if (CONSTRUCTOR_NAMES.has(t.val)) {
-            // Object constructor: point/flatPoint/vector/line with scalar args.
+            // Object constructor with scalar args: point/flatPoint/vector/line take
+            // ≥2, versor constructors like dilator(s) take 1.
             const nums = args.map(toScalarArg);
-            val = (args.length >= 2 && !nums.some(Number.isNaN))
+            val = (args.length >= 1 && !nums.some(Number.isNaN))
               ? CONSTRUCTORS[t.val](...nums)
               : null;
           } else if (BUILTIN_FN_NAMES.has(t.val)) {

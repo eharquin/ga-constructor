@@ -121,20 +121,6 @@ function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableM
         return { id, dragType: 'vector' };
       continue;
     }
-    if (node.type === 'freeInfinityPoint') {
-      // Arrow from the tail (drawPos) to tail+(vx, vy). Tip drags the vinf direction;
-      // tail drags the anchor (drawPos, via the 'vector' path) — like freeVector.
-      const plan = algebra.getRenderPlan?.(values[id]);
-      if (!plan || plan.kind !== 'positionedVector') continue;
-      const pos = vectorPositions[id] ?? { x: 0, y: 0 };
-      const tip = w2c(pos.x + plan.vx, pos.y + plan.vy, vp);
-      if ((mx - tip.cx) ** 2 + (my - tip.cy) ** 2 <= HIT_RADIUS ** 2)
-        return { id, dragType: 'freeInfinityPointTip' };
-      const tail = w2c(pos.x, pos.y, vp);
-      if ((mx - tail.cx) ** 2 + (my - tail.cy) ** 2 <= HIT_RADIUS ** 2)
-        return { id, dragType: 'vector' };
-      continue;
-    }
     if (node.type === 'scalar' && valKind === 'finitePoint') {
       const eu = toEuclidean?.(values[id]);
       if (!eu) continue;
@@ -882,6 +868,36 @@ function SvgPolygon({ points, label, color, vp, opts }) {
   );
 }
 
+// CCGA n-pole (twopole / tripole / quadpole): its n defining points, drawn as dots
+// and joined by a dashed outline (vertices ordered by angle around the centroid so
+// the polygon reads simple, non-crossing). Imaginary (twopole with r²<0) → hollow dots.
+function SvgMultipole({ points, label, color, vp, opts, weight = 1, imaginary = false }) {
+  const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+  const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+  const screen = points.map(p => w2c(p.x, p.y, vp));
+  const r_dot = 4.5 * weight;
+  const { cx: lx, cy: ly } = w2c(cx, cy, vp);
+  // Dashed segment between every pair of points (complete graph): a plain segment for
+  // two points, a triangle for three, a quad with both diagonals for four.
+  const edges = [];
+  for (let i = 0; i < screen.length; i++)
+    for (let j = i + 1; j < screen.length; j++)
+      edges.push([screen[i], screen[j]]);
+  return (
+    <g>
+      {edges.map(([a, b], i) => (
+        <line key={`e${i}`} x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy}
+          stroke={color} strokeOpacity={0.6} strokeWidth={1.5 * weight}
+          strokeLinecap="round" strokeDasharray="4 3" />
+      ))}
+      {screen.map((s, i) => (imaginary
+        ? <circle key={i} cx={s.cx} cy={s.cy} r={r_dot} fill="none" stroke={color} strokeWidth={1.5} />
+        : <circle key={i} cx={s.cx} cy={s.cy} r={r_dot} fill={color} />))}
+      {renderLabel(label, lx, ly, opts)}
+    </g>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Canvas({ onSquareCanvas }) {
@@ -892,7 +908,7 @@ export default function Canvas({ onSquareCanvas }) {
   const {
     nodes, values, colorMap, labelMap, labelOptsMap, vectorPositions, orderedNodeIds, items,
     movableMap,
-    updateFreePoint, updateFreeFlatPoint, updateFreeVector, updateFreeInfinityPoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint, updateSpecialIdealPoint,
     addFreePoint,
   } = useGraphContext();
@@ -938,9 +954,10 @@ export default function Canvas({ onSquareCanvas }) {
   const snap = useRef(null);
   snap.current = {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
-    updateFreePoint, updateFreeFlatPoint, updateFreeVector, updateFreeInfinityPoint, setDrawPos, setDrawPosRef, updateVector,
+    updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint, updateSpecialIdealPoint,
     addFreePoint,
+    items, parseExpression,
   };
 
   // Handle zoom via a native non-passive listener so preventDefault always works.
@@ -994,7 +1011,11 @@ export default function Canvas({ onSquareCanvas }) {
     const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, orderedNodeIds } = snap.current;
     const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds);
     if (hit) {
-      ptDragRef.current = hit;
+      // A label-less node's id is derived from its text (e.g. `_vector(1,1)`), so it
+      // drifts on every drag tick. Capture the stable React item.id so the move handler
+      // can re-resolve the live node id each tick instead of using the stale one.
+      const dragItem = snap.current.items.find((it) => snap.current.parseExpression(it.text)?.id === hit.id);
+      ptDragRef.current = { ...hit, itemId: dragItem?.id ?? null };
       setCursor('crosshair');
     } else {
       dragRef.current = { startMx: mx, startMy: my, ox: vp.offsetX, oy: vp.offsetY };
@@ -1008,7 +1029,15 @@ export default function Canvas({ onSquareCanvas }) {
 
     if (ptDragRef.current) {
       const { x, y } = c2w(mx, my, vp);
-      const { id, dragType } = ptDragRef.current;
+      const { dragType, itemId } = ptDragRef.current;
+      // Re-resolve the live node id from the stable item.id — a label-less node's
+      // text-derived id changes the moment its coords change, so the captured id goes
+      // stale after the first move (the drag would otherwise "freeze" instantly).
+      let id = ptDragRef.current.id;
+      if (itemId != null) {
+        const dragItem = snap.current.items.find((it) => it.id === itemId);
+        if (dragItem) id = snap.current.parseExpression(dragItem.text)?.id ?? id;
+      }
       const rx = roundToScale(x, vp.scale);
       const ry = roundToScale(y, vp.scale);
       if (dragType === 'freePoint')     updateFreePoint(id, rx, ry);
@@ -1031,10 +1060,6 @@ export default function Canvas({ onSquareCanvas }) {
       if (dragType === 'freeVectorTip') {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
         snap.current.updateFreeVector?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
-      }
-      if (dragType === 'freeInfinityPointTip') {
-        const pos = vectorPositions[id] ?? { x: 0, y: 0 };
-        snap.current.updateFreeInfinityPoint?.(id, roundToScale(x - pos.x, vp.scale), roundToScale(y - pos.y, vp.scale));
       }
       if (dragType === 'specialIdealTip') {
         const pos = vectorPositions[id] ?? { x: 0, y: 0 };
@@ -1116,7 +1141,7 @@ export default function Canvas({ onSquareCanvas }) {
       orientation: resolveField(rawOpts.orientation, values, 0),
     } : null;
     const hovered     = id === hoveredId;
-    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip' || hoveredDragType === 'freeInfinityPointTip' || hoveredDragType === 'specialIdealTip';
+    const isTipDrag   = hoveredDragType === 'vectorTip' || hoveredDragType === 'freeVectorTip' || hoveredDragType === 'specialIdealTip';
     const tailHovered = hovered && !isTipDrag;
     const tipHovered  = hovered && isTipDrag;
     const weight  = settings.weightThickness ? objectWeight(val) : 1;
@@ -1189,7 +1214,7 @@ export default function Canvas({ onSquareCanvas }) {
         const pos = vectorPositions[id] ?? { x: 0, y: 0, linked: false };
         // Only `vector`-type nodes have an editable tip — derived vectors
         // (mvExpr, motorApply, dual, …) inherit their tip from the algebra.
-        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector' || node.type === 'freeInfinityPoint'
+        const tipDraggable = (plan.tipDraggable ?? true) && (node.type === 'vector' || node.type === 'freeVector'
           || (plan.special && node.type === 'multivector' && !node.params?.dual));
         // CGA ideal round point: draw the tail as a round point — a radius
         // circle (solid for real r², dashed for imaginary) around the tail dot.
@@ -1382,6 +1407,31 @@ export default function Canvas({ onSquareCanvas }) {
             label={label} color={color} vp={vp} W={size.w} H={size.h}
             opts={opts} weight={weight} imaginary={plan.imaginary} />
         );
+        break;
+      case 'multipole':
+        layers.push(
+          <SvgMultipole key={id} points={plan.points}
+            label={label} color={color} vp={vp}
+            opts={opts} weight={weight} imaginary={plan.imaginary} />
+        );
+        break;
+      case 'idealPair':
+        // Pair of ideal directions (asymptotic directions of a conic) — each drawn as
+        // an arrow from the origin, with an ideal-point marker on the boundary ellipse.
+        // An imaginary pair (ellipse-type) has no real direction, so nothing solid draws.
+        plan.dirs.forEach((d, di) => {
+          layers.push(
+            <SvgVector key={`${id}-d${di}`} vx={d.vx} vy={d.vy} px={0} py={0}
+              label={di === 0 ? label : null} color={color} vp={vp}
+              tailHovered={false} tipHovered={false} linked={false} tipDraggable={false} opts={opts} />
+          );
+          if (hasIdealLine) {
+            layers.push(
+              <SvgIdealPointMarker key={`${id}-d${di}-inf`} vx={d.vx} vy={d.vy}
+                color={color} W={size.w} H={size.h} hovered={hovered} weight={weight} />
+            );
+          }
+        });
         break;
       case 'conic':
         layers.push(

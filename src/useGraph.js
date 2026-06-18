@@ -507,6 +507,7 @@ export function useGraph(algebra) {
       const cls = classifyMV(val);
       const tail = map[id] ?? { x: 0, y: 0 };
       if (val && typeof val === 'object' && 'vx' in val) return { x: tail.x + val.vx, y: tail.y + val.vy };
+      if (cls?.kind === 'infinityPoint' && val.dir) return { x: tail.x + val.dir.vx, y: tail.y + val.dir.vy };
       if (cls?.kind === 'vector')      return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
       if (cls?.kind === 'specialIdealPoint') return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
       if (cls?.kind === 'idealPoint')  return { x: tail.x - (val[5] || 0), y: tail.y + (val[4] || 0) };
@@ -681,27 +682,6 @@ export function useGraph(algebra) {
     }
   };
 
-  // CCGA point at infinity — tip drag rewrites vinf(x, y).
-  const updateFreeInfinityPoint = (nodeId, x, y) => {
-    const item = items.find((it) => {
-      const n = parseExpression(it.text);
-      return n?.id === nodeId && n?.type === 'freeInfinityPoint';
-    });
-    if (!item) return;
-    const node = parseExpression(item.text);
-    const isLiteral = (s) => /^-?\d+(\.\d+)?$/.test(s.trim());
-    const { xExpr, yExpr, rExpr } = node.params;
-    const xHandled = tryUpdateScalar(xExpr, x);
-    const yHandled = tryUpdateScalar(yExpr, y);
-    if (!xHandled || !yHandled) {
-      const xPart = xHandled ? xExpr : (isLiteral(xExpr) ? fmtNum(x) : xExpr);
-      const yPart = yHandled ? yExpr : (isLiteral(yExpr) ? fmtNum(y) : yExpr);
-      const args = rExpr !== undefined ? `${xPart}, ${yPart}, ${rExpr}` : `${xPart}, ${yPart}`;
-      const text = node.label !== null ? `${nodeId} = vinf(${args})` : `vinf(${args})`;
-      dispatch({ type: 'SET_TEXT', id: item.id, text });
-    }
-  };
-
   const updateVector = (nodeId, vx, vy) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -854,6 +834,8 @@ export function useGraph(algebra) {
   // Find the item whose node id is anchorable in vectorPositions.
   // Covers explicit vector / meetPoint nodes plus any value classified as a
   // vector, ideal point, or bivector.
+  // Keep this list in sync with the `isVecVal`/`isBivecVal` test in `vectorPositions`
+  // below — otherwise the canvas offers a tail/anchor handle the writer silently drops.
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
@@ -861,7 +843,8 @@ export function useGraph(algebra) {
       if (n.type === 'vector' || n.type === 'meetPoint') return true;
       const val = values[n.id];
       const cls = classifyMV(val);
-      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector' || cls?.kind === 'idealFlatPoint' || cls?.kind === 'bivector') return true;
+      if (cls?.kind === 'idealPoint' || cls?.kind === 'specialIdealPoint' || cls?.kind === 'infinityPoint' ||
+          cls?.kind === 'vector' || cls?.kind === 'idealFlatPoint' || cls?.kind === 'bivector') return true;
       return val && typeof val === 'object' && 'vx' in val;
     });
 
@@ -950,7 +933,6 @@ export function useGraph(algebra) {
     updateFreePoint,
     updateFreeFlatPoint,
     updateFreeVector,
-    updateFreeInfinityPoint,
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,

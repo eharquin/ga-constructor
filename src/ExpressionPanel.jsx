@@ -735,7 +735,7 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'specialPoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'specialIdealPoint', 'infinityPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair', 'pointPair', 'conic']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'specialPoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'specialIdealPoint', 'infinityPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair', 'pointPair', 'twopole', 'tripole', 'quadpole', 'conic']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
@@ -1044,10 +1044,11 @@ export default function ExpressionPanel({ onHide }) {
                 <table className="help-table">
                   <tbody>
                     <tr><td><code>A = point(x, y)</code></td><td>Free draggable point. <code>x</code>, <code>y</code> can be scalar names.</td></tr>
-                    <tr><td><code>V = vector(vx, vy)</code></td><td>Free direction vector (ideal point). Draggable tail &amp; tip.</td></tr>
-                    <tr><td><code>I = vinf(vx, vy)</code></td><td>Point at infinity in direction <code>(vx, vy)</code> (CCGA). Draggable tip.</td></tr>
+                    <tr><td><code>V = vector(vx, vy)</code></td><td>Ideal point at infinity <code>½vx²·einf1 + ½vy²·einf2 + vx·vy·einf3</code> (CCGA Veronese). Arrow toward <code>(vx, vy)</code>; draggable tail &amp; tip.</td></tr>
                     <tr><td><code>L = line(a, b, c)</code></td><td>Free line <code>a·x + b·y + c = 0</code>. Arguments can be scalar names.</td></tr>
                     <tr><td><code>C = circle(cx, cy, r)</code></td><td>CCGA conic constructors: <code>circle</code>, <code>ellipse(a,b,cx,cy)</code>, <code>hyperbola(a,b,cx,cy)</code>, <code>parabola(p,cx,cy)</code>, <code>tilted_ellipse(a,b,θ,cx,cy)</code>, <code>conic(A,B,C,D,E,F)</code>. Args can be scalar names (animatable).</td></tr>
+                    <tr><td><code>D = dilator(s)</code></td><td>Isotropic scaling versor about the origin, factor <code>s &gt; 0</code> (CCGA). Apply with <code>Q = D &gt;&gt;&gt; P1</code> — the right side is a named object, <code>point(…)</code>, <code>vector(…)</code>, or blade arithmetic.</td></tr>
+                    <tr><td><code>D = exp(½·log(s)·Edil)</code></td><td>Build any versor from <code>+1</code>-square blades. <code>Edil = eo1^einf1+eo2^einf2+eo3^einf3</code> is the isotropic scaling generator; the per-pair blades <code>eoᵢ^einfᵢ</code> are exposed for experimentation. Apply via <code>&gt;&gt;&gt;</code>.</td></tr>
                     <tr><td><code>t = 0.5</code></td><td>Scalar. Click ▶ to animate. Supports blade literals: <code>t = 2e12</code>.</td></tr>
                   </tbody>
                 </table>
@@ -1056,11 +1057,11 @@ export default function ExpressionPanel({ onHide }) {
               {algebra.mvConsts?.Iod && (
               <section className="help-section">
                 <h3>Object zoo (CCGA)</h3>
-                <p className="help-note">Wedge points <code>p = point(x,y)</code> into the ladders. A bare wedge is a <em>multipole</em>; <code>^Iod</code> builds the conic ladder, <code>^Iinfd</code> the embedded CGA family. Abstract objects (multipoles, pencils) are labelled but not drawn.</p>
+                <p className="help-note">Wedge points <code>p = point(x,y)</code> into the ladders. A bare wedge is a <em>multipole</em>; <code>^Iod</code> builds the conic ladder, <code>^Iinfd</code> the embedded CGA family. A multipole keeps all its points — it is drawn as those points joined by a dashed outline; pencils stay labelled but not drawn.</p>
                 <table className="help-table">
                   <tbody>
-                    <tr><td><code>p1 ^ p2</code></td><td>Twopole (gr 2) — multipole, not drawn. The drawable dipole is <code>p1^p2^Iinfd</code>.</td></tr>
-                    <tr><td><code>p1 ^ p2 ^ p3</code></td><td>Tripole (gr 3) / <code>^p4</code> → Quadpole (gr 4): under-determined (net/pencil of conics), not drawn.</td></tr>
+                    <tr><td><code>p1 ^ p2</code></td><td>Twopole (gr 2) — drawn as its 2 points + dashed segment. (The CGA dipole <code>p1^p2^Iinfd</code> draws the same pair.)</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ p3</code></td><td>Tripole (gr 3) / <code>^p4</code> → Quadpole (gr 4): drawn as their 3 / 4 defining points joined by a dashed outline.</td></tr>
                     <tr><td><code>p1 ^ … ^ p5</code></td><td>Five points fix a unique Conic (gr 5) — drawn (circle/ellipse/hyperbola/parabola/line by geometry).</td></tr>
                     <tr><td><code>p1 ^ … ^ pn ^ Iod</code></td><td>Conic pencil (n&lt;5 pts), gr n+2 — under-determined conic, not drawn.</td></tr>
                     <tr><td><code>p1 ^ … ^ p5 ^ Iod</code></td><td>Conic (gr 7) — the gauged grade-7 form, drawn identically.</td></tr>
