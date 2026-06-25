@@ -49,7 +49,7 @@ export const BLADE_PATTERN = BASIS.filter((n) => n !== '1')
 // adapter — load-time constants, classify gauges, exp/extract, and the shared
 // evalMVArith/nodeTypes (which all reach products through these static methods) —
 // runs on the fast path. ganja still backs the rare .Exp/.Log/.Inverse getters.
-const _engine = createEngine({ A, bladeNames: BASIS, bladeIndex: BLADE_INDEX, grades: GRADES, arraySize: ARRAY_SIZE });
+const _engine = createEngine({ A, bladeNames: BASIS, bladeIndex: BLADE_INDEX, grades: GRADES, arraySize: ARRAY_SIZE, posCount: 5 });
 A.Mul     = _engine.mul;
 A.Wedge   = _engine.wedge;
 A.Dot     = _engine.dot;

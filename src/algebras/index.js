@@ -7,8 +7,9 @@ import vga200 from './vga200/index.js';
 import r010   from './r010/index.js';
 import cga310 from './cga310/index.js';
 import ccga   from './ccga/index.js';
+import aaccga from './aaccga/index.js';
 
-export const ALGEBRAS = [pga201, vga200, r010, cga310, ccga];
+export const ALGEBRAS = [pga201, vga200, r010, cga310, ccga, aaccga];
 
 export const DEFAULT_ALGEBRA_ID = pga201.id;
 
