@@ -755,7 +755,7 @@ export default function ExpressionPanel({ onHide }) {
           // Banner only for forms where creating scalars makes sense
           const wantsSuggest = node?.type === 'freePoint' || node?.type === 'vector' || node?.type === 'multivector' || node?.type === 'freeLine';
           const missingDeps = wantsSuggest
-            ? [...new Set((node.deps ?? []).filter((d) => !nodes[d]))]
+            ? [...new Set((node.deps ?? []).filter((d) => !nodes[d] && !(d in (algebra.mvConsts ?? {}))))]
             : [];
 
           const animConf  = animSettings[item.id] ?? {};
