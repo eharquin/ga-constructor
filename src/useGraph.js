@@ -886,6 +886,13 @@ export function useGraph(algebra) {
     dispatch({ type: 'ADD_ITEM', id: newId, text });
   };
 
+  // Append an arbitrary expression (e.g. a wedge/join/list built from a selection).
+  const addItem = (text) => {
+    const newId = `expr_${nextId.current++}`;
+    dispatch({ type: 'ADD_ITEM', id: newId, text });
+    return newId;
+  };
+
   return {
     items,
     nodes,
@@ -940,6 +947,7 @@ export function useGraph(algebra) {
     updateScalarAsComplexPoint,
     createScalarsFor,
     addFreePoint,
+    addItem,
     algebra,
     undo: () => dispatch({ type: 'UNDO' }),
     redo: () => dispatch({ type: 'REDO' }),
