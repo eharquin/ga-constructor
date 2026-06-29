@@ -32,7 +32,7 @@ const G = Algebra({ p: 5, q: 3, graded: false, baseType: Float64Array });
 const basis = G.describe().basis;
 const bladeIndex = Object.fromEntries(basis.map((n, i) => [n, i]));
 const grades = basis.map((n) => (n === '1' ? 0 : n.length - 1));
-const eng = createEngine({ A: G, bladeNames: basis, bladeIndex, grades, arraySize: N });
+const eng = createEngine({ A: G, bladeNames: basis, bladeIndex, grades, arraySize: N, posCount: 5 });
 
 const blade = (i) => { const v = new G(); v.fill(0); v[i] = 1; return v; };
 const rnd = () => { const v = new G(); for (let k = 0; k < N; k++) v[k] = Math.random() * 2 - 1; return v; };

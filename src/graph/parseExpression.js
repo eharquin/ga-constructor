@@ -97,10 +97,22 @@ function splitTopLevelOp(str, op) {
 // ─── Factory ────────────────────────────────────────────────────────────────
 
 export function createParseExpression(algebra, evaluator) {
-  const { bladeIndex, arraySize, tryVectorFromMV, supportedNodeTypes } = algebra;
+  const { bladeIndex, arraySize, tryVectorFromMV, supportedNodeTypes, mvConsts } = algebra;
   const { extractMVDeps, parseBladeName } = evaluator;
 
   const accepts = (type) => supportedNodeTypes.has(type);
+
+  // Named MV constants (null-basis blades like eo1/einf1, the pseudoscalar I, …) are
+  // resolved by evalMVArith, NOT by graph dep lookup. Detector for "does this text
+  // reference one" — used to keep `M >>> <mvConst>` off the motorApply path (whose
+  // compute only resolves graph items) and on the mvExpr path, which handles them.
+  const MVCONST_NAMES = Object.keys(mvConsts ?? {});
+  const MVCONST_RE = MVCONST_NAMES.length
+    ? new RegExp('(?<![A-Za-z0-9_])(' +
+        [...MVCONST_NAMES].sort((a, b) => b.length - a.length).join('|') +
+        ')(?![A-Za-z0-9_])')
+    : null;
+  const refsMvConst = (txt) => MVCONST_RE != null && MVCONST_RE.test(txt);
 
   // Build the per-algebra blade regex pattern: longest names first to avoid
   // prefix short-circuit (e012 before e01, e12 before e1, etc.).
@@ -370,7 +382,11 @@ export function createParseExpression(algebra, evaluator) {
       if (swParts) {
         const motorStr = swParts[0];
         const geomStr  = swParts[1];
-        if (new RegExp(`^${ID.source}$`).test(motorStr)) {
+        // Operand is a named MV constant (e.g. `R >>> eo1`)? motorApply's compute can't
+        // resolve mvConsts — defer to the mvExpr path, which evaluates `>>>` via the
+        // engine sandwich and resolves mvConsts directly.
+        const usesMvConst = MVCONST_NAMES.includes(motorStr.trim()) || refsMvConst(geomStr);
+        if (!usesMvConst && new RegExp(`^${ID.source}$`).test(motorStr)) {
           const geom = parseInlineGeom(geomStr);
           if (geom) {
             geom.depOffset = 1;

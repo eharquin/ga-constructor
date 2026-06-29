@@ -38,7 +38,10 @@ export function createEvaluate(algebra, nodeTypes) {
       const fn = nodeTypes[node?.type]?.compute;
       if (!fn) continue;
       const depValues = node.deps.map((d) => values[d]);
-      if (depValues.some((v) => v == null)) continue;
+      // Bail only if a dep that is a real node is still unresolved. A dep name with
+      // no node is a named constant (e.g. an MV const like eo1) that the compute
+      // resolves itself via the constant env — it is allowed to be undefined here.
+      if (node.deps.some((d, i) => nodes[d] && depValues[i] == null)) continue;
       try {
         let val = fn(depValues, node.params ?? {});
         const mode = normalizeMap[id];

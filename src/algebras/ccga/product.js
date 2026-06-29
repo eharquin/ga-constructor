@@ -1,4 +1,5 @@
-// Sparse geometric-product engine for CCGA (ℝ(5,3), 256 blades).
+// Sparse geometric-product engine for conic-conformal algebras (CCGA ℝ(5,3), 256
+// blades; ACGA ℝ(4,2), 64 blades — same kernels, only the metric/size differ).
 //
 // ganja's generated products are *dense*: every Mul/Wedge/Dot/sw walks the full
 // 256×256 Cayley table (~65 k multiply-adds, ~2–3.5 ms) no matter how sparse the
@@ -22,8 +23,11 @@
 
 const popcount = (m) => { let c = 0; while (m) { c += m & 1; m >>>= 1; } return c; };
 
-export function createEngine({ A, bladeNames, grades, arraySize }) {
+// `posCount` = number of +1 generators (ℝ(p,q): generators 1..posCount square +1,
+// the rest −1). CCGA passes 5 (ℝ(5,3)); ACGA passes 4 (ℝ(4,2)).
+export function createEngine({ A, bladeNames, grades, arraySize, posCount = 5 }) {
   const N = arraySize;
+  const GEN = Math.round(Math.log2(N));          // generator count (8 for CCGA, 6 for ACGA)
 
   // ── Per-index metadata: bitmask (bit d−1 per generator digit d) + grade ──────
   const MASK = new Array(N);
@@ -34,7 +38,7 @@ export function createEngine({ A, bladeNames, grades, arraySize }) {
     MASK[i] = m;
   }
   // mask → ganja canonical index (so results land in ganja's own ordering).
-  const MASK_TO_INDEX = new Array(1 << 8).fill(-1);
+  const MASK_TO_INDEX = new Array(1 << GEN).fill(-1);
   for (let i = 0; i < N; i++) MASK_TO_INDEX[MASK[i]] = i;
 
   // ── Geometric-product Cayley table (target index + sign per ordered pair) ────
@@ -53,9 +57,9 @@ export function createEngine({ A, bladeNames, grades, arraySize }) {
       let acc = 0;
       for (let t = ai >> 1; t; t >>= 1) acc += popcount(t & bj);
       let s = (acc & 1) ? -1 : 1;
-      // metric: each shared generator squares (e6,e7,e8 → −1; e1..e5 → +1; r=0).
+      // metric: each shared generator squares (generators > posCount → −1; r=0).
       let common = ai & bj, bit = 0;
-      while (common) { if ((common & 1) && bit >= 5) s = -s; common >>= 1; bit++; }
+      while (common) { if ((common & 1) && bit >= posCount) s = -s; common >>= 1; bit++; }
       const resMask = ai ^ bj;
       const k = MASK_TO_INDEX[resMask];
       const gr = grades[k];

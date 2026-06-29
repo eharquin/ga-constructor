@@ -64,8 +64,10 @@ const TRIG_FNS = {
 
 export function createEvalMVArith(algebra) {
   const { Algebra, arraySize, bladeIndex, parseBladeName, bladeNameToMV, dualOp, reverseOp, geomToMV, classifyMV } = algebra;
-  // Algebra-specific named MV constants (e.g. CGA's e0 and einf). Resolved as
-  // ordinary identifiers in expressions; never collected as graph dependencies.
+  // Algebra-specific named MV constants (e.g. CGA's e0/einf, CCGA's eo1/eob/I).
+  // Resolved as ordinary identifiers in expressions, but a user-defined item with
+  // the same name shadows the constant (extractMVDeps still collects the name, so
+  // the item is tracked as a dependency and its value reaches the env).
   const MV_CONSTS = algebra.mvConsts || {};
 
   // Object constructors usable inline in expressions (e.g. `point(-4, 2) ^ einf`).
@@ -337,7 +339,10 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < tokens.length; i++) {
       const t = tokens[i];
       const afterDot = i > 0 && tokens[i - 1].type === 'op' && tokens[i - 1].val === '.';
-      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !(bladeNameToMV && bladeNameToMV(t.val)) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTRUCTOR_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !(t.val in MV_CONSTS) && !seen.has(t.val)) {
+      // MV_CONSTS names are NOT excluded here: collecting them lets a user item of
+      // the same name shadow the constant (evaluate ignores the dep when no node
+      // defines it, so a genuine constant still resolves via CONST_ENV).
+      if (t.type === 'id' && !afterDot && !parseBladeName(t.val) && !(bladeNameToMV && bladeNameToMV(t.val)) && !BUILTIN_FN_NAMES.has(t.val) && !CONSTRUCTOR_NAMES.has(t.val) && !(t.val in COLOR_CONSTS) && !(t.val in SCALAR_CONSTS) && !seen.has(t.val)) {
         seen.add(t.val);
         deps.push(t.val);
       }
