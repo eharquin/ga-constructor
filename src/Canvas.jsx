@@ -1526,9 +1526,9 @@ export default function Canvas({ onSquareCanvas }) {
         onDoubleClick={handleDoubleClick}
         onDragStart={(e) => e.preventDefault()}
       >
-        <rect data-export-bg width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
+        <rect width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
         {settings.showGrid && <SvgGrid vp={vp} W={size.w} H={size.h} />}
-        <g data-export-content>{layers}</g>
+        {layers}
       </svg>
     </div>
   );

@@ -7,8 +7,6 @@
 // SVG and PNG download directly; PDF goes through the browser's own print engine
 // (vector, no dependency) via a hidden iframe.
 
-const PAD = 16; // px of breathing room around the fit-to-content crop
-
 // Presentation properties whose computed value we copy onto the clone so the
 // exported file is self-contained (no var(--…) / currentColor left to resolve).
 const STYLE_PROPS = [
@@ -35,41 +33,23 @@ function inlineStyles(liveEl, cloneEl) {
   for (let i = 0; i < lk.length; i++) inlineStyles(lk[i], ck[i]);
 }
 
-// Produce a standalone SVG string cropped to the drawn geometry (fit-to-content),
-// with the current theme's background and all colors baked in.
+// Produce a standalone SVG string of the canvas view as shown (full viewport at
+// the current pan/zoom), with the current theme's background and colors baked in.
 export function buildExportSvg(svgEl) {
   const clone = svgEl.cloneNode(true);
   inlineStyles(svgEl, clone);
 
   // Fit-to-content: bbox of the geometry layer only (excludes bg rect + grid,
-  // both of which span the full viewport). Falls back to the full canvas.
-  const contentLive = svgEl.querySelector('[data-export-content]');
-  const bb = contentLive && contentLive.getBBox();
-  let x, y, w, h;
-  if (bb && bb.width > 0 && bb.height > 0) {
-    x = bb.x - PAD; y = bb.y - PAD;
-    w = bb.width + 2 * PAD; h = bb.height + 2 * PAD;
-  } else {
-    x = 0; y = 0;
-    w = Number(svgEl.getAttribute('width')) || svgEl.clientWidth;
-    h = Number(svgEl.getAttribute('height')) || svgEl.clientHeight;
-  }
-  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  // Export the canvas view exactly as shown — the full visible viewport (current
+  // pan/zoom), not a crop around the objects. The background rect already spans it.
+  const w = Math.round(Number(svgEl.getAttribute('width')) || svgEl.clientWidth);
+  const h = Math.round(Number(svgEl.getAttribute('height')) || svgEl.clientHeight);
 
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('width', String(w));
   clone.setAttribute('height', String(h));
-  clone.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+  clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
   clone.removeAttribute('style'); // drop the live cursor/display inline style
-
-  // Grow the background rect to cover the crop so there's no transparent margin.
-  const bg = clone.querySelector('[data-export-bg]');
-  if (bg) {
-    bg.setAttribute('x', String(x));
-    bg.setAttribute('y', String(y));
-    bg.setAttribute('width', String(w));
-    bg.setAttribute('height', String(h));
-  }
 
   const str = new XMLSerializer().serializeToString(clone);
   return { svg: '<?xml version="1.0" encoding="UTF-8"?>\n' + str, width: w, height: h };
