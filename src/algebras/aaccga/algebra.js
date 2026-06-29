@@ -98,6 +98,19 @@ export const Iinv  = scaleMV(1 / I2, I);       // = −I
 
 export const scalarOf = (mv) => (typeof mv === 'number' ? mv : (mv[0] || 0));
 
+// Flat-point reference blades. A flat point p∧Iinf collapses (the einf parts of p
+// wedge to 0 against Iinf) to  eo∧Iinf + x·(e1∧Iinf) + y·(e2∧Iinf), so (x,y) read
+// off by ratio — Bx/By are the only ones carrying e1/e2, giving unique signature indices.
+export const FP_B0 = A.Wedge(eo, Iinf);
+export const FP_BX = A.Wedge(e1, Iinf);
+export const FP_BY = A.Wedge(e2, Iinf);
+const argmaxAbs = (mv) => {
+  let bi = 0, bv = 0;
+  for (let i = 0; i < ARRAY_SIZE; i++) { const a = Math.abs(mv[i] || 0); if (a > bv) { bv = a; bi = i; } }
+  return bi;
+};
+export const FP_I0 = argmaxAbs(FP_B0), FP_IX = argmaxAbs(FP_BX), FP_IY = argmaxAbs(FP_BY);
+
 // ─── Blade squares / scalar square ───────────────────────────────────────────
 // Square of each basis blade as a scalar: e_S² = (−1)^{k(k−1)/2} · Π metric(dᵢ)
 // (generators e1..e4 square +1, e5..e6 square −1). Lets us read off the scalar part

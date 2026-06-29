@@ -1437,7 +1437,7 @@ export default function Canvas({ onSquareCanvas }) {
         layers.push(
           <SvgConic key={id} plan={plan}
             label={label} color={color} vp={vp} W={size.w} H={size.h}
-            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (plan.imaginary ? 'dashed' : plan.cga ? 'dotted' : null)} />
+            opts={opts} weight={weight} strokeStyle={strokeStyle ?? (plan.imaginary || plan.incomplete ? 'dashed' : plan.cga ? 'dotted' : null)} />
         );
         break;
       default:

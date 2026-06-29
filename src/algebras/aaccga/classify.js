@@ -6,11 +6,24 @@
 
 import {
   ARRAY_SIZE, EPS, isMV, zeroMV, A, gradeFlags, onlyGrade,
+  eob, einfb, einf1, einf2,
 } from './algebra.js';
 import {
-  toEuclidean, extractRoundPoint, einfWeight, infinityDir,
+  toEuclidean, extractRoundPoint, extractFlatPoint, einfWeight, infinityDir,
 } from './embed.js';
 import { conicCoeffs, conicGeometry } from './conic.js';
+import { extractDipole, extractTripole, rawNorm } from './extract.js';
+
+// ‖Obj ∧ gauge‖ ≈ 0  ⇔  the gauge blade is a factor of Obj.
+function hasFactor(val, gauge) {
+  const n = rawNorm(val) || 1;
+  return rawNorm(A.Wedge(val, gauge)) / n < 1e-6;
+}
+
+// Drop the eob factor of an eob-gauged object, recovering its underlying n-pole. einfb is
+// the reciprocal of eob (eob·einfb = −1), so contracting with einfb removes eob (matches
+// the user's verified `I4 | einfb`).
+const contractEob = (val) => A.LDot(einfb, val);
 
 // A grade-1 vector is a point only if it lies in the point subspace — its two origin
 // weights match (eōbar ≈ 0). An IPNS conic dual with A≠B has w1≠w2.
@@ -21,6 +34,20 @@ function isPointVector(v) {
   const w1 = ((v[3] || 0) + (v[5] || 0)) / 2;   // eo1 weight = −(v·einf1)
   const w2 = ((v[4] || 0) + (v[6] || 0)) / 2;   // eo2 weight = −(v·einf2)
   return Math.abs(w1 - w2) < mag * 1e-5;
+}
+
+// A flat point is a finite point carried at grade 1 WITHOUT the Veronese (quadratic)
+// part: p = w·eo + x·e1 + y·e2, so both einf coefficients vanish (p5−p3 ≈ p6−p4 ≈ 0).
+// It arises from line-intersection forms — P = (L1 & L2) | (Io^einfb) = FlatPoint | Io —
+// and must be treated as a plain finite point: normalized / rendered by w = −(p·einf),
+// not by ‖p‖ (which would mix in the e1/e2 magnitude).
+function isFlatPointVector(p) {
+  const w = einfWeight(p);
+  if (Math.abs(w) < EPS) return false;
+  const E1 = (p[5] || 0) - (p[3] || 0);          // einf1 coeff (× w) — 0 for a flat point
+  const E2 = (p[6] || 0) - (p[4] || 0);          // einf2 coeff (× w)
+  const scale = Math.abs(w) + Math.hypot(p[1] || 0, p[2] || 0);
+  return Math.abs(E1) < 1e-6 * scale && Math.abs(E2) < 1e-6 * scale;
 }
 
 // A genuine Veronese point/round point has its einf coefficients locked to its
@@ -49,6 +76,10 @@ function classifyImpl(val) {
   // otherwise a grade-1 IPNS conic vector (algebraic/dual form, not drawn directly).
   if (onlyGrade(g, 1)) {
     if (isPointVector(val)) {
+      // Flat point (w·eo + x·e1 + y·e2, no Veronese part) → a plain finite point,
+      // normalized / rendered by w = −(p·einf). Checked before the round-point split
+      // since extractRoundPoint reports a spurious r² for this einf-free form.
+      if (isFlatPointVector(val)) return { kind: 'finitePoint' };
       const rp = extractRoundPoint(val);
       if (rp) {
         if (!isVeronesePoint(val)) return { kind: 'mixed' };
@@ -66,7 +97,28 @@ function classifyImpl(val) {
     return { kind: 'mixed' };
   }
 
-  // Pure grade-5: an axis-aligned conic. Dualize to grade-1 → implicit coeffs → geometry.
+  // Pure grade-2: a bare twopole p1∧p2 (no eob factor), or a degenerate point∧eob.
+  if (onlyGrade(g, 2)) {
+    if (hasFactor(val, eob)) return classifyImpl(contractEob(val));   // E∧eob → point
+    return { kind: 'twopole' };
+  }
+
+  // Pure grade-3: a conic pencil (E∧F∧eob), a flat point (E∧Iinf), or a tripole.
+  if (onlyGrade(g, 3)) {
+    if (hasFactor(val, eob)) return { kind: 'conicPencil', core: contractEob(val) };
+    if (hasFactor(val, einf1) && hasFactor(val, einf2)) return { kind: 'flatPoint' };
+    return { kind: 'tripole' };
+  }
+
+  // Pure grade-4: a conic intersection / pencil (X∧eob), else a bare axis-aligned conic
+  // (E∧F∧G∧H — already a fixed conic, but not "complete" for intersection → drawn dashed).
+  if (onlyGrade(g, 4)) {
+    if (hasFactor(val, eob)) return { kind: 'conicIntersection', core: contractEob(val) };
+    const geom = conicGeometry(conicCoeffs(A.Wedge(val, eob)));       // complete then reduce
+    return { kind: 'conic', subtype: geom.subtype, geom, incomplete: true };
+  }
+
+  // Pure grade-5: a complete axis-aligned conic. Dualize to grade-1 → implicit coeffs → geometry.
   if (onlyGrade(g, 5)) {
     const geom = conicGeometry(conicCoeffs(val));
     return { kind: 'conic', subtype: geom.subtype, geom };
@@ -75,7 +127,6 @@ function classifyImpl(val) {
   // Pure grade-6: the pseudoscalar I.
   if (onlyGrade(g, 6)) return { kind: 'pseudoscalar' };
 
-  // Grades 2/3/4 (point pairs / n-poles) are out of scope for this cut.
   return { kind: 'mixed' };
 }
 
@@ -163,10 +214,26 @@ function renderPlanImpl(val) {
       const rSq = (x * x + y * y) - 2 * (((val[5] || 0) - (val[3] || 0)) + ((val[6] || 0) - (val[4] || 0)));
       return { kind: 'positionedVector', vx: x, vy: y, rSq };
     }
+    case 'twopole': {
+      const pp = extractDipole(val);
+      return pp ? { kind: 'multipole', points: [pp.p1, pp.p2], imaginary: pp.imaginary } : null;
+    }
+    case 'tripole': {
+      const pts = extractTripole(val);
+      return pts ? { kind: 'multipole', points: pts } : null;
+    }
+    case 'flatPoint': {
+      const fp = extractFlatPoint(val);
+      return fp ? { kind: 'flatPoint', x: fp.x, y: fp.y } : null;
+    }
+    // eob-gauged forms render their underlying n-pole (base / intersection points).
+    case 'conicPencil':
+    case 'conicIntersection':
+      return getRenderPlan(cls.core);
     case 'conic': {
       const geom = cls.geom ?? conicGeometry(conicCoeffs(val));
       if (geom.subtype === 'empty') return null;          // imaginary conic — no real locus
-      return { kind: 'conic', ...geom };
+      return { kind: 'conic', ...geom, incomplete: cls.incomplete };
     }
     default: return null;
   }

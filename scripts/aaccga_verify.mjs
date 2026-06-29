@@ -14,7 +14,7 @@ import Algebra from 'ganja.js';
 import { createEngine } from '../src/algebras/ccga/product.js';
 import spec from '../src/algebras/aaccga/index.js';
 import { point2D, circleConic, ellipseConic, hyperbolaConic, parabolaConic, lineConic } from '../src/algebras/aaccga/embed.js';
-import { eob } from '../src/algebras/aaccga/algebra.js';
+import { eob, einfb, Iinf } from '../src/algebras/aaccga/algebra.js';
 
 const N = 64;
 const TOL = 1e-9;
@@ -96,6 +96,34 @@ check('ellipse(2,1)', ellipseConic(2, 1), (c, p) => c.kind === 'conic' && c.subt
 check('hyperbola(1,1)', hyperbolaConic(1, 1), (c) => c.kind === 'conic' && c.subtype === 'hyperbola');
 check('parabola(1)', parabolaConic(1), (c) => c.kind === 'conic' && c.subtype === 'parabola');
 check('line(1,0,0)', lineConic(1, 0, 0), (c) => c.kind === 'conic' && c.subtype === 'line');
+
+// ─── taxonomy ladder (grades 2–4) ─────────────────────────────────────────────
+const wedge = (...xs) => xs.reduce((a, b) => AAC.Wedge(a, b));
+const P1 = point2D(1, 0), P2 = point2D(-1, 0), P3 = point2D(0, 1), P4 = point2D(0, -1);
+const nearPt = (pts, x, y, t = 5e-2) => pts.some((p) => Math.hypot(p.x - x, p.y - y) < t);
+
+check('P1^P2 (twopole)', wedge(P1, P2),
+  (c, p) => c.kind === 'twopole' && p.kind === 'multipole' && p.points.length === 2);
+check('P1^P3^P2 (tripole)', wedge(P1, P3, P2),
+  (c, p) => c.kind === 'tripole' && p.kind === 'multipole' && p.points.length === 3
+            && nearPt(p.points, 1, 0) && nearPt(p.points, 0, 1) && nearPt(p.points, -1, 0));
+check('P1^Iinf (flat point)', AAC.Wedge(point2D(2, 1), Iinf),
+  (c, p) => c.kind === 'flatPoint' && approx(p.x, 2) && approx(p.y, 1));
+check('P1^P2^eob (conic pencil)', wedge(P1, P2, eob),
+  (c, p) => c.kind === 'conicPencil' && p.kind === 'multipole' && p.points.length === 2);
+check('P1^P3^P2^eob (conic intersection)', wedge(P1, P3, P2, eob),
+  (c, p) => c.kind === 'conicIntersection' && p.kind === 'multipole' && p.points.length === 3);
+check('P1^P2^P3^P4 (incomplete conic, dashed)', wedge(P1, P2, P3, P4),
+  (c, p) => c.kind === 'conic' && c.subtype === 'circle' && c.incomplete === true
+            && p.incomplete === true && approx(p.rx, 1, 1e-3));
+// the eob-completed form is the same circle but solid (not incomplete)
+check('P1^P2^P3^P4^eob (complete conic, solid)', wedge(P1, P2, P3, P4, eob),
+  (c, p) => c.kind === 'conic' && c.subtype === 'circle' && !c.incomplete && !p.incomplete);
+// conic intersection from two real conics (the AACGA_conic_inter workflow)
+const E = point2D(-1.09, 0.74), F = point2D(0.19, 0.46), Gp = point2D(-0.62, 0), H = point2D(-0.25, 0.34), J = point2D(0.12, 0.75);
+const C1 = wedge(E, F, Gp, H, eob), C2 = wedge(E, F, Gp, J, eob);
+check('C1 & C2 (conic intersection)', AAC.Vee(C1, C2),
+  (c, p) => c.kind === 'conicIntersection' && p.kind === 'multipole' && p.points.length === 3);
 
 const ok = fails === 0 && bFails === 0;
 console.log(ok ? '\n✅ ALL CHECKS PASSED' : '\n❌ FAILURES PRESENT');

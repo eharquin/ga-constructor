@@ -4,6 +4,7 @@
 
 import {
   AACCGA, ARRAY_SIZE, EPS, isMV, zeroMV, einf, scalarSquare,
+  FP_B0, FP_BX, FP_BY, FP_I0, FP_IX, FP_IY,
 } from './algebra.js';
 
 // ─── Point embedding ─────────────────────────────────────────────────────────
@@ -113,6 +114,15 @@ export function infinityDir(v) {
 // Origin weight of a grade-1 point: w = −(p·einf) = (p3+p4+p5+p6)/4 (closed form).
 export function einfWeight(p) { return ((p[3] || 0) + (p[4] || 0) + (p[5] || 0) + (p[6] || 0)) / 4; }
 
+// Euclidean (x, y) of the grade-1 multivector G + s·v, reading only the 4 origin slots
+// [3],[4],[5],[6] (AACCGA einfWeight = (p3+p4+p5+p6)/4). Used by extractDipole.
+export function euclOfSum(G, v, s) {
+  const w = ((G[3] || 0) + s * (v[3] || 0) + (G[4] || 0) + s * (v[4] || 0)
+           + (G[5] || 0) + s * (v[5] || 0) + (G[6] || 0) + s * (v[6] || 0)) / 4;
+  if (Math.abs(w) < 1e-10) return null;
+  return { x: ((G[1] || 0) + s * (v[1] || 0)) / w, y: ((G[2] || 0) + s * (v[2] || 0)) / w };
+}
+
 // Euclidean (x, y) of a grade-1 point (normalize by the origin weight).
 export function toEuclidean(p) {
   if (!isMV(p)) return null;
@@ -130,4 +140,14 @@ export function extractRoundPoint(p) {
   const x = (p[1] || 0) / w, y = (p[2] || 0) / w;
   const rSq = scalarSquare(p) / (w * w);                 // = p²/(p·einf)²  → sign(r²)=sign(p²)
   return { x, y, rSq };
+}
+
+// Flat point P = p∧Iinf — recover (x,y). Mul-free: P = λ·(B0 + x·Bx + y·By).
+export function extractFlatPoint(P) {
+  if (!isMV(P)) return null;
+  const lam = (P[FP_I0] || 0) / FP_B0[FP_I0];
+  if (Math.abs(lam) < EPS) return null;                  // ideal flat point (no origin weight)
+  const x = ((P[FP_IX] || 0) / FP_BX[FP_IX]) / lam;
+  const y = ((P[FP_IY] || 0) / FP_BY[FP_IY]) / lam;
+  return { x, y };
 }
