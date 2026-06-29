@@ -181,6 +181,7 @@ function OptionsMenu() {
           <div className="options-section-label">Display</div>
           <Toggle label="Weight-scaled thickness"          k="weightThickness" />
           <Toggle label="Show MV expression below input"   k="showMvExpression" />
+          <Toggle label="Show object grades"               k="showGrades" />
           <Toggle label="Show grid + axes"                 k="showGrid" />
           <Toggle label="Snap to nearby anchors on drag"   k="snapOnDrag" />
           <Toggle label="Always show anchor handles"       k="alwaysShowAnchors" />

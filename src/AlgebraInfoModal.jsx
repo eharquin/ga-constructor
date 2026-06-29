@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useAlgebra } from './AlgebraContext.jsx';
-import { cayleyTable, basisSquares } from './algebras/cayley.js';
+import { cayleyTable, basisSquares, MAX_CAYLEY_DIM } from './algebras/cayley.js';
 
 function fmtSignature({ p, q, r }) {
   return `ℝ(${p},${q},${r})`;
@@ -10,11 +10,14 @@ export default function AlgebraInfoModal({ onClose }) {
   const { algebra } = useAlgebra();
   const info = algebra.info;
 
-  // Cayley + signature derivations recompute when the algebra changes.
+  // Cayley + signature derivations recompute when the algebra changes. The full
+  // table is arraySize² products — omitted for large algebras (CCGA's 256×256
+  // sweep takes minutes and is unreadable anyway); the basis-squares row stays.
+  const cayleyTooLarge = algebra.arraySize > MAX_CAYLEY_DIM;
   const { table, squares } = useMemo(() => ({
-    table:   cayleyTable(algebra),
+    table:   cayleyTooLarge ? null : cayleyTable(algebra),
     squares: basisSquares(algebra),
-  }), [algebra]);
+  }), [algebra, cayleyTooLarge]);
 
   if (!info) {
     return (
@@ -68,24 +71,30 @@ export default function AlgebraInfoModal({ onClose }) {
 
           <section className="help-section">
             <h3>Cayley table</h3>
-            <table className="algebra-info-grid algebra-info-cayley">
-              <thead>
-                <tr>
-                  <th></th>
-                  {blades.map((b) => <th key={b}>{b}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {table.map((row, i) => (
-                  <tr key={i}>
-                    <th>{blades[i]}</th>
-                    {row.map((cell, j) => (
-                      <td key={j} className={cell === '0' ? 'algebra-info-zero' : ''}>{cell}</td>
-                    ))}
+            {cayleyTooLarge ? (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                Cayley table omitted — {blades.length}×{blades.length} entries are too large to display.
+              </p>
+            ) : (
+              <table className="algebra-info-grid algebra-info-cayley">
+                <thead>
+                  <tr>
+                    <th></th>
+                    {blades.map((b) => <th key={b}>{b}</th>)}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {table.map((row, i) => (
+                    <tr key={i}>
+                      <th>{blades[i]}</th>
+                      {row.map((cell, j) => (
+                        <td key={j} className={cell === '0' ? 'algebra-info-zero' : ''}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </section>
 
           {info.geometry && info.geometry.length > 0 && (

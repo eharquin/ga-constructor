@@ -30,6 +30,9 @@ import { COLOR_CONSTS, BUILTIN_FN_NAMES } from './evalMVArith.js';
 // user function with one of these names would shadow the builtin form).
 const BUILTIN_CONSTRUCTOR_NAMES = new Set([
   'point', 'flatPoint', 'line', 'vector', 'color', 'triangle', 'exp',
+  // CCGA named conics (resolve to constructors only where the spec defines them).
+  'circle', 'ellipse', 'hyperbola', 'parabola', 'tilted_ellipse', 'conic',
+  'dilator',
 ]);
 
 const ID  = /[A-Za-z_][A-Za-z0-9_]*/;

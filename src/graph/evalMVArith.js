@@ -36,7 +36,7 @@ export const SCALAR_CONSTS = {
 // ─── Built-in scalar functions ───────────────────────────────────────────────
 
 export const BUILTIN_FN_NAMES = new Set([
-  'sqrt', 'abs', 'len',
+  'sqrt', 'sqrt3', 'abs', 'len', 'log', 'ln',
   'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
   'asin', 'acos', 'atan', 'acsc', 'asec', 'acot',
 ]);
@@ -44,6 +44,8 @@ export const BUILTIN_FN_NAMES = new Set([
 const MAX_USER_CALL_DEPTH = 64;
 
 const TRIG_FNS = {
+  log:  Math.log,
+  ln:   Math.log,
   sin:  Math.sin,
   cos:  Math.cos,
   tan:  Math.tan,
@@ -74,6 +76,11 @@ export function createEvalMVArith(algebra) {
   if (algebra.flatPoint2D) CONSTRUCTORS.flatPoint = algebra.flatPoint2D;
   if (algebra.vector2D)    CONSTRUCTORS.vector    = algebra.vector2D;
   if (algebra.line2D)      CONSTRUCTORS.line      = algebra.line2D;
+  // (In CCGA `vector2D` is the Veronese point at infinity, so inline `vector(...)` builds
+  // the same natural ideal point as the free draggable node.)
+  // Generic extension point: algebras can register extra named constructors
+  // (e.g. CCGA's circle/ellipse/hyperbola/…) without hardcoding them here.
+  if (algebra.namedConstructors) Object.assign(CONSTRUCTORS, algebra.namedConstructors);
   const CONSTRUCTOR_NAMES = new Set(Object.keys(CONSTRUCTORS));
   const toScalarArg = (a) =>
     typeof a === 'number' ? a
@@ -82,8 +89,13 @@ export function createEvalMVArith(algebra) {
 
   const BLADE_NAMES = new Set(Object.keys(bladeIndex).filter((n) => n !== '1'));
 
+  // The ideal norm (.inorm / inorm button) only exists for a degenerate metric
+  // (r > 0, e.g. PGA); non-degenerate algebras have a single finite norm, so `.inorm`
+  // is not a recognised postfix there.
+  const idealNormSupported = (algebra.info?.signature?.r ?? 0) > 0;
+
   // Property names accepted after '.' that are not blade names.
-  const PROP_NAMES = new Set(['norm', 'inorm', 'r', 'g', 'b', 'inverse']);
+  const PROP_NAMES = new Set(['norm', 'r', 'g', 'b', 'inverse', ...(idealNormSupported ? ['inorm'] : [])]);
 
   // Pre-build a small env of basis-blade MVs so they're resolvable as bare ids.
   const BASIS_ENV = (() => {
@@ -97,8 +109,19 @@ export function createEvalMVArith(algebra) {
     return env;
   })();
 
+  // Constant env shared by every evalMVArith call (basis blades + named consts).
+  // Built once: in Cl(5,3) BASIS_ENV alone is 255 keys, so spreading it fresh on
+  // each (deeply recursive, user-function-heavy) call dominated the eval cost.
+  // Per call we now layer the call-site env on top via the prototype chain.
+  const CONST_ENV = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS, ...MV_CONSTS };
+
+  // Token cache: function bodies and node expressions are constant strings
+  // re-evaluated every drag tick, so memoising their token arrays avoids
+  // re-tokenising the same source repeatedly.
+  const _tokenCache = new Map();
+
   // ── Tokenizer ──────────────────────────────────────────────────────────
-  function tokenize(str) {
+  function tokenizeRaw(str) {
     const raw = [];
     let i = 0;
     while (i < str.length) {
@@ -118,6 +141,7 @@ export function createEvalMVArith(algebra) {
       }
       if (c === '>' && str[i+1] === '>' && str[i+2] === '>') { raw.push({ type: 'op', val: '>>>' }); i += 3; continue; }
       if (c === '<' && str[i+1] === '<') { raw.push({ type: 'op', val: '<<' }); i += 2; continue; }
+      if (c === '*' && str[i+1] === '*') { raw.push({ type: 'op', val: '**' }); i += 2; continue; }
       if ('+-*/()!~^&|.§[],'.includes(c)) { raw.push({ type: 'op', val: c }); i++; continue; }
       if (c === ':') { raw.push({ type: 'op', val: ':' }); i++; continue; }
       return null;
@@ -141,6 +165,15 @@ export function createEvalMVArith(algebra) {
       else if (leftNum && rightBar) tokens.push(MUL);
     }
     return tokens;
+  }
+
+  // Memoised tokenize: token arrays are read-only during parsing, so the same
+  // array can be safely shared across repeated evaluations of the same string.
+  function tokenize(str) {
+    if (_tokenCache.has(str)) return _tokenCache.get(str);
+    const t = tokenizeRaw(str);
+    _tokenCache.set(str, t);
+    return t;
   }
 
   // ── Syntax validator ──────────────────────────────────────────────────
@@ -237,6 +270,11 @@ export function createEvalMVArith(algebra) {
           eat();
         } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
           eat(); eat(); eat(); // ^, -, 1
+        } else if (peek()?.val === '**') {
+          eat();
+          if (peek()?.val === '-') eat(); // optional negative exponent
+          if (peek()?.type !== 'num') return false;
+          eat();
         } else { break; }
       }
       return true;
@@ -328,6 +366,12 @@ export function createEvalMVArith(algebra) {
     for (let i = 0; i < arraySize; i++) r[i] = (mv[i] || 0) * s;
     return r;
   }
+  // True when only the grade-0 component is non-negligible — such an MV multiplies
+  // as a plain scalar, so products with it reduce to a cheap scaleMV.
+  function isPureScalarMV(mv) {
+    for (let i = 1; i < arraySize; i++) if (Math.abs(mv[i] || 0) > 1e-12) return false;
+    return true;
+  }
   function applyAbs(val) {
     if (val === null) return null;
     if (typeof val === 'number') return Math.abs(val);
@@ -374,6 +418,28 @@ export function createEvalMVArith(algebra) {
 
   const mapList = (lst, fn) => ({ list: true, items: lst.items.map(fn).filter((v) => v != null) });
 
+  // Integer power A**n — repeated geometric product (n>0), scalar 1 (n=0), or
+  // repeated product of the inverse (n<0). Pure numbers use Math.pow (any real
+  // exponent); multivectors require an integer exponent. Maps over lists.
+  function applyPow(val, n) {
+    if (val === null || typeof n !== 'number') return null;
+    if (val?.list) return mapList(val, (item) => applyPow(item, n));
+    if (typeof val === 'number') return Math.pow(val, n);
+    if (!Number.isInteger(n)) return null;
+    const mv = toMV(val);
+    if (!mv) return null;
+    if (n === 0) { const r = new Algebra(arraySize); r[0] = 1; return r; }
+    let base = mv, e = n;
+    if (n < 0) {
+      const inv = 'Inverse' in mv ? mv.Inverse : null;
+      if (!inv) return null;
+      base = inv; e = -n;
+    }
+    let result = base;
+    for (let k = 1; k < e; k++) result = Algebra.Mul(result, base);
+    return result;
+  }
+
   function applyOp(left, op, right) {
     if (left === null || right === null) return null;
     const lNum = typeof left  === 'number';
@@ -409,7 +475,13 @@ export function createEvalMVArith(algebra) {
     if (op === '*') {
       if (lNum) return scaleMV(toMV(right), left);
       if (rNum) return scaleMV(toMV(left), right);
-      return Algebra.Mul(toMV(left), toMV(right));
+      const lMV = toMV(left), rMV = toMV(right);
+      if (!lMV || !rMV) return null;
+      // Pure-scalar fast path: a grade-0 MV (e.g. a `C|eo1` coefficient) just
+      // scales the other operand — skip ganja's full 256-dim Mul (~77µs).
+      if (isPureScalarMV(lMV)) return scaleMV(rMV, lMV[0] || 0);
+      if (isPureScalarMV(rMV)) return scaleMV(lMV, rMV[0] || 0);
+      return Algebra.Mul(lMV, rMV);
     }
     if (op === '/') {
       if (rNum && right !== 0) return scaleMV(toMV(left), 1 / right);
@@ -421,6 +493,21 @@ export function createEvalMVArith(algebra) {
       if (isPureScalar) {
         const s = rMV[0] || 0;
         return Math.abs(s) > 1e-15 ? scaleMV(toMV(left), 1 / s) : null;
+      }
+      // Versor fast path: for a blade/versor B (vectors, blades, rotors, …),
+      // B⁻¹ = ~B / (B·~B) where B·~B is a scalar — one product instead of ganja's
+      // general .Inverse, whose recursive product chain costs ~15× a Mul in high
+      // dimensions (≈30 ms in CCGA's 256-dim algebra, the dominant drag cost).
+      if (typeof Algebra.Reverse === 'function') {
+        const rev = Algebra.Reverse(rMV);
+        const n = Algebra.Mul(rMV, rev);
+        let maxNon = 0;
+        for (let i = 1; i < arraySize; i++) { const a = Math.abs(n[i] || 0); if (a > maxNon) maxNon = a; }
+        const s = n[0] || 0;
+        if (Math.abs(s) > 1e-12 && maxNon < Math.abs(s) * 1e-6) {  // B·~B effectively scalar
+          const inv = scaleMV(rev, 1 / s);
+          return Algebra.Mul(toMV(left), inv);
+        }
       }
       // General MV inverse: A / B = A * B^{-1} via ganja (Inverse is a getter)
       if ('Inverse' in rMV) {
@@ -458,8 +545,10 @@ export function createEvalMVArith(algebra) {
     if (!tokens) return null;
 
     // Merge order: user env takes priority over constants, but only when defined.
-    const fullEnv = { ...BASIS_ENV, ...COLOR_CONSTS, ...SCALAR_CONSTS, ...MV_CONSTS };
-    for (const [k, v] of Object.entries(env)) { if (v !== undefined) fullEnv[k] = v; }
+    // Layer the call-site env over the shared constant env via the prototype
+    // chain — lookups fall through to CONST_ENV without copying its 255 keys.
+    const fullEnv = Object.create(CONST_ENV);
+    for (const k of Object.keys(env)) { if (env[k] !== undefined) fullEnv[k] = env[k]; }
     let pos = 0;
     const peek = () => tokens[pos];
     const eat  = () => tokens[pos++];
@@ -594,9 +683,10 @@ export function createEvalMVArith(algebra) {
           }
 
           if (CONSTRUCTOR_NAMES.has(t.val)) {
-            // Object constructor: point/flatPoint/vector/line with scalar args.
+            // Object constructor with scalar args: point/flatPoint/vector/line take
+            // ≥2, versor constructors like dilator(s) take 1.
             const nums = args.map(toScalarArg);
-            val = (args.length >= 2 && !nums.some(Number.isNaN))
+            val = (args.length >= 1 && !nums.some(Number.isNaN))
               ? CONSTRUCTORS[t.val](...nums)
               : null;
           } else if (BUILTIN_FN_NAMES.has(t.val)) {
@@ -611,14 +701,44 @@ export function createEvalMVArith(algebra) {
                 else {
                   const mv = toMV(arg);
                   if (!mv) { val = null; }
-                  else if (mv.every((v, i) => i === 0 || Math.abs(v) < 1e-10)) {
-                    const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
-                  } else {
-                    const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
-                    const log = normalised.Log();
-                    const half = new Algebra(arraySize);
-                    for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
-                    val = half.Exp();
+                  else {
+                    // Treat the argument as a scalar when its non-scalar parts are
+                    // negligible *relative* to the scalar (a 2-blade's square is a
+                    // pure scalar mathematically, but ganja's Float32 product leaves
+                    // grade noise at ~1e-6 of it — an absolute cutoff would wrongly
+                    // push it into the motor branch and not return a scalar).
+                    let maxNon = 0;
+                    for (let i = 1; i < arraySize; i++) { const a = Math.abs(mv[i] || 0); if (a > maxNon) maxNon = a; }
+                    if (maxNon < Math.max(1e-9, Math.abs(mv[0] || 0) * 1e-4)) {
+                      const r = new Algebra(arraySize); r[0] = Math.sqrt(mv[0]); val = r;
+                    } else {
+                      const normalised = (mv[0] || 0) < -1e-10 ? scaleMV(mv, -1) : mv;
+                      const log = normalised.Log();
+                      const half = new Algebra(arraySize);
+                      for (let i = 0; i < arraySize; i++) half[i] = (log[i] || 0) * 0.5;
+                      val = half.Exp();
+                    }
+                  }
+                }
+              } else if (t.val === 'sqrt3') {
+                // Real cube root. Single-valued over the reals (Math.cbrt handles
+                // negatives), so unlike sqrt it needs no sign-flip — which is exactly
+                // why it can take the (possibly negative) Cardano radicand directly.
+                if (typeof arg === 'number') { val = Math.cbrt(arg); }
+                else {
+                  const mv = toMV(arg);
+                  if (!mv) { val = null; }
+                  else {
+                    let maxNon = 0;
+                    for (let i = 1; i < arraySize; i++) { const a = Math.abs(mv[i] || 0); if (a > maxNon) maxNon = a; }
+                    if (maxNon < Math.max(1e-9, Math.abs(mv[0] || 0) * 1e-4)) {
+                      const r = new Algebra(arraySize); r[0] = Math.cbrt(mv[0]); val = r;
+                    } else {
+                      const log = mv.Log();
+                      const third = new Algebra(arraySize);
+                      for (let i = 0; i < arraySize; i++) third[i] = (log[i] || 0) / 3;
+                      val = third.Exp();
+                    }
                   }
                 }
               } else { val = null; }
@@ -665,7 +785,7 @@ export function createEvalMVArith(algebra) {
           eat();
           if (prop.val === 'norm') {
             val = applyNorm(val);
-          } else if (prop.val === 'inorm') {
+          } else if (prop.val === 'inorm' && idealNormSupported) {
             val = applyINorm(val);
           } else if (prop.val === 'inverse') {
             const applyInv = (v) => {
@@ -724,6 +844,14 @@ export function createEvalMVArith(algebra) {
           } else {
             val = null;
           }
+        } else if (peek()?.val === '**') {
+          eat();
+          let sign = 1;
+          if (peek()?.val === '-') { eat(); sign = -1; }
+          const numTok = peek();
+          if (!numTok || numTok.type !== 'num') return null;
+          eat();
+          val = applyPow(val, sign * numTok.val);
         } else if (peek()?.val === '^' && tokens[pos + 1]?.val === '-' && tokens[pos + 2]?.type === 'num' && tokens[pos + 2]?.val === 1) {
           eat(); eat(); eat(); // ^, -, 1
           const applyInverse = (v) => {

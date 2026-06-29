@@ -25,12 +25,12 @@ function nextFolderName(items) {
 
 const AUTO_POINT_NAMES = 'EFGHIJKLMNOPQSUVWYZ'.split('');
 
-function pickPointName(usedIds) {
+function pickPointName(usedIds, reserved) {
   for (const n of AUTO_POINT_NAMES) {
-    if (!usedIds.has(n)) return n;
+    if (!usedIds.has(n) && !reserved.has(n)) return n;
   }
   let i = 1;
-  while (usedIds.has(`P${i}`)) i++;
+  while (usedIds.has(`P${i}`) || reserved.has(`P${i}`)) i++;
   return `P${i}`;
 }
 
@@ -95,9 +95,8 @@ function itemsReducer(items, action) {
     case 'DELETE': {
       const victim = items.find((it) => it.id === action.id);
       if (victim?.kind === 'folder') {
-        return items
-          .filter((it) => it.id !== action.id)
-          .map((it) => it.parentId === action.id ? { ...it, parentId: null } : it);
+        // Deleting a folder removes all of its child items too.
+        return items.filter((it) => it.id !== action.id && it.parentId !== action.id);
       }
       return items.filter((it) => it.id !== action.id);
     }
@@ -130,12 +129,27 @@ function itemsReducer(items, action) {
 
       // Sibling drop: new parent = target's parent (folders themselves stay at root).
       const newParentId = dragged.kind === 'folder' ? null : (target.parentId ?? null);
-      let insertAt = action.position === 'before' ? to : to + 1;
-      if (from < to) insertAt--;
-      const next = [...items];
-      const [moved] = next.splice(from, 1);
-      next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, { ...moved, parentId: newParentId });
-      return next;
+
+      // A dragged folder moves together with its contiguous child block so the
+      // folder + children stay adjacent in the array (rendering invariant).
+      let blockEnd = from;
+      if (dragged.kind === 'folder') {
+        for (let i = from + 1; i < items.length; i++) {
+          if (items[i].parentId === dragged.id) blockEnd = i;
+          else break;
+        }
+      }
+      const block = items.slice(from, blockEnd + 1);
+      const rest = [...items.slice(0, from), ...items.slice(blockEnd + 1)];
+
+      // Locate target in the remaining array; if it's inside the moved block
+      // (e.g. dropping a folder onto its own child), bail out unchanged.
+      const targetIdx = rest.findIndex((it) => it.id === action.targetId);
+      if (targetIdx === -1) return items;
+
+      const insertAt = action.position === 'before' ? targetIdx : targetIdx + 1;
+      rest.splice(insertAt, 0, { ...block[0], parentId: newParentId }, ...block.slice(1));
+      return rest;
     }
     case 'LOAD_ITEMS':
       return action.items.map((it) => ({
@@ -465,7 +479,8 @@ export function useGraph(algebra) {
       const val = values[node.id];
       const cls = classifyMV(val);
       const isVecNode  = node.type === 'vector';
-      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'idealFlatPoint' ||
+      const isVecVal   = cls?.kind === 'vector' || cls?.kind === 'idealPoint' || cls?.kind === 'specialIdealPoint' || cls?.kind === 'idealFlatPoint' ||
+                         cls?.kind === 'infinityPoint' ||
                          (val && typeof val === 'object' && 'vx' in val);
       const isBivecVal = cls?.kind === 'bivector';
       if (!isVecNode && !isVecVal && !isBivecVal) continue;
@@ -492,7 +507,9 @@ export function useGraph(algebra) {
       const cls = classifyMV(val);
       const tail = map[id] ?? { x: 0, y: 0 };
       if (val && typeof val === 'object' && 'vx' in val) return { x: tail.x + val.vx, y: tail.y + val.vy };
+      if (cls?.kind === 'infinityPoint' && val.dir) return { x: tail.x + val.dir.vx, y: tail.y + val.dir.vy };
       if (cls?.kind === 'vector')      return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
+      if (cls?.kind === 'specialIdealPoint') return { x: tail.x + (val[1] || 0), y: tail.y + (val[2] || 0) };
       if (cls?.kind === 'idealPoint')  return { x: tail.x - (val[5] || 0), y: tail.y + (val[4] || 0) };
       return tail;
     };
@@ -779,6 +796,29 @@ export function useGraph(algebra) {
     dispatch({ type: 'SET_TEXT', id: item.id, text });
   };
 
+  // Tip-drag a literal special ideal point (pure-direction vector): rewrite its
+  // e1/e2 coefficients to the new direction (vx, vy). Keeps it a special ideal point
+  // (only e1/e2 → ideal, no einf lift). Preserves the label if any.
+  const updateSpecialIdealPoint = (nodeId, vx, vy) => {
+    const item = items.find((it) => {
+      const n = parseExpression(it.text);
+      return n?.id === nodeId && n?.type === 'multivector' && !n.params?.dual;
+    });
+    if (!item) return;
+    const node = parseExpression(item.text);
+    const term = (c, blade) => {
+      const r = fmtNum(c);
+      if (+r === 0) return null;
+      if (+r === 1) return blade;
+      if (+r === -1) return `-${blade}`;
+      return `${r}*${blade}`;
+    };
+    const parts = [term(vx, 'e1'), term(vy, 'e2')].filter(Boolean);
+    const expr = (parts.join(' + ').replace(/ \+ -/g, ' - ')) || '0*e2';
+    const text = node.label !== null ? `${node.label} = ${expr}` : expr;
+    dispatch({ type: 'SET_TEXT', id: item.id, text });
+  };
+
   const updateScalarAsComplexPoint = (nodeId, x, y) => {
     const item = items.find((it) => {
       const n = parseExpression(it.text);
@@ -794,6 +834,8 @@ export function useGraph(algebra) {
   // Find the item whose node id is anchorable in vectorPositions.
   // Covers explicit vector / meetPoint nodes plus any value classified as a
   // vector, ideal point, or bivector.
+  // Keep this list in sync with the `isVecVal`/`isBivecVal` test in `vectorPositions`
+  // below — otherwise the canvas offers a tail/anchor handle the writer silently drops.
   const findVectorItem = (nodeId) =>
     items.find((it) => {
       const n = parseExpression(it.text);
@@ -801,7 +843,8 @@ export function useGraph(algebra) {
       if (n.type === 'vector' || n.type === 'meetPoint') return true;
       const val = values[n.id];
       const cls = classifyMV(val);
-      if (cls?.kind === 'idealPoint' || cls?.kind === 'vector' || cls?.kind === 'idealFlatPoint' || cls?.kind === 'bivector') return true;
+      if (cls?.kind === 'idealPoint' || cls?.kind === 'specialIdealPoint' || cls?.kind === 'infinityPoint' ||
+          cls?.kind === 'vector' || cls?.kind === 'idealFlatPoint' || cls?.kind === 'bivector') return true;
       return val && typeof val === 'object' && 'vx' in val;
     });
 
@@ -830,7 +873,10 @@ export function useGraph(algebra) {
 
   const addFreePoint = (x, y) => {
     const usedIds = new Set(items.map((it) => parseExpression(it.text)?.id).filter(Boolean));
-    const name  = pickPointName(usedIds);
+    // Skip auto-names that collide with the active algebra's reserved constants (e.g. CCGA's
+    // pseudoscalar `I`), so a clicked point never shadows a built-in identifier.
+    const reserved = new Set(Object.keys(algebra.mvConsts ?? {}));
+    const name  = pickPointName(usedIds, reserved);
     const newId = `expr_${nextId.current++}`;
     // PGA: emit `point(...)`; VGA (no freePoint support): emit `vector(...)` so double-click adds a vector.
     const supportsPoint = algebra.supportedNodeTypes?.has('freePoint');
@@ -890,6 +936,7 @@ export function useGraph(algebra) {
     updateDepPoint,
     updateDualDepPoint,
     updateLiteralMVPoint,
+    updateSpecialIdealPoint,
     updateScalarAsComplexPoint,
     createScalarsFor,
     addFreePoint,

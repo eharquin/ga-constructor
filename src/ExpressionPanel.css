@@ -594,6 +594,11 @@
   opacity: 0.7;
 }
 
+.expr-grades {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 .expr-mv {
   font-family: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
   font-size: 10px;

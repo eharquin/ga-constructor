@@ -42,15 +42,21 @@ export function cayleyTable(spec) {
   return table;
 }
 
-// Diagonal of the Cayley table normalised to '0' / '+1' / '-1'. For a Clifford
-// basis blade the square is always a (possibly zero) scalar, so the diagonal
-// cell is '0', '1', or '-1' in the unformatted basis. The scalar blade label
-// (typically '1') is just a name — we collapse it to the sign here.
+// Above this dimension the full Cayley table (arraySize² products) is both far
+// too slow to compute and far too large to read — e.g. CCGA's 256×256 sweep
+// takes well over two minutes. Callers should omit the table past this cap.
+export const MAX_CAYLEY_DIM = 64;
+
+// Diagonal of the Cayley table normalised to '0' / '+1' / '-1'. Computed
+// directly (arraySize single products) rather than via the full table, so it
+// stays cheap even for large algebras. For a Clifford basis blade the square is
+// always a (possibly zero) scalar.
 export function basisSquares(spec) {
-  const t = cayleyTable(spec);
-  const scalarName = spec.bladeNames[0] ?? '1';
-  return t.map((row, i) => {
-    const s = row[i];
+  const { Algebra, arraySize, bladeNames } = spec;
+  const scalarName = bladeNames[0] ?? '1';
+  return Array.from({ length: arraySize }, (_, i) => {
+    const blade = basisBlade(spec, i);
+    const s = formatProduct(Algebra.Mul(blade, blade), bladeNames);
     if (s === '0') return '0';
     if (s === scalarName)        return '+1';
     if (s === `-${scalarName}`)  return '-1';

@@ -41,6 +41,8 @@ Lists are first-class values: `list.compute` stores raw MVs; `getRenderPlan` dis
 - `point2D` / `idealPoint` / `line2D` → `PGA.Bivector` / `PGA.Vector` typed constructors
 - Norms (`normalizeMVFinit/Ideal/MV`, `objectWeight`) → `PGA.Length` (with `PGA.Dual` for the ideal-norm path)
 
+**CCGA sparse-engine exception** — CCGA lives in ℝ(5,3) (256 blades) where ganja's *dense* products cost ~2–3.5 ms each, far too slow for sparse conformal objects (a point has 8 of 256 coeffs). The CCGA adapter therefore **replaces** ganja's products with a sparse engine (`src/algebras/ccga/product.js`): a Cayley table built analytically from bitmasks at load, with kernels that iterate operand support only (~100–1850× faster). `algebra.js` overrides the CCGA instance's `Mul/Wedge/Dot/LDot/Vee/sw/Dual/Reverse/Length` right after construction, so the shared `evalMVArith`/`nodeTypes` and all adapter internals get the speedup with no shared-code changes; ganja still backs the rare `.Exp/.Log/.Inverse` getters. The engine matches ganja's conventions exactly (verified by `scripts/ccga_verify.mjs` over all 256² basis pairs + saved-graph snapshots). The CCGA adapter is split into modules: `product / algebra / embed / conic / extract / classify / display / index`.
+
 **Per-item interactivity controls** (top of each row, next to the visibility checkbox):
 - 🔓/🔒 lock toggle — disables drag without hiding the object (drag-eligible items only)
 

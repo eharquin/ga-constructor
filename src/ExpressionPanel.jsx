@@ -63,6 +63,10 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       const tag = algebra.flatPoint2D ? 'Round point' : 'Point';
       return `${tag} (${fmtC(eu.x)}, ${fmtC(eu.y)})`;
     }
+    case 'specialPoint': {
+      const eu = toE?.(val);
+      return eu ? `Special point (${fmtC(eu.x)}, ${fmtC(eu.y)})` : 'Special point';
+    }
     case 'roundPoint': {
       const plan = algebra.getRenderPlan?.(val);
       if (plan?.kind !== 'roundPoint') return 'Round point';
@@ -71,6 +75,7 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       return `${tag} (${fmtC(plan.x)}, ${fmtC(plan.y)})  r=${fmtC(r)}`;
     }
     case 'idealPoint':  { const iv = toI?.(val); return iv ? `Ideal point (${fmtC(iv.vx)}, ${fmtC(iv.vy)})` : '—'; }
+    case 'specialIdealPoint': { const iv = toI?.(val); return iv ? `Special ideal point (${fmtC(iv.vx)}, ${fmtC(iv.vy)})` : 'Special ideal point'; }
     case 'vector':      return `Vector (${fmtC(val[1] ?? 0)}, ${fmtC(val[2] ?? 0)})`;
     case 'bivector':    return `Bivector (${fmtN(val[3] ?? val[val.length - 1])} e12)`;
     case 'line':        return 'Line';
@@ -93,6 +98,13 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
         ? `Flat point (${fmtC(plan.x)}, ${fmtC(plan.y)})`
         : 'Flat point';
     }
+    case 'twopole':          return 'Twopole';
+    case 'tripole':          return 'Tripole';
+    case 'quadpole':         return 'Quadpole';
+    case 'conicPencil':      return `Conic pencil (${cls.n ?? '?'} pts)`;
+    case 'lineAtInfinity':   return 'Line at infinity';
+    case 'conicAtInfinity':  return 'Conic at infinity';
+    case 'pseudoscalar':     return 'Pseudoscalar';
     case 'idealFlatPoint': {
       const plan = algebra.getRenderPlan?.(val);
       return plan?.kind === 'idealFlatPoint'
@@ -106,6 +118,25 @@ function getDisplayValue(text, values, algebra, decimals = 4) {
       return `${lbl} (${fmtC(plan.p1.x)}, ${fmtC(plan.p1.y)}) / (${fmtC(plan.p2.x)}, ${fmtC(plan.p2.y)})  r=${fmtC(plan.r)}`;
     }
     case 'idealPointPair': return 'Ideal point pair';
+    case 'infinityPoint': {
+      const plan = algebra.getRenderPlan?.(val);
+      if (plan?.kind !== 'positionedVector') return 'Ideal point';
+      const rPart = plan.rSq ? `  r=${fmtC(Math.sqrt(Math.abs(plan.rSq)))}${plan.rSq < 0 ? 'i' : ''}` : '';
+      return `Ideal point → (${fmtC(plan.vx)}, ${fmtC(plan.vy)})${rPart}`;
+    }
+    case 'conic': {
+      const plan = algebra.getRenderPlan?.(val);
+      const sub = plan?.subtype ?? cls.subtype;
+      // Degenerate sub-types (Δ₃≈0): point / line pair / parallel lines (paper Table 1).
+      if (sub === 'point') return `Degenerate conic — point (${fmtC(plan.cx)}, ${fmtC(plan.cy)})`;
+      if (sub === 'linePair') return 'Degenerate conic — two intersecting lines';
+      if (sub === 'parallelLines') return 'Degenerate conic — parallel lines';
+      let name = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : 'Conic';
+      if (plan?.imaginary) name = `Imaginary ${name.toLowerCase()}`;
+      if (plan && (plan.subtype === 'ellipse' || plan.subtype === 'circle'))
+        return `${name} (${fmtC(plan.cx)}, ${fmtC(plan.cy)})  rx=${fmtC(plan.rx)} ry=${fmtC(plan.ry)}`;
+      return `Conic — ${name}`;
+    }
     default:            return '—';
   }
 }
@@ -125,13 +156,35 @@ function fmtCoeff(c, decimals = 4) {
 // Grade-1 (line): sqrt(a²+b²); grade-2 finite point: |e12|;
 // grade-2 ideal: sqrt(e01²+e02²); scalar: |s|.
 const KIND_LABELS = {
-  scalar: 'Scalar', finitePoint: 'Point', roundPoint: 'Round point', flatPoint: 'Flat point', idealFlatPoint: 'Ideal flat point', idealPoint: 'Ideal point',
+  scalar: 'Scalar', finitePoint: 'Point', specialPoint: 'Special point', roundPoint: 'Round point', flatPoint: 'Flat point', idealFlatPoint: 'Ideal flat point', idealPoint: 'Ideal point', specialIdealPoint: 'Special ideal point',
   line: 'Line', idealLine: 'Ideal line', pseudoscalar: 'Pseudoscalar',
   rotor: 'Rotor', translator: 'Translator', motor: 'Motor',
   reflector: 'Reflector', mixed: 'Mixed',
   vector: 'Vector', bivector: 'Bivector',
   circle: 'Circle', pointPair: 'Point pair', idealPointPair: 'Ideal point pair',
+  conic: 'Conic', infinityPoint: 'Ideal point',
+  twopole: 'Twopole', tripole: 'Tripole', quadpole: 'Quadpole',
+  conicPencil: 'Conic pencil', lineAtInfinity: 'Line at infinity',
+  conicAtInfinity: 'Conic at infinity', pseudoscalar: 'Pseudoscalar',
 };
+
+// Sorted list of grades carrying a non-negligible coefficient in `val`.
+// Generators are single-character in every algebra, so a blade's grade is
+// `name === '1' ? 0 : name.length - 1` and val[i] aligns with bladeNames[i].
+function gradesPresent(val, algebra) {
+  if (typeof val === 'number') return Number.isFinite(val) && val !== 0 ? [0] : [];
+  const names = algebra?.bladeNames;
+  if (val == null || typeof val !== 'object' || !names || !('length' in val)) return null;
+  let maxAbs = 0;
+  for (let i = 0; i < names.length; i++) { const a = Math.abs(val[i] ?? 0); if (a > maxAbs) maxAbs = a; }
+  if (maxAbs === 0) return [];
+  const eps = maxAbs * 1e-6;            // relative threshold — ignore numeric leakage
+  const present = new Set();
+  for (let i = 0; i < names.length; i++) {
+    if (Math.abs(val[i] ?? 0) > eps) { const n = names[i]; present.add(n === '1' ? 0 : n.length - 1); }
+  }
+  return [...present].sort((a, b) => a - b);
+}
 
 function describeListItem(item, algebra, decimals) {
   if (item == null) return { kindLabel: '?', mvStr: null };
@@ -343,6 +396,10 @@ export default function ExpressionPanel({ onHide }) {
   const { algebra } = useAlgebra();
   const { settings } = useSettings();
   const { parseExpression, classifyMV } = algebra;
+  // `inorm` (ideal norm) only makes sense for a degenerate metric (r > 0, e.g. PGA),
+  // where ideal objects live in the null subspace. Non-degenerate algebras have a
+  // single finite norm, so the inorm button is hidden and `norm` always applies.
+  const isDegenerate = (algebra.info?.signature?.r ?? 0) > 0;
   const {
     items, nodes, values, vectorPositions, playingIds,
     animSettings, setAnimMode, setAnimSpeed,
@@ -660,8 +717,9 @@ export default function ExpressionPanel({ onHide }) {
           // ideal point (PGA dual etc.), grade-1 vector (VGA), or bivector.
           const positionKind = node ? classifyMV(values[node.id])?.kind : null;
           const hasPosition = node?.type === 'vector' ||
-                              positionKind === 'idealPoint' || positionKind === 'vector' ||
+                              positionKind === 'idealPoint' || positionKind === 'specialIdealPoint' || positionKind === 'vector' ||
                               positionKind === 'idealFlatPoint' || positionKind === 'bivector' ||
+                              positionKind === 'infinityPoint' ||
                               !!(values?.[node?.id] && typeof values[node.id] === 'object' && 'vx' in values[node.id]);
           const isDraggable = (() => {
             if (!node) return false;
@@ -677,16 +735,20 @@ export default function ExpressionPanel({ onHide }) {
           const val_        = node ? values[node.id] : null;
           const cls_        = classifyMV(val_);
           const isList      = !!val_?.list;
-          const DRAWABLE_KINDS = new Set(['finitePoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair']);
+          const DRAWABLE_KINDS = new Set(['finitePoint', 'specialPoint', 'roundPoint', 'flatPoint', 'idealFlatPoint', 'idealPoint', 'specialIdealPoint', 'infinityPoint', 'line', 'vector', 'bivector', 'rotor', 'idealPointPair', 'pointPair', 'twopole', 'tripole', 'quadpole', 'conic']);
           const isDrawable  = isList || (val_ && typeof val_ === 'object' && 'vx' in val_) || DRAWABLE_KINDS.has(cls_?.kind);
           const canUnitize  = node && node.type !== 'scalar' && node.type !== 'funcDef' && !isList && cls_?.kind !== 'scalar';
           const IDEAL_KINDS = new Set(['idealPoint', 'idealLine', 'pseudoscalar']);
-          const isIdealObj  = IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_);
+          // Only degenerate metrics have genuine "ideal" objects (finite norm undefined);
+          // in non-degenerate algebras every object normalizes by the finite norm.
+          const isIdealObj  = isDegenerate && (IDEAL_KINDS.has(cls_?.kind) || (val_ && typeof val_ === 'object' && 'vx' in val_));
           // Auto-switch norm→inorm when object becomes ideal (norm not defined for ideal objects)
           if (isIdealObj && item.normalizeMode === 'norm') setItemNormalizeMode(item.id, 'inorm');
           const isPlaying  = isScalar && playingIds.has(item.id);
           const color      = resolveColor(item, values, algebra, items);
           const displayVal = item.text.trim() ? getDisplayValue(item.text, values, algebra, settings.decimals) : null;
+          const grades     = settings.showGrades ? gradesPresent(node ? values[node.id] : null, algebra) : null;
+          const gradeStr   = grades && grades.length ? ` [${grades.join(', ')}]` : '';
           const mvStr      = (node && settings.showMvExpression) ? formatMV(values[node.id], algebra, settings.decimals, settings.cgaNullBasisDisplay) : null;
           const anim    = item.anim ?? DEFAULT_ANIM;
           const rawDrawPos = hasPosition ? (item.drawPos ?? null) : null;
@@ -777,12 +839,14 @@ export default function ExpressionPanel({ onHide }) {
                           tabIndex={-1}
                         >norm</button>
                       )}
-                      <button
-                        className={`norm-btn${item.normalizeMode === 'inorm' ? ' active' : ''}`}
-                        title="Normalize by ideal norm ‖A‖∞"
-                        onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'inorm' ? null : 'inorm')}
-                        tabIndex={-1}
-                      >inorm</button>
+                      {isDegenerate && (
+                        <button
+                          className={`norm-btn${item.normalizeMode === 'inorm' ? ' active' : ''}`}
+                          title="Normalize by ideal norm ‖A‖∞"
+                          onClick={() => setItemNormalizeMode(item.id, item.normalizeMode === 'inorm' ? null : 'inorm')}
+                          tabIndex={-1}
+                        >inorm</button>
+                      )}
                     </span>
                   )}
                   <input
@@ -812,7 +876,7 @@ export default function ExpressionPanel({ onHide }) {
                       {expandedLists.has(item.id) ? '▾' : '▸'} {displayVal}
                     </button>
                   ) : (
-                    !hasError && !isFuncDef && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}</div>
+                    !hasError && !isFuncDef && !isScalar && displayVal && <div className="expr-result" style={{ color }}>{displayVal}<span className="expr-grades">{gradeStr}</span></div>
                   )}
                   {!hasError && !isFuncDef && !isList && !isScalar && mvStr && <div className="expr-mv">{mvStr}</div>}
                   {isFuncDef && (
@@ -980,12 +1044,36 @@ export default function ExpressionPanel({ onHide }) {
                 <table className="help-table">
                   <tbody>
                     <tr><td><code>A = point(x, y)</code></td><td>Free draggable point. <code>x</code>, <code>y</code> can be scalar names.</td></tr>
-                    <tr><td><code>V = vector(vx, vy)</code></td><td>Free direction vector (ideal point). Draggable tail &amp; tip.</td></tr>
+                    <tr><td><code>V = vector(vx, vy)</code></td><td>Ideal point at infinity <code>½vx²·einf1 + ½vy²·einf2 + vx·vy·einf3</code> (CCGA Veronese). Arrow toward <code>(vx, vy)</code>; draggable tail &amp; tip.</td></tr>
                     <tr><td><code>L = line(a, b, c)</code></td><td>Free line <code>a·x + b·y + c = 0</code>. Arguments can be scalar names.</td></tr>
+                    <tr><td><code>C = circle(cx, cy, r)</code></td><td>CCGA conic constructors: <code>circle</code>, <code>ellipse(a,b,cx,cy)</code>, <code>hyperbola(a,b,cx,cy)</code>, <code>parabola(p,cx,cy)</code>, <code>tilted_ellipse(a,b,θ,cx,cy)</code>, <code>conic(A,B,C,D,E,F)</code>. Args can be scalar names (animatable).</td></tr>
+                    <tr><td><code>D = dilator(s)</code></td><td>Isotropic scaling versor about the origin, factor <code>s &gt; 0</code> (CCGA). Apply with <code>Q = D &gt;&gt;&gt; P1</code> — the right side is a named object, <code>point(…)</code>, <code>vector(…)</code>, or blade arithmetic.</td></tr>
+                    <tr><td><code>D = exp(½·log(s)·Edil)</code></td><td>Build any versor from <code>+1</code>-square blades. <code>Edil = eo1^einf1+eo2^einf2+eo3^einf3</code> is the isotropic scaling generator; the per-pair blades <code>eoᵢ^einfᵢ</code> are exposed for experimentation. Apply via <code>&gt;&gt;&gt;</code>.</td></tr>
                     <tr><td><code>t = 0.5</code></td><td>Scalar. Click ▶ to animate. Supports blade literals: <code>t = 2e12</code>.</td></tr>
                   </tbody>
                 </table>
               </section>
+
+              {algebra.mvConsts?.Iod && (
+              <section className="help-section">
+                <h3>Object zoo (CCGA)</h3>
+                <p className="help-note">Wedge points <code>p = point(x,y)</code> into the ladders. A bare wedge is a <em>multipole</em>; <code>^Iod</code> builds the conic ladder, <code>^Iinfd</code> the embedded CGA family. A multipole keeps all its points — it is drawn as those points joined by a dashed outline; pencils stay labelled but not drawn.</p>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>p1 ^ p2</code></td><td>Twopole (gr 2) — drawn as its 2 points + dashed segment. (The CGA dipole <code>p1^p2^Iinfd</code> draws the same pair.)</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ p3</code></td><td>Tripole (gr 3) / <code>^p4</code> → Quadpole (gr 4): drawn as their 3 / 4 defining points joined by a dashed outline.</td></tr>
+                    <tr><td><code>p1 ^ … ^ p5</code></td><td>Five points fix a unique Conic (gr 5) — drawn (circle/ellipse/hyperbola/parabola/line by geometry).</td></tr>
+                    <tr><td><code>p1 ^ … ^ pn ^ Iod</code></td><td>Conic pencil (n&lt;5 pts), gr n+2 — under-determined conic, not drawn.</td></tr>
+                    <tr><td><code>p1 ^ … ^ p5 ^ Iod</code></td><td>Conic (gr 7) — the gauged grade-7 form, drawn identically.</td></tr>
+                    <tr><td><code>p ^ Iinfd</code></td><td>Round point (CGA, gr 3), drawn.</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ Iinfd</code></td><td>Point pair (CGA, gr 4), drawn. <code>p^einf^Iinfd</code> → Flat point.</td></tr>
+                    <tr><td><code>p1 ^ p2 ^ p3 ^ Iinfd</code></td><td>Circle (CGA, gr 5), drawn. <code>p1^p2^einf^Iinfd</code> → Line.</td></tr>
+                    <tr><td><code>Iinf</code> / <code>p ^ Iinf</code></td><td>Line at infinity (gr 3) / Flat point (gr 4).</td></tr>
+                    <tr><td><code>Iod ^ Iinf</code> / <code>I</code></td><td>Conic at infinity (gr 5) / Pseudoscalar (gr 8).</td></tr>
+                  </tbody>
+                </table>
+              </section>
+              )}
 
               <section className="help-section">
                 <h3>Geometry</h3>
@@ -1036,8 +1124,9 @@ export default function ExpressionPanel({ onHide }) {
                     <tr><td><code>A ^ B</code>, <code>A &amp; B</code>, <code>A | B</code>, <code>A &lt;&lt; B</code>, <code>A § B</code></td><td>Outer (wedge), regressive (vee), inner (symmetric), left contraction, commutator (tightest binary).</td></tr>
                     <tr><td><code>!A</code>, <code>~A</code>, <code>-A</code></td><td>Dual, reverse, negate (unary — tightest).</td></tr>
                     <tr><td><code>|A|</code></td><td>Smart norm — finite or ideal auto-detected. Use <code>abs(A)</code> for scalar absolute value.</td></tr>
-                    <tr><td><code>A.norm</code>, <code>A.inorm</code></td><td>Explicit finite / ideal norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
+                    <tr><td><code>A.norm</code>{isDegenerate && <>, <code>A.inorm</code></>}</td><td>Explicit finite{isDegenerate ? ' / ideal' : ''} norm. Works after any primary: <code>(A^B).norm</code>.</td></tr>
                     <tr><td><code>A.e12</code></td><td>Blade coefficient. Permuted names supported: <code>A.e21 = −A.e12</code>.</td></tr>
+                    <tr><td><code>A**n</code></td><td>Integer power — repeated geometric product. <code>A**2 = A*A</code>, <code>A**-1 = A.inverse</code>, <code>A**0 = 1</code>.</td></tr>
                     <tr><td><code>sqrt(A)</code></td><td>Scalar → <code>Math.sqrt</code>; motor → geometric square root.</td></tr>
                     <tr><td><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> …</td><td>Trig (radians). Also: <code>csc sec cot acsc asec acot abs</code>.</td></tr>
                     <tr><td><code>color(R, G, B)</code></td><td>Define a custom color. Channels in 0–1 or 0–255 (auto-detected). Appears in the color-picker's <i>Custom</i> section.</td></tr>
@@ -1050,7 +1139,9 @@ export default function ExpressionPanel({ onHide }) {
                 <table className="help-table">
                   <tbody>
                     <tr><td><b>norm</b> button</td><td>Divide by finite norm ‖A‖ = √(scalar_part(AÃ)). For finite objects.</td></tr>
-                    <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
+                    {isDegenerate && (
+                      <tr><td><b>inorm</b> button</td><td>Divide by ideal norm ‖A‖∞ = ‖A*‖. For ideal objects (ideal point, ideal line…).</td></tr>
+                    )}
                   </tbody>
                 </table>
               </section>
