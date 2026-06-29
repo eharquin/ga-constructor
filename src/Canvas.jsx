@@ -124,6 +124,23 @@ function freshName(prefix, nodes) {
   return `${prefix}${i}`;
 }
 
+// Grade of a multivector's dominant blade (0=scalar, 1=vector, …), from blade
+// names (`e12` → 2 generators → grade 2). Used to pick the operator that *spans*
+// points: grade-1 points (conformal) span via wedge `^`; higher-grade points
+// (PGA bivector points) span via join `&`.
+function dominantGrade(val, algebra) {
+  const names = algebra.bladeNames;
+  if (!names || !val) return null;
+  let grade = null, best = 0;
+  for (let i = 0; i < val.length; i++) {
+    const c = val[i];
+    if (c == null || Math.abs(c) <= best || Math.abs(c) < 1e-9) continue;
+    best = Math.abs(c);
+    grade = names[i] === '1' ? 0 : names[i].length - 1;
+  }
+  return grade;
+}
+
 function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds) {
   const { classifyMV, toEuclidean } = algebra;
   // Iterate in reverse list-order so the topmost-drawn (last in expr list)
@@ -1076,17 +1093,24 @@ export default function Canvas({ onSquareCanvas }) {
       if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || isEditable(e.target)) return;
       const k = e.key.toLowerCase();
       if (k !== 'w' && k !== 'g' && k !== 'l') return;
-      const { selectedIds, nodes, orderedNodeIds, addItem } = snap.current;
+      const { selectedIds, nodes, orderedNodeIds, values, addItem } = snap.current;
       // Selection in panel order → deterministic operand order (wedge sign).
-      const names = orderedNodeIds
-        .filter((id) => selectedIds.has(id) && nodes[id]?.label)
-        .map((id) => nodes[id].label);
+      const selIds = orderedNodeIds.filter((id) => selectedIds.has(id) && nodes[id]?.label);
+      const names  = selIds.map((id) => nodes[id].label);
       const supports = (t) => algebra.supportedNodeTypes?.has(t) ?? true;
       let text = null;
-      if (k === 'w' && names.length >= 2 && supports('meetChain')) {
-        text = `${freshName('W', nodes)} = ${names.join(' ^ ')}`;
+      if (k === 'w' && names.length >= 2) {
+        // "Span" the selected points with the operator that's non-degenerate for
+        // this algebra: grade-1 points (conformal) → wedge ^ (builds the
+        // round/conic); grade-2 PGA points → join & (the line/triangle through them).
+        const g = dominantGrade(values[selIds[0]], algebra);
+        if (g === 1 && supports('meetChain')) {
+          text = `${freshName('W', nodes)} = ${names.join(' ^ ')}`;
+        } else if (g !== 1 && (names.length === 2 || names.length === 3) && supports('joinLine')) {
+          text = `${freshName('W', nodes)} = ${names.join(' & ')}`;   // 2→line, 3→triangle
+        }
       } else if (k === 'g' && (names.length === 2 || names.length === 3) && supports('joinLine')) {
-        text = `${freshName('J', nodes)} = ${names.join(' & ')}`;   // 2→line, 3→triangle
+        text = `${freshName('J', nodes)} = ${names.join(' & ')}`;
       } else if (k === 'l' && names.length >= 1 && supports('list')) {
         text = `${freshName('L', nodes)} = [${names.join(', ')}]`;
       }
