@@ -1071,8 +1071,9 @@ export default function Canvas({ onSquareCanvas }) {
         return;
       }
       if (e.key === 'Escape') { setSelectedIds(new Set()); return; }
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod || isEditable(e.target)) return;
+      // Shift (not Ctrl/Cmd) — Ctrl+W closes the browser tab, Ctrl+L focuses the
+      // URL bar, Ctrl+G is find-next; none can be reliably suppressed.
+      if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || isEditable(e.target)) return;
       const k = e.key.toLowerCase();
       if (k !== 'w' && k !== 'g' && k !== 'l') return;
       const { selectedIds, nodes, orderedNodeIds, addItem } = snap.current;
