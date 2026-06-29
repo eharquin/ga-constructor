@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useGraphContext } from './GraphContext.jsx';
 import { useAlgebra } from './AlgebraContext.jsx';
 import { useSettings } from './SettingsContext.jsx';
+import { downloadSvg, downloadPng, printSvg } from './export/exportImage.js';
 
 const INITIAL_VP  = { scale: 300, offsetX: 400, offsetY: 300 };
 const HIT_RADIUS  = 12;
@@ -903,6 +904,7 @@ function SvgMultipole({ points, label, color, vp, opts, weight = 1, imaginary = 
 export default function Canvas({ onSquareCanvas }) {
   const svgRef     = useRef(null);
   const wrapperRef = useRef(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const { algebra } = useAlgebra();
   const { settings } = useSettings();
   const {
@@ -1445,8 +1447,46 @@ export default function Canvas({ onSquareCanvas }) {
     }
   }
 
+  function runExport(action) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    setExportOpen(false);
+    try {
+      if (action === 'svg') downloadSvg(svg);
+      else if (action === 'png1') downloadPng(svg, 1);
+      else if (action === 'png2') downloadPng(svg, 2);
+      else if (action === 'png3') downloadPng(svg, 3);
+      else if (action === 'pdf') printSvg(svg);
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
+  }
+
   return (
     <div ref={wrapperRef} style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden', userSelect: 'none', position: 'relative' }}>
+      <div className="canvas-export" onMouseLeave={() => setExportOpen(false)}>
+        <button
+          className="canvas-export-btn"
+          onClick={() => setExportOpen((o) => !o)}
+          title="Export image"
+          aria-label="Export image"
+          aria-expanded={exportOpen}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 1.5v8.5M8 10.5 5 7.5M8 10.5 11 7.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2.5 11.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </button>
+        {exportOpen && (
+          <div className="canvas-export-menu" role="menu">
+            <button role="menuitem" onClick={() => runExport('svg')}>SVG</button>
+            <button role="menuitem" onClick={() => runExport('png1')}>PNG · 1×</button>
+            <button role="menuitem" onClick={() => runExport('png2')}>PNG · 2×</button>
+            <button role="menuitem" onClick={() => runExport('png3')}>PNG · 3×</button>
+            <button role="menuitem" onClick={() => runExport('pdf')}>PDF…</button>
+          </div>
+        )}
+      </div>
       <button
         className="canvas-recenter-btn"
         onClick={recenter}
@@ -1486,9 +1526,9 @@ export default function Canvas({ onSquareCanvas }) {
         onDoubleClick={handleDoubleClick}
         onDragStart={(e) => e.preventDefault()}
       >
-        <rect width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
+        <rect data-export-bg width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
         {settings.showGrid && <SvgGrid vp={vp} W={size.w} H={size.h} />}
-        {layers}
+        <g data-export-content>{layers}</g>
       </svg>
     </div>
   );
