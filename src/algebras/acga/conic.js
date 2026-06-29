@@ -1,4 +1,4 @@
-// AACCGA conic pipeline — recover implicit coefficients (A,B,D,E,F; C≡0) from a
+// ACGA conic pipeline — recover implicit coefficients (A,B,D,E,F; C≡0) from a
 // grade-1 IPNS vector or a grade-5 OPNS conic, reduce them to a drawable geometry
 // (centre, axes, subtype), and the algebraic helpers (degenerate split, cubic
 // solver, line∩conic). The geometry reduction is dimension-independent and is a

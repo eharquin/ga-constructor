@@ -1,6 +1,6 @@
 {
-  "name": "AACGA_conic_inter",
-  "algebra": "aaccga",
+  "name": "acga_conic_inter",
+  "algebra": "acga",
   "items": [
     {
       "id": "expr_1210",

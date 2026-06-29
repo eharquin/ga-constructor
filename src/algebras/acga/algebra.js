@@ -1,4 +1,4 @@
-// AACCGA core — the ganja Algebra instance, basis metadata, sparse-product wiring,
+// ACGA core — the ganja Algebra instance, basis metadata, sparse-product wiring,
 // the null working basis / gauge blades, and small grade primitives shared by the
 // rest of the adapter. The axis-aligned sibling of CCGA: ℝ(4,2), 64 blades, two null
 // pairs (no cross-term einf3), so it models axis-aligned conics Ax²+By²+Dx+Ey+F=0.
@@ -18,8 +18,8 @@
 import Algebra from 'ganja.js';
 import { createEngine } from '../ccga/product.js';
 
-export const AACCGA = Algebra({ p: 4, q: 2, graded: false, baseType: Float64Array });
-export const A = AACCGA;
+export const ACGA = Algebra({ p: 4, q: 2, graded: false, baseType: Float64Array });
+export const A = ACGA;
 
 export const ARRAY_SIZE = 64;
 export const EPS = 1e-10;
@@ -51,7 +51,7 @@ A.Dual    = _engine.dual;
 A.Reverse = _engine.reverse;
 A.Length  = _engine.length;
 
-// Parse any permutation of AACCGA basis indices (e21 = −e12, …). Digits 1..6.
+// Parse any permutation of ACGA basis indices (e21 = −e12, …). Digits 1..6.
 export function parseBladeName(name) {
   if (!name || !name.startsWith('e')) return null;
   const digits = name.slice(1).split('').map(Number);

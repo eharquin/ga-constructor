@@ -1,4 +1,4 @@
-// AACCGA — Axis-Aligned Conic Conformal Geometric Algebra in ℝ(4,2).
+// ACGA — Axis-Aligned Conic Conformal Geometric Algebra in ℝ(4,2).
 // 6 generators, 64 blades. The axis-aligned sibling of CCGA: a Veronese (quadratic)
 // point embedding carrying x² and y² (but no cross term xy), so every axis-aligned
 // conic — circle, axis-aligned ellipse/hyperbola/parabola, line — is a single object.
@@ -13,7 +13,7 @@
 //   index.js    — exp, colors, showcase, spec assembly (this file)
 
 import {
-  AACCGA, A, ARRAY_SIZE, BLADE_INDEX, BLADE_NAMES, BLADE_PATTERN, parseBladeName,
+  ACGA, A, ARRAY_SIZE, BLADE_INDEX, BLADE_NAMES, BLADE_PATTERN, parseBladeName,
   isMV, scaleMV, zeroMV, addMV,
   eo1, eo2, einf1, einf2, eo, einf, eob, einfb,
   Io, Iinf, Ie, I, Iinv,
@@ -28,14 +28,14 @@ import {
 } from './classify.js';
 import { DISPLAY_BLADE_NAMES, toDisplayCoeffs } from './display.js';
 
-export const ID    = 'aaccga';
-export const LABEL = 'AACCGA';
+export const ID    = 'acga';
+export const LABEL = 'ACGA';
 
 // ─── Exponential for versor generators ───────────────────────────────────────
 // ganja's analytic .Exp() assumes a simple bivector, which is wrong here, so we use
 // scaling-and-squaring of a truncated Taylor series (all products via the sparse
 // engine) — exact for translators, rotors, and general motors alike.
-export function aaccgaExp(mv) {
+export function acgaExp(mv) {
   let norm = 0;
   for (let i = 0; i < ARRAY_SIZE; i++) norm += Math.abs(mv[i] || 0);
   let k = 0;
@@ -59,14 +59,14 @@ export const dualOp    = (mv) => (isMV(mv) ? A.Dual(mv) : mv);
 export const reverseOp = (mv) => (isMV(mv) ? A.Reverse(mv) : mv);
 
 // ─── Drag hooks ──────────────────────────────────────────────────────────────
-// AACCGA points carry their spatial coordinates on e1 (idx 1) and e2 (idx 2).
+// ACGA points carry their spatial coordinates on e1 (idx 1) and e2 (idx 2).
 export function hasDepPointCoeffs(coeffExprs) {
   return coeffExprs?.[1] !== undefined || coeffExprs?.[2] !== undefined;
 }
 export const tryVectorFromMV = () => null;
 export const geomToMV = null;
 
-// ─── Node types accepted under AACCGA (conservative, like CCGA) ───────────────
+// ─── Node types accepted under ACGA (conservative, like CCGA) ───────────────
 export const SUPPORTED_NODE_TYPES = new Set([
   'scalar', 'freePoint', 'freeVector',
   'dual', 'reverse', 'multivector', 'mvExpr', 'list',
@@ -120,7 +120,7 @@ import { createEvaluate }        from '../../graph/evaluate.js';
 
 export const spec = {
   id: ID, label: LABEL,
-  Algebra: AACCGA,
+  Algebra: ACGA,
   arraySize: ARRAY_SIZE,
   bladeIndex: BLADE_INDEX,
   bladeNames: BLADE_NAMES,
@@ -134,7 +134,7 @@ export const spec = {
   point2D,
   vector2D,
   infinityPoint2D,
-  expFn: aaccgaExp,
+  expFn: acgaExp,
   // Named axis-aligned conic constructors, dispatched as inline expression calls.
   namedConstructors: {
     circle: circleConic,
@@ -175,7 +175,7 @@ export const spec = {
       { name: 'Scalars', blades: '1' },
     ],
     notes: [
-      'AACCGA lives in ℝ(4,2): generators e1,e2 square to +1 (Euclidean), e3,e4 to +1, e5,e6 to −1. The null basis eo_i = e₊ᵢ+e₋ᵢ, einf_i = (e₋ᵢ−e₊ᵢ)/2 are combinations, not basis blades.',
+      'ACGA lives in ℝ(4,2): generators e1,e2 square to +1 (Euclidean), e3,e4 to +1, e5,e6 to −1. The null basis eo_i = e₊ᵢ+e₋ᵢ, einf_i = (e₋ᵢ−e₊ᵢ)/2 are combinations, not basis blades.',
       'The point embedding is a quadratic (Veronese) map carrying x² and y² but no cross term xy — so a single grade-1 vector encodes an axis-aligned conic Ax²+By²+Dx+Ey+F=0.',
       'A conic through 4 points is C = p1∧p2∧p3∧p4∧eōbar (grade 5, the n−1 OPNS form); its dual is the grade-1 IPNS conic vector.',
     ],
@@ -197,7 +197,7 @@ export default spec;
 
 // ─── Re-exports for parity with the CCGA module surface ───────────────────────
 export {
-  AACCGA, ARRAY_SIZE, BLADE_NAMES, BLADE_INDEX, BLADE_PATTERN, parseBladeName,
+  ACGA, ARRAY_SIZE, BLADE_NAMES, BLADE_INDEX, BLADE_PATTERN, parseBladeName,
 } from './algebra.js';
 export {
   point2D, vector2D, infinityPoint2D, toEuclidean, toIdealVector,

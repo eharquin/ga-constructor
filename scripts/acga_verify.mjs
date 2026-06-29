@@ -1,6 +1,6 @@
-// AACCGA sparse-engine verification + classify smoke test.
+// ACGA sparse-engine verification + classify smoke test.
 //
-//   node scripts/aaccga_verify.mjs
+//   node scripts/acga_verify.mjs
 //
 // Part A — engine parity: every sparse kernel is compared to a *pristine* ganja
 //   Algebra(4,2) instance across all 64×64 basis-blade pairs (mul/wedge/dot/ldot/
@@ -12,9 +12,9 @@
 
 import Algebra from 'ganja.js';
 import { createEngine } from '../src/algebras/ccga/product.js';
-import spec from '../src/algebras/aaccga/index.js';
-import { point2D, circleConic, ellipseConic, hyperbolaConic, parabolaConic, lineConic } from '../src/algebras/aaccga/embed.js';
-import { eob, einfb, Iinf } from '../src/algebras/aaccga/algebra.js';
+import spec from '../src/algebras/acga/index.js';
+import { point2D, circleConic, ellipseConic, hyperbolaConic, parabolaConic, lineConic } from '../src/algebras/acga/embed.js';
+import { eob, einfb, Iinf } from '../src/algebras/acga/algebra.js';
 
 const N = 64;
 const TOL = 1e-9;
@@ -119,7 +119,7 @@ check('P1^P2^P3^P4 (incomplete conic, dashed)', wedge(P1, P2, P3, P4),
 // the eob-completed form is the same circle but solid (not incomplete)
 check('P1^P2^P3^P4^eob (complete conic, solid)', wedge(P1, P2, P3, P4, eob),
   (c, p) => c.kind === 'conic' && c.subtype === 'circle' && !c.incomplete && !p.incomplete);
-// conic intersection from two real conics (the AACGA_conic_inter workflow)
+// conic intersection from two real conics (the acga_conic_inter workflow)
 const E = point2D(-1.09, 0.74), F = point2D(0.19, 0.46), Gp = point2D(-0.62, 0), H = point2D(-0.25, 0.34), J = point2D(0.12, 0.75);
 const C1 = wedge(E, F, Gp, H, eob), C2 = wedge(E, F, Gp, J, eob);
 check('C1 & C2 (conic intersection)', AAC.Vee(C1, C2),

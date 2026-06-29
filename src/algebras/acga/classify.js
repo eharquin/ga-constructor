@@ -1,4 +1,4 @@
-// AACCGA classifier + render-plan dispatch + norms. Maps any computed multivector to
+// ACGA classifier + render-plan dispatch + norms. Maps any computed multivector to
 // a geometric kind (point / round point / ideal / conic / …) and then to a drawable
 // plan, reusing the embed / conic readers. WeakMap caches collapse the repeated
 // classify calls per value per render to one real computation. This first cut covers

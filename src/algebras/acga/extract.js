@@ -1,4 +1,4 @@
-// AACCGA multipole / dipole extraction — recover the defining Euclidean points from the
+// ACGA multipole / dipole extraction — recover the defining Euclidean points from the
 // grade-2 twopole and grade-3 tripole wedge blades, for rendering. The (axis-aligned)
 // sibling of CCGA's extract.js: same closed-form dipole split and circum-conic membership
 // scan, but on ℝ(4,2)'s 6 grade-1 slots (no xy cross term).

@@ -1,5 +1,5 @@
 // Sparse geometric-product engine for conic-conformal algebras (CCGA ℝ(5,3), 256
-// blades; AACCGA ℝ(4,2), 64 blades — same kernels, only the metric/size differ).
+// blades; ACGA ℝ(4,2), 64 blades — same kernels, only the metric/size differ).
 //
 // ganja's generated products are *dense*: every Mul/Wedge/Dot/sw walks the full
 // 256×256 Cayley table (~65 k multiply-adds, ~2–3.5 ms) no matter how sparse the
@@ -24,10 +24,10 @@
 const popcount = (m) => { let c = 0; while (m) { c += m & 1; m >>>= 1; } return c; };
 
 // `posCount` = number of +1 generators (ℝ(p,q): generators 1..posCount square +1,
-// the rest −1). CCGA passes 5 (ℝ(5,3)); AACCGA passes 4 (ℝ(4,2)).
+// the rest −1). CCGA passes 5 (ℝ(5,3)); ACGA passes 4 (ℝ(4,2)).
 export function createEngine({ A, bladeNames, grades, arraySize, posCount = 5 }) {
   const N = arraySize;
-  const GEN = Math.round(Math.log2(N));          // generator count (8 for CCGA, 6 for AACCGA)
+  const GEN = Math.round(Math.log2(N));          // generator count (8 for CCGA, 6 for ACGA)
 
   // ── Per-index metadata: bitmask (bit d−1 per generator digit d) + grade ──────
   const MASK = new Array(N);

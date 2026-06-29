@@ -1,9 +1,9 @@
-// AACCGA embeddings & extraction — the (axis-aligned) Veronese point map, the named
+// ACGA embeddings & extraction — the (axis-aligned) Veronese point map, the named
 // conic constructors (all returning the grade-5 OPNS form), and the closed-form
 // readers that recover Euclidean coordinates / radii from grade-1 points.
 
 import {
-  AACCGA, ARRAY_SIZE, EPS, isMV, zeroMV, einf, scalarSquare,
+  ACGA, ARRAY_SIZE, EPS, isMV, zeroMV, einf, scalarSquare,
   FP_B0, FP_BX, FP_BY, FP_I0, FP_IX, FP_IY,
 } from './algebra.js';
 
@@ -27,7 +27,7 @@ export function point2D(x, y, r = 0) {
   return p;
 }
 
-// AACCGA's free `vector(x, y)` — the natural ideal point: the Veronese point at
+// ACGA's free `vector(x, y)` — the natural ideal point: the Veronese point at
 // infinity. Same embedding as `infinityPoint2D` (the single source of truth).
 export function vector2D(x, y) {
   return infinityPoint2D(x, y);
@@ -67,9 +67,9 @@ export function conicIPNS(A, B, D, E, F) {
 }
 
 // Every named conic returns the grade-5 OPNS form — the dual of the grade-1 IPNS
-// vector — so it renders via SvgConic. (`AACCGA.Dual`, not the shadowed local `A`,
+// vector — so it renders via SvgConic. (`ACGA.Dual`, not the shadowed local `A`,
 // since ellipse/hyperbola bind `A` to a coeff.)
-const opnsConic = (cA, cB, cD, cE, cF) => AACCGA.Dual(conicIPNS(cA, cB, cD, cE, cF));
+const opnsConic = (cA, cB, cD, cE, cF) => ACGA.Dual(conicIPNS(cA, cB, cD, cE, cF));
 
 export const circleConic = (cx, cy, r) =>
   opnsConic(1, 1, -2 * cx, -2 * cy, cx * cx + cy * cy - r * r);
@@ -115,7 +115,7 @@ export function infinityDir(v) {
 export function einfWeight(p) { return ((p[3] || 0) + (p[4] || 0) + (p[5] || 0) + (p[6] || 0)) / 4; }
 
 // Euclidean (x, y) of the grade-1 multivector G + s·v, reading only the 4 origin slots
-// [3],[4],[5],[6] (AACCGA einfWeight = (p3+p4+p5+p6)/4). Used by extractDipole.
+// [3],[4],[5],[6] (ACGA einfWeight = (p3+p4+p5+p6)/4). Used by extractDipole.
 export function euclOfSum(G, v, s) {
   const w = ((G[3] || 0) + s * (v[3] || 0) + (G[4] || 0) + s * (v[4] || 0)
            + (G[5] || 0) + s * (v[5] || 0) + (G[6] || 0) + s * (v[6] || 0)) / 4;

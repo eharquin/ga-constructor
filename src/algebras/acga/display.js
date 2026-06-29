@@ -1,5 +1,5 @@
 // Conformal null-basis display — re-express MV coefficients in {e1, e2, eo1, eo2,
-// einf1, einf2} for readability (the AACCGA analog of CCGA's display). A linear
+// einf1, einf2} for readability (the ACGA analog of CCGA's display). A linear
 // change of basis on the 6 generators, extended to all 64 blades once at load by
 // symbolic exterior multiplication, so per-render it is a sparse dot.
 
