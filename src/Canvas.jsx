@@ -1013,7 +1013,6 @@ export default function Canvas({ onSquareCanvas }) {
   const dragRef      = useRef(null);
   const ptDragRef    = useRef(null);
   const marqueeRef   = useRef(null);   // in-progress: {startMx,startMy,additive,x1,y1}
-  const spaceHeldRef = useRef(false);
   const hovIdRef    = useRef({ id: null, dragType: null });
   const prevSizeRef = useRef({ w: 800, h: 600 });
 
@@ -1070,23 +1069,13 @@ export default function Canvas({ onSquareCanvas }) {
     return () => ro.disconnect();
   }, []);
 
-  // Space tracking (hold to pan) + selection shortcuts (Ctrl+W/G/L, Esc).
+  // Selection shortcuts (Shift+W/G/L span/join/list the selection, Esc clears).
   useEffect(() => {
     const isEditable = (t) => {
       const tag = t?.tagName;
       return tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable;
     };
     const onKeyDown = (e) => {
-      if (e.code === 'Space' && !isEditable(e.target)) {
-        // Don't hijack Space when a focusable control has it (Space activates buttons).
-        const tag = e.target?.tagName;
-        if (tag !== 'BUTTON' && tag !== 'SELECT' && tag !== 'A') {
-          spaceHeldRef.current = true;
-          e.preventDefault();         // stop the page from scrolling
-          if (!ptDragRef.current && !marqueeRef.current) setCursor('grab');
-        }
-        return;
-      }
       if (e.key === 'Escape') { setSelectedIds(new Set()); return; }
       // Shift (not Ctrl/Cmd) — Ctrl+W closes the browser tab, Ctrl+L focuses the
       // URL bar, Ctrl+G is find-next; none can be reliably suppressed.
@@ -1116,18 +1105,8 @@ export default function Canvas({ onSquareCanvas }) {
       }
       if (text) { e.preventDefault(); addItem(text); }
     };
-    const onKeyUp = (e) => {
-      if (e.code === 'Space') {
-        spaceHeldRef.current = false;
-        if (!ptDragRef.current && !dragRef.current && !marqueeRef.current) setCursor('grab');
-      }
-    };
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [algebra]);
 
   function handlePointerDown(e) {
@@ -1152,15 +1131,15 @@ export default function Canvas({ onSquareCanvas }) {
       const dragItem = snap.current.items.find((it) => snap.current.parseExpression(it.text)?.id === hit.id);
       ptDragRef.current = { ...hit, itemId: dragItem?.id ?? null };
       setCursor('crosshair');
-    } else if (spaceHeldRef.current) {
-      // Space + left-drag pans (left-drag on empty otherwise selects).
-      dragRef.current = { startMx: mx, startMy: my, ox: vp.offsetX, oy: vp.offsetY };
-      setCursor('grabbing');
-    } else {
-      // Empty-space left-drag → rubber-band selection. Ctrl/Cmd adds to the current set.
-      marqueeRef.current = { startMx: mx, startMy: my, x1: mx, y1: my, additive: e.ctrlKey || e.metaKey };
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd + left-drag → rubber-band selection (Shift also held = add to it).
+      marqueeRef.current = { startMx: mx, startMy: my, x1: mx, y1: my, additive: e.shiftKey };
       setMarquee({ x0: mx, y0: my, x1: mx, y1: my });
       setCursor('crosshair');
+    } else {
+      // Plain left-drag on empty space pans the view.
+      dragRef.current = { startMx: mx, startMy: my, ox: vp.offsetX, oy: vp.offsetY };
+      setCursor('grabbing');
     }
   }
 
