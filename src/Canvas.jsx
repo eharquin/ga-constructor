@@ -80,6 +80,68 @@ function findNearbySnapTarget(mx, my, nodes, values, vectorPositions, vp, sqRadi
   return best;
 }
 
+// Render kinds that have a finite Euclidean position — what a marquee can select.
+const POINT_KINDS = new Set([
+  'finitePoint', 'roundPoint', 'flatPoint',
+]);
+
+// Screen position of a point-like node, or null if it has no finite position.
+function pointScreenPos(id, nodes, values, vp, algebra) {
+  const val = values[id];
+  if (val == null) return null;
+  const kind = algebra.classifyMV?.(val)?.kind;
+  if (!POINT_KINDS.has(kind)) return null;
+  let eu = algebra.toEuclidean?.(val);
+  if (!eu) {
+    const plan = algebra.getRenderPlan?.(val);
+    if (plan && plan.x != null && plan.y != null) eu = { x: plan.x, y: plan.y };
+  }
+  if (!eu || !Number.isFinite(eu.x) || !Number.isFinite(eu.y)) return null;
+  return w2c(eu.x, eu.y, vp);
+}
+
+// Named, visible, point-like nodes whose screen position falls inside the rect.
+function pointsInRect(rect, snap, algebra) {
+  const { nodes, values, vp, hiddenIds, orderedNodeIds } = snap;
+  const xmin = Math.min(rect.x0, rect.x1), xmax = Math.max(rect.x0, rect.x1);
+  const ymin = Math.min(rect.y0, rect.y1), ymax = Math.max(rect.y0, rect.y1);
+  const ids = [];
+  for (const id of orderedNodeIds) {
+    const node = nodes[id];
+    if (!node || node.label == null) continue;   // named only → referenceable by name
+    if (hiddenIds?.has(id)) continue;
+    const p = pointScreenPos(id, nodes, values, vp, algebra);
+    if (!p) continue;
+    if (p.cx >= xmin && p.cx <= xmax && p.cy >= ymin && p.cy <= ymax) ids.push(id);
+  }
+  return ids;
+}
+
+// Pick a fresh expression name like W1, J2, … not colliding with existing labels.
+function freshName(prefix, nodes) {
+  const used = new Set(Object.values(nodes).map((n) => n?.label).filter(Boolean));
+  let i = 1;
+  while (used.has(`${prefix}${i}`)) i++;
+  return `${prefix}${i}`;
+}
+
+// Grade of a multivector's dominant blade (0=scalar, 1=vector, …), from blade
+// names (`e12` → 2 generators → grade 2). Used to pick the operator that *spans*
+// points: grade-1 points (conformal) span via wedge `^`; higher-grade points
+// (PGA bivector points) span via join `&`.
+function dominantGrade(val, algebra) {
+  const names = algebra.bladeNames;
+  if (!names || !val) return null;
+  let grade = null, best = 0;
+  for (let i = 0; i < val.length; i++) {
+    const c = val[i];
+    if (c == null || Math.abs(c) <= best || Math.abs(c) < 1e-9) continue;
+    best = Math.abs(c);
+    grade = names[i] === '1' ? 0 : names[i].length - 1;
+  }
+  return grade;
+}
+
 function hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds) {
   const { classifyMV, toEuclidean } = algebra;
   // Iterate in reverse list-order so the topmost-drawn (last in expr list)
@@ -912,7 +974,7 @@ export default function Canvas({ onSquareCanvas }) {
     movableMap,
     updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint, updateSpecialIdealPoint,
-    addFreePoint,
+    addFreePoint, addItem,
   } = useGraphContext();
   const { parseExpression, classifyMV, objectWeight, getRenderPlan } = algebra;
 
@@ -947,9 +1009,12 @@ export default function Canvas({ onSquareCanvas }) {
   const [cursor,    setCursor]    = useState('grab');
   const [hoveredId,       setHoveredId]       = useState(null);
   const [hoveredDragType, setHoveredDragType] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [marquee,     setMarquee]     = useState(null);   // screen-space {x0,y0,x1,y1}
 
-  const dragRef     = useRef(null);
-  const ptDragRef   = useRef(null);
+  const dragRef      = useRef(null);
+  const ptDragRef    = useRef(null);
+  const marqueeRef   = useRef(null);   // in-progress: {startMx,startMy,additive,x1,y1}
   const hovIdRef    = useRef({ id: null, dragType: null });
   const prevSizeRef = useRef({ w: 800, h: 600 });
 
@@ -958,7 +1023,7 @@ export default function Canvas({ onSquareCanvas }) {
     nodes, values, vp, colorMap, vectorPositions, hiddenIds, movableMap, orderedNodeIds,
     updateFreePoint, updateFreeFlatPoint, updateFreeVector, setDrawPos, setDrawPosRef, updateVector,
     updateDepPoint, updateDualDepPoint, updateLiteralMVPoint, updateSpecialIdealPoint,
-    addFreePoint,
+    addFreePoint, addItem, selectedIds,
     items, parseExpression,
   };
 
@@ -1006,11 +1071,60 @@ export default function Canvas({ onSquareCanvas }) {
     return () => ro.disconnect();
   }, []);
 
+  // Selection shortcuts (Shift+W/G/L span/join/list the selection, Esc clears).
+  useEffect(() => {
+    const isEditable = (t) => {
+      const tag = t?.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable;
+    };
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') { setSelectedIds(new Set()); return; }
+      // Shift (not Ctrl/Cmd) — Ctrl+W closes the browser tab, Ctrl+L focuses the
+      // URL bar, Ctrl+G is find-next; none can be reliably suppressed.
+      if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || isEditable(e.target)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'w' && k !== 'g' && k !== 'l') return;
+      const { selectedIds, nodes, orderedNodeIds, values, addItem } = snap.current;
+      // Selection in panel order → deterministic operand order (wedge sign).
+      const selIds = orderedNodeIds.filter((id) => selectedIds.has(id) && nodes[id]?.label);
+      const names  = selIds.map((id) => nodes[id].label);
+      const supports = (t) => algebra.supportedNodeTypes?.has(t) ?? true;
+      let text = null;
+      if (k === 'w' && names.length >= 2) {
+        // "Span" the selected points with the operator that's non-degenerate for
+        // this algebra: grade-1 points (conformal) → wedge ^ (builds the
+        // round/conic); grade-2 PGA points → join & (the line/triangle through them).
+        const g = dominantGrade(values[selIds[0]], algebra);
+        if (g === 1 && supports('meetChain')) {
+          text = `${freshName('W', nodes)} = ${names.join(' ^ ')}`;
+        } else if (g !== 1 && (names.length === 2 || names.length === 3) && supports('joinLine')) {
+          text = `${freshName('W', nodes)} = ${names.join(' & ')}`;   // 2→line, 3→triangle
+        }
+      } else if (k === 'g' && (names.length === 2 || names.length === 3) && supports('joinLine')) {
+        text = `${freshName('J', nodes)} = ${names.join(' & ')}`;
+      } else if (k === 'l' && names.length >= 1 && supports('list')) {
+        text = `${freshName('L', nodes)} = [${names.join(', ')}]`;
+      }
+      if (text) { e.preventDefault(); addItem(text); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [algebra]);
+
   function handlePointerDown(e) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
     svgRef.current.setPointerCapture(e.pointerId);
     const { mx, my } = svgPt(e, svgRef.current);
     const { nodes, values, vectorPositions, vp, hiddenIds, movableMap, orderedNodeIds } = snap.current;
+
+    // Middle-mouse always pans.
+    if (e.button === 1) {
+      e.preventDefault();
+      dragRef.current = { startMx: mx, startMy: my, ox: vp.offsetX, oy: vp.offsetY };
+      setCursor('grabbing');
+      return;
+    }
+
     const hit = hitTest(mx, my, nodes, values, vectorPositions, vp, hiddenIds, movableMap, algebra, orderedNodeIds);
     if (hit) {
       // A label-less node's id is derived from its text (e.g. `_vector(1,1)`), so it
@@ -1019,7 +1133,13 @@ export default function Canvas({ onSquareCanvas }) {
       const dragItem = snap.current.items.find((it) => snap.current.parseExpression(it.text)?.id === hit.id);
       ptDragRef.current = { ...hit, itemId: dragItem?.id ?? null };
       setCursor('crosshair');
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd + left-drag → rubber-band selection (Shift also held = add to it).
+      marqueeRef.current = { startMx: mx, startMy: my, x1: mx, y1: my, additive: e.shiftKey };
+      setMarquee({ x0: mx, y0: my, x1: mx, y1: my });
+      setCursor('crosshair');
     } else {
+      // Plain left-drag on empty space pans the view.
       dragRef.current = { startMx: mx, startMy: my, ox: vp.offsetX, oy: vp.offsetY };
       setCursor('grabbing');
     }
@@ -1074,6 +1194,11 @@ export default function Canvas({ onSquareCanvas }) {
       const { ox, oy } = dragRef.current;
       setVp(v => ({ ...v, offsetX: ox + dx, offsetY: oy + dy }));
 
+    } else if (marqueeRef.current) {
+      marqueeRef.current.x1 = mx;
+      marqueeRef.current.y1 = my;
+      setMarquee({ x0: marqueeRef.current.startMx, y0: marqueeRef.current.startMy, x1: mx, y1: my });
+
     } else {
       const hit         = hitTest(mx, my, nodes, values, vectorPositions, vp, snap.current.hiddenIds, snap.current.movableMap, algebra, snap.current.orderedNodeIds);
       const hitId       = hit?.id       ?? null;
@@ -1089,6 +1214,26 @@ export default function Canvas({ onSquareCanvas }) {
   }
 
   function handlePointerUp() {
+    if (marqueeRef.current) {
+      const m = marqueeRef.current;
+      marqueeRef.current = null;
+      setMarquee(null);
+      const rect = { x0: m.startMx, y0: m.startMy, x1: m.x1, y1: m.y1 };
+      const area = Math.abs(rect.x1 - rect.x0) * Math.abs(rect.y1 - rect.y0);
+      if (area < 9) {
+        // A click (no drag) on empty space clears the selection (unless adding).
+        if (!m.additive) setSelectedIds(new Set());
+      } else {
+        const hits = pointsInRect(rect, snap.current, algebra);
+        setSelectedIds((prev) => {
+          const next = m.additive ? new Set(prev) : new Set();
+          for (const id of hits) next.add(id);
+          return next;
+        });
+      }
+      setCursor('grab');
+      return;
+    }
     ptDragRef.current = null;
     dragRef.current   = null;
     setCursor('grab');
@@ -1529,6 +1674,25 @@ export default function Canvas({ onSquareCanvas }) {
         <rect width={size.w} height={size.h} style={{ fill: 'var(--bg-canvas)' }} />
         {settings.showGrid && <SvgGrid vp={vp} W={size.w} H={size.h} />}
         {layers}
+        {/* Selection highlight rings (above objects, non-interactive). */}
+        {[...selectedIds].map((id) => {
+          const p = pointScreenPos(id, nodes, values, vp, algebra);
+          if (!p) return null;
+          return (
+            <circle key={`sel-${id}`} cx={p.cx} cy={p.cy} r={11}
+              className="selection-ring" pointerEvents="none" />
+          );
+        })}
+        {/* Rubber-band marquee rectangle. */}
+        {marquee && (
+          <rect
+            x={Math.min(marquee.x0, marquee.x1)}
+            y={Math.min(marquee.y0, marquee.y1)}
+            width={Math.abs(marquee.x1 - marquee.x0)}
+            height={Math.abs(marquee.y1 - marquee.y0)}
+            className="marquee-rect" pointerEvents="none"
+          />
+        )}
       </svg>
     </div>
   );

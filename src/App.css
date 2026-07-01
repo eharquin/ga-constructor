@@ -405,6 +405,21 @@
   color: var(--accent);
 }
 
+/* Rubber-band marquee rectangle + selection highlight rings (SVG) */
+.marquee-rect {
+  fill: var(--accent);
+  fill-opacity: 0.08;
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.selection-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-opacity: 0.9;
+}
+
 /* Algebra Info modal — basis line + Cayley grid. Sits inside the existing
    .help-overlay / .help-modal scaffold, reusing .help-section for typography. */
 .algebra-info-grid {
